@@ -1,0 +1,120 @@
+{
+  "contract_type": "ux-flow-spec",
+  "flow_id": "admin-dashboard-navigation",
+  "flow_name": "Admin Dashboard Navigation and Management Flow",
+  "feature_ticket_ref": "plan/feature-ticket-ecommerce-mvp.json",
+  "preserved_behavior": "Order list display and file upload image preview state tracking are maintained.",
+  "changed_behavior": "A fully modernized, dark-themed responsive dashboard interface using Vanilla CSS variables and premium glassmorphic visual widgets. Seamless reactive state transitions, real-time KPI status indicators, and clean form inputs replace the current barebones structure.",
+  "user_goal": "Allow Shop Managers and Administrators to monitor e-commerce performance metrics, process orders (with refund control), and create/manage products with rich image previews.",
+  "actors": [
+    "Shop Manager",
+    "Administrator"
+  ],
+  "screens": [
+    {
+      "screen_id": "admin-kpi-dashboard",
+      "name": "KPI Dashboard Overview",
+      "purpose": "High-level summary of total sales, total orders, refunds, and low stock warnings to help managers assess shop status.",
+      "entry_points": [
+        "Authentication / Direct Access (Local Bypass)"
+      ]
+    },
+    {
+      "screen_id": "admin-orders-list",
+      "name": "Orders Management",
+      "purpose": "Detailed table of orders with filter by status, search, and action triggers for refunds or viewing details.",
+      "entry_points": [
+        "Sidebar Navigation -> Orders"
+      ]
+    },
+    {
+      "screen_id": "admin-products-list-create",
+      "name": "Products Management & Add Product Form",
+      "purpose": "Manage catalog, view existing products, and add new products with R2 drag-and-drop file upload and safe image previews.",
+      "entry_points": [
+        "Sidebar Navigation -> Products"
+      ]
+    }
+  ],
+  "transitions": [
+    {
+      "from_screen_id": "admin-kpi-dashboard",
+      "to_screen_id": "admin-orders-list",
+      "trigger": "Click Orders in sidebar or Click Sales/Orders KPI card details"
+    },
+    {
+      "from_screen_id": "admin-orders-list",
+      "to_screen_id": "admin-products-list-create",
+      "trigger": "Click Products in sidebar"
+    },
+    {
+      "from_screen_id": "admin-products-list-create",
+      "to_screen_id": "admin-orders-list",
+      "trigger": "Click Orders in sidebar"
+    }
+  ],
+  "component_spec_refs": [
+    "plan/specs/sidebar-component.json",
+    "plan/specs/stats-grid-component.json",
+    "plan/specs/orders-table-component.json",
+    "plan/specs/product-form-component.json"
+  ],
+  "accessibility_notes": [
+    "Provide visual focus outlines for keyboard navigation across all interactive widgets.",
+    "Order status badges must use high-contrast text color combinations (e.g. green on dark-green bg) to satisfy WCAG AA standards.",
+    "Image preview components must declare explicit screen reader alt text during loading and post-upload phases."
+  ],
+  "analytics_events": [
+    {
+      "event_name": "view_kpi_dashboard",
+      "trigger": "Dashboard page mount"
+    },
+    {
+      "event_name": "trigger_order_refund",
+      "trigger": "Click refund button on order row"
+    },
+    {
+      "event_name": "create_new_product",
+      "trigger": "Submit new product form successfully"
+    }
+  ],
+  "api_needs": [
+    {
+      "purpose": "Fetch KPI aggregate metrics (total sales, active orders, refund rates, inventory stats)",
+      "endpoint_or_resource": "/admin-api/metrics",
+      "fields": [
+        "totalSales",
+        "totalOrders",
+        "refundRate",
+        "lowStockCount"
+      ],
+      "notes": "Used to populate the dashboard overview cards."
+    },
+    {
+      "purpose": "Fetch and page orders with filter by status",
+      "endpoint_or_resource": "/admin-api/orders",
+      "fields": [
+        "id",
+        "status",
+        "total",
+        "createdAt"
+      ],
+      "notes": "Required for dynamic populating of the Orders table."
+    },
+    {
+      "purpose": "Submit new product details and trigger R2 upload",
+      "endpoint_or_resource": "/admin-api/products",
+      "fields": [
+        "name",
+        "price",
+        "stock",
+        "image"
+      ],
+      "notes": "Handles product creation and asset storage in Cloudflare R2."
+    }
+  ],
+  "open_questions": [
+    "Should we support CSV export of orders and products for store managers?",
+    "Do we want charts (e.g., lightweight canvas/SVG line graphs) for total sales over time, or are aggregate numeric metrics sufficient for the MVP?"
+  ]
+}

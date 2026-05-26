@@ -1,0 +1,81 @@
+{
+  "contract_type": "coordination-plan",
+  "work_id": "admin-dashboard-design-brief",
+  "work_type": "review",
+  "goal_summary": "Coordinate the research, architectural validation, business analysis, and implementation planning phases for the E-commerce Admin Dashboard UI and backend API.",
+  "risk_tier": "engineering",
+  "phases": [
+    {
+      "phase_id": "phase-ba-review",
+      "name": "Business Requirements & Gap Analysis",
+      "owner_role": "Business Analyst",
+      "status": "completed",
+      "exit_criteria": [
+        "Create full flow BA review brief detailing all Gaps across e-commerce modules.",
+        "Populate updated business rules and functional requirements."
+      ],
+      "output_schema_ref": "feature-ticket"
+    },
+    {
+      "phase_id": "phase-ui-design",
+      "name": "UI/UX Dashboard Research & Flow Spec",
+      "owner_role": "UI/UX Designer",
+      "status": "completed",
+      "exit_criteria": [
+        "Produce ux-flow-spec.json and component-spec.json files for Admin Dashboard."
+      ],
+      "output_schema_ref": "ux-flow-spec",
+      "depends_on": [
+        "phase-ba-review"
+      ]
+    },
+    {
+      "phase_id": "phase-architecture",
+      "name": "Architecture Review & ADR Publish",
+      "owner_role": "Technical Architect",
+      "status": "completed",
+      "exit_criteria": [
+        "Review UX brief, accept/reject design options, publish adr-spec.json containing technical rules."
+      ],
+      "output_schema_ref": "adr-spec",
+      "depends_on": [
+        "phase-ui-design"
+      ]
+    },
+    {
+      "phase_id": "phase-tech-lead-planning",
+      "name": "Technical Delivery Planning",
+      "owner_role": "Technical Lead",
+      "status": "completed",
+      "exit_criteria": [
+        "Create technical-delivery-plan.json splitting implementation into slices with quality gates."
+      ],
+      "output_schema_ref": "technical-delivery-plan",
+      "depends_on": [
+        "phase-architecture"
+      ]
+    },
+    {
+      "phase_id": "phase-handoff",
+      "name": "Release Ready Handoff Verification",
+      "owner_role": "Agent Coordinator",
+      "status": "active",
+      "exit_criteria": [
+        "Establish coordination plan.",
+        "Verify working tree status.",
+        "Compile handoff report.",
+        "Wait for user confirmation."
+      ],
+      "depends_on": [
+        "phase-tech-lead-planning"
+      ]
+    }
+  ],
+  "parallel_groups": [],
+  "current_phase_id": "phase-handoff",
+  "blockers": [],
+  "residual_risks": [
+    "D1 Query aggregation performance needs real data profiling once implemented.",
+    "Stripe refund status synchronizations require end-to-end sandbox webhook validation."
+  ]
+}

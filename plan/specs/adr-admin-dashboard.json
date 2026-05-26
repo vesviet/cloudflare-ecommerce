@@ -1,0 +1,53 @@
+{
+  "contract_type": "adr-spec",
+  "title": "Aura Admin Dashboard Architecture Decision",
+  "status": "accepted",
+  "feature_ticket_ref": "plan/feature-ticket-ecommerce-mvp.json",
+  "context": "The Admin Dashboard UI needs a modern, responsive Dark Glassmorphism interface. This ADR defines system boundaries, API validation, state routing guidelines, security/CORS controls, and asset upload limits to ensure reliability and consistency.",
+  "affected_services": [
+    "apps/admin-ui",
+    "apps/admin-api"
+  ],
+  "api_contract_refs": [
+    "plan/specs/ux-flow-spec.json"
+  ],
+  "options_considered": [
+    {
+      "option": "Option A: Bare React state (`useState`) with inline styles.",
+      "pros": [
+        "Simple to implement for MVP."
+      ],
+      "cons": [
+        "Inflexible styling.",
+        "No browser history navigation.",
+        "Difficult to maintain or scale."
+      ]
+    },
+    {
+      "option": "Option B: Vite React SPA using path/query routing, centralized Vanilla CSS variables, and structured Hono.js/Zod validation.",
+      "pros": [
+        "Enables deep-linking and browser navigation controls.",
+        "Consolidated styling utilizing storefront token overrides.",
+        "Strict input validation prevents malformed D1 database records.",
+        "Clear boundary separation between UI states and API data."
+      ],
+      "cons": [
+        "Slightly higher initial development overhead."
+      ]
+    }
+  ],
+  "decision": "Adopt Option B. Implement structural React SPA routing via query params (e.g. ?tab=orders) to enable browser back/forward controls. Style the UI using centralized Vanilla CSS variables. Enforce Zod payload validation in Hono, restrict file uploads to 5MB image assets, and wrap order refunds in D1 transactions.",
+  "consequences": {
+    "positive": [
+      "Consistent, high-performance user experience with native browser history.",
+      "Easily configurable layout variables matching the storefront's glassmorphism style.",
+      "Enhanced security against invalid payloads, shell injections, or oversize binary payloads.",
+      "Atomic transactional changes prevent partial failures during refund flows."
+    ],
+    "negative": [
+      "Requires small additional routing logic setup in App.tsx compared to basic useState."
+    ]
+  },
+  "migration_plan": "Incrementally replace inline styles in apps/admin-ui/src/App.tsx with semantic classes referencing variables in apps/admin-ui/src/App.css. Incorporate search-param checking for tab selection.",
+  "rollback_plan": "If React routing fails, fallback to simple useState tab selection while preserving all styling rules."
+}

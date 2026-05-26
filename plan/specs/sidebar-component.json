@@ -1,0 +1,55 @@
+{
+  "contract_type": "ui-component-spec",
+  "component_name": "SidebarNavigation",
+  "flow_id": "admin-dashboard-navigation",
+  "type": "stateful",
+  "props": [
+    {
+      "name": "activeTab",
+      "type": "string",
+      "required": true,
+      "description": "Identifier of the currently active view ('dashboard', 'orders', 'products')."
+    },
+    {
+      "name": "onTabChange",
+      "type": "function",
+      "required": true,
+      "description": "Callback triggered when a navigation link is clicked."
+    }
+  ],
+  "events": [
+    {
+      "name": "onTabChange",
+      "payload": "string",
+      "when": "User clicks on any sidebar navigation item."
+    }
+  ],
+  "states": [
+    "default",
+    "hover",
+    "active",
+    "focus"
+  ],
+  "copy_per_state": {
+    "title": "Aura Admin",
+    "dashboard_label": "Overview Dashboard",
+    "orders_label": "Orders Management",
+    "products_label": "Products Catalog"
+  },
+  "api_fields": [],
+  "accessibility": {
+    "role": "navigation",
+    "keyboard_support": true,
+    "focus_trap": false,
+    "aria_labels": [
+      "Admin Panel Sidebar",
+      "Overview Dashboard Tab",
+      "Orders Tab",
+      "Products Tab"
+    ]
+  },
+  "responsive_breakpoints": [
+    "mobile: max-width 768px (sidebar transforms into a top bar or collapsible hamburger drawer)"
+  ],
+  "dependencies": []
+}

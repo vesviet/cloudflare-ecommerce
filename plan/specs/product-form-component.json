@@ -1,0 +1,82 @@
+{
+  "contract_type": "ui-component-spec",
+  "component_name": "ProductForm",
+  "flow_id": "admin-dashboard-navigation",
+  "type": "stateful",
+  "props": [
+    {
+      "name": "onSubmit",
+      "type": "function",
+      "required": true,
+      "description": "Callback triggered on successful form submission."
+    },
+    {
+      "name": "isSubmitting",
+      "type": "boolean",
+      "required": true,
+      "description": "Controls disabling inputs and showing loading indicators."
+    }
+  ],
+  "events": [
+    {
+      "name": "onSubmit",
+      "payload": "object (FormData)",
+      "when": "User fills required fields and submits the form."
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "disabled",
+    "error",
+    "success"
+  ],
+  "copy_per_state": {
+    "form_title": "Add New Product",
+    "name_label": "Product Name",
+    "price_label": "Price ($)",
+    "stock_label": "Stock Quantity",
+    "image_label": "Product Image",
+    "image_hint": "Drag and drop or click to upload (R2 Storage)",
+    "submit_button": "Create Product",
+    "submitting_text": "Uploading assets & creating...",
+    "success_message": "Product created successfully!",
+    "error_message": "Failed to create product. Check your fields."
+  },
+  "api_fields": [
+    {
+      "field": "name",
+      "source": "user-input",
+      "required": true
+    },
+    {
+      "field": "price",
+      "source": "user-input",
+      "required": true
+    },
+    {
+      "field": "stock",
+      "source": "user-input",
+      "required": true
+    },
+    {
+      "field": "image",
+      "source": "file-upload",
+      "required": true
+    }
+  ],
+  "accessibility": {
+    "role": "form",
+    "keyboard_support": true,
+    "focus_trap": false,
+    "aria_labels": [
+      "Add New Product Form",
+      "Product Image Upload Button"
+    ]
+  },
+  "responsive_breakpoints": [
+    "desktop: 2-column layout (inputs on left, image upload preview card on right)",
+    "mobile: single-column stack"
+  ],
+  "dependencies": []
+}

@@ -1,0 +1,69 @@
+{
+  "contract_type": "ui-component-spec",
+  "component_name": "StatsGrid",
+  "flow_id": "admin-dashboard-navigation",
+  "type": "presentational",
+  "props": [
+    {
+      "name": "metrics",
+      "type": "object",
+      "required": true,
+      "description": "Dashboard KPI summary statistics."
+    },
+    {
+      "name": "isLoading",
+      "type": "boolean",
+      "required": true,
+      "description": "Indicates whether metrics are being loaded from the API."
+    }
+  ],
+  "events": [],
+  "states": [
+    "default",
+    "loading",
+    "empty",
+    "error"
+  ],
+  "copy_per_state": {
+    "sales_title": "Total Revenue",
+    "orders_title": "Total Orders",
+    "refunds_title": "Refund Rate",
+    "stock_title": "Low Stock Items",
+    "loading_text": "Loading metrics...",
+    "error_text": "Failed to load metrics."
+  },
+  "api_fields": [
+    {
+      "field": "metrics.totalSales",
+      "source": "/admin-api/metrics",
+      "required": true
+    },
+    {
+      "field": "metrics.totalOrders",
+      "source": "/admin-api/metrics",
+      "required": true
+    },
+    {
+      "field": "metrics.refundRate",
+      "source": "/admin-api/metrics",
+      "required": true
+    },
+    {
+      "field": "metrics.lowStockCount",
+      "source": "/admin-api/metrics",
+      "required": true
+    }
+  ],
+  "accessibility": {
+    "role": "region",
+    "keyboard_support": false,
+    "focus_trap": false,
+    "aria_labels": [
+      "KPI Dashboard Statistics Grid"
+    ]
+  },
+  "responsive_breakpoints": [
+    "grid-layout: 1fr on mobile, 1fr 1fr on tablet, 1fr 1fr 1fr 1fr on desktop"
+  ],
+  "dependencies": []
+}

@@ -1,0 +1,58 @@
+{
+  "contract_type": "technical-delivery-plan",
+  "work_title": "Aura Admin Dashboard UI & API Implementation Plan",
+  "feature_ticket_ref": "plan/feature-ticket-ecommerce-mvp.json",
+  "adr_refs": [
+    "plan/specs/adr-admin-dashboard.json"
+  ],
+  "goal_summary": "Implement a premium, responsive Dark Glassmorphic Admin Dashboard SPA with query parameter routing, integrate aggregate shop KPIs, and secure R2/D1 operations on backend.",
+  "preserved_behavior": "WooCommerce-like order state transitions (Pending Payment -> Processing -> Completed), image file preview URL lifecycle safety, and local dev JWT authentication bypass are fully preserved.",
+  "slices": [
+    {
+      "slice_id": "slice-admin-api-metrics",
+      "description": "Implement GET /admin-api/metrics endpoint in Hono worker compiling total sales, total orders, refund rate, and low-stock count from D1. Wrap orders refund endpoint POST /admin-api/orders/:id/refund in D1 Transaction with Stripe refund handling.",
+      "owner_role": "Backend Developer",
+      "depends_on": [],
+      "output_schema_ref": "implementation-result"
+    },
+    {
+      "slice_id": "slice-admin-ui-routing-styles",
+      "description": "Refactor apps/admin-ui App.css and index.css with Dark Glassmorphism CSS variables matching storefront styles. Implement search-param routing (?tab=overview|orders|products) in apps/admin-ui/src/App.tsx.",
+      "owner_role": "Frontend Developer",
+      "depends_on": [],
+      "output_schema_ref": "implementation-result"
+    },
+    {
+      "slice_id": "slice-admin-ui-components",
+      "description": "Rebuild App.tsx to introduce SidebarNavigation, StatsGrid, OrdersTable (with confirming Modal), and ProductForm (with R2 file drag/drop). Connect all components to backend REST endpoints.",
+      "owner_role": "Frontend Developer",
+      "depends_on": [
+        "slice-admin-api-metrics",
+        "slice-admin-ui-routing-styles"
+      ],
+      "output_schema_ref": "implementation-result"
+    }
+  ],
+  "impact_radius": [
+    "D1 SQL performance: Ensure dashboard aggregates are index-based queries to avoid full-table scans.",
+    "Cloudflare R2 Payload limits: Enforce max 5MB on images, rejecting larger payloads in worker middleware.",
+    "Refund processing: Mitigate double-refund race conditions via idempotency checks in Stripe refund endpoint."
+  ],
+  "quality_gates": {
+    "tests": "Validate refund flow and metrics computations using local integration testing suites.",
+    "review": "Inspect UI CSS Variable alignment and confirm image preview URL cleanup handles memory disposal correctly.",
+    "build": "Run pnpm build in apps/admin-ui and wrangler build in apps/admin-api to verify bundle sizes (<1MB).",
+    "security": "Enforce CORS lock and check Zero Trust middleware protection on all admin REST endpoints."
+  },
+  "rollout_notes": "Deploy apps/admin-api D1 updates first, verify metrics endpoints, then deploy apps/admin-ui client build to Cloudflare Pages.",
+  "rollback_notes": "Revert the admin-ui deployment in Cloudflare Pages to the previous stable release hash. Local dev can rollback query-param routing to basic useState easily.",
+  "documentation_deltas": [
+    "Instruct operators on configuring Stripe Secret Keys for local dev CLI testing.",
+    "Document local dev bypassing rules for Access JWT authentication in admin environments."
+  ],
+  "open_questions": [
+    "Do we want charts (e.g. lightweight Canvas charts) for sales history, or are KPIs sufficient for the MVP?",
+    "Should we support CSV downloads of orders and products?"
+  ],
+  "readiness_status": "ready_for_review"
+}

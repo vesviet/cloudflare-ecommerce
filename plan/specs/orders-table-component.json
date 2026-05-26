@@ -1,0 +1,88 @@
+{
+  "contract_type": "ui-component-spec",
+  "component_name": "OrdersTable",
+  "flow_id": "admin-dashboard-navigation",
+  "type": "stateful",
+  "props": [
+    {
+      "name": "orders",
+      "type": "array",
+      "required": true,
+      "description": "List of order objects to display."
+    },
+    {
+      "name": "isLoading",
+      "type": "boolean",
+      "required": true,
+      "description": "Indicates if orders are loading."
+    },
+    {
+      "name": "onRefund",
+      "type": "function",
+      "required": true,
+      "description": "Callback to process an order refund request."
+    }
+  ],
+  "events": [
+    {
+      "name": "onRefund",
+      "payload": "string (orderId)",
+      "when": "User clicks the Refund button on a refundable order."
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "empty",
+    "error",
+    "success"
+  ],
+  "copy_per_state": {
+    "title": "Orders Management",
+    "empty_message": "No orders found.",
+    "loading_message": "Fetching recent orders...",
+    "error_message": "Failed to fetch orders.",
+    "refund_button": "Refund",
+    "refunding_state": "Processing...",
+    "refunded_badge": "Refunded",
+    "completed_badge": "Completed",
+    "processing_badge": "Processing",
+    "pending_badge": "Pending Payment",
+    "cancelled_badge": "Cancelled"
+  },
+  "api_fields": [
+    {
+      "field": "order.id",
+      "source": "/admin-api/orders",
+      "required": true
+    },
+    {
+      "field": "order.status",
+      "source": "/admin-api/orders",
+      "required": true
+    },
+    {
+      "field": "order.total",
+      "source": "/admin-api/orders",
+      "required": true
+    },
+    {
+      "field": "order.createdAt",
+      "source": "/admin-api/orders",
+      "required": true
+    }
+  ],
+  "accessibility": {
+    "role": "table",
+    "keyboard_support": true,
+    "focus_trap": false,
+    "aria_labels": [
+      "Customer Orders Table",
+      "Refund Action Column"
+    ]
+  },
+  "responsive_breakpoints": [
+    "mobile: horizontal overflow container allow swipe scrolling on small screens without breaking layout"
+  ],
+  "dependencies": []
+}
