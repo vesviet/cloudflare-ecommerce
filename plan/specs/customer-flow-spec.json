@@ -1,0 +1,178 @@
+{
+  "contract_type": "ux-flow-spec",
+  "flow_id": "customer-management-flow",
+  "flow_name": "Admin Dashboard CRM Customer Management Flow",
+  "feature_ticket_ref": "plan/specs/customer-form-component.json",
+  "preserved_behavior": "Displaying customer list table, search input, and routing between tabs.",
+  "changed_behavior": "Enhanced customer profiles containing Date of Birth (DOB), Gender, B2B attributes (Company & Tax IDs), security status control (Active/Suspended/Verification Pending/Invited), GDPR consent records, and CRM tagging features.",
+  "user_goal": "Allow Administrators and Shop Managers to register new customer accounts, update profiles, toggle B2B flags, write notes, and manage security statuses efficiently.",
+  "actors": [
+    "Administrator",
+    "Shop Manager"
+  ],
+  "screens": [
+    {
+      "screen_id": "crm-customer-list",
+      "name": "Customer Directory List",
+      "purpose": "A detailed CRM table presenting customer emails, full names, total orders, lifetime value spent, joined date, status badges, and action triggers.",
+      "entry_points": [
+        "Sidebar Navigation -> Customers"
+      ]
+    },
+    {
+      "screen_id": "crm-add-customer",
+      "name": "Add New Customer Modal / Screen",
+      "purpose": "Provides inputs to register a new customer account, set passwords, opt-in to newsletters, and input initial B2C or B2B credentials.",
+      "entry_points": [
+        "Customer Directory List -> Click '+ Add Customer' button"
+      ]
+    },
+    {
+      "screen_id": "crm-customer-details",
+      "name": "Detailed Customer CRM Profile",
+      "purpose": "Presents a multi-pane split layout showcasing deep customer details, address books, marketing consents, recent order tables, and internal notes.",
+      "entry_points": [
+        "Customer Directory List -> Click 'View' button on customer row"
+      ]
+    },
+    {
+      "screen_id": "crm-edit-customer",
+      "name": "Edit Customer profile form",
+      "purpose": "Form fields enabling the modification of the customer's personal information, B2B company identifiers, status, and metadata notes.",
+      "entry_points": [
+        "Detailed Customer CRM Profile -> Click 'Edit Profile' button"
+      ]
+    }
+  ],
+  "transitions": [
+    {
+      "from_screen_id": "crm-customer-list",
+      "to_screen_id": "crm-add-customer",
+      "trigger": "Click '+ Add Customer' button"
+    },
+    {
+      "from_screen_id": "crm-add-customer",
+      "to_screen_id": "crm-customer-list",
+      "trigger": "Submit form successfully or Click 'Cancel'"
+    },
+    {
+      "from_screen_id": "crm-customer-list",
+      "to_screen_id": "crm-customer-details",
+      "trigger": "Click 'View' button on customer row"
+    },
+    {
+      "from_screen_id": "crm-customer-details",
+      "to_screen_id": "crm-edit-customer",
+      "trigger": "Click 'Edit Profile' button"
+    },
+    {
+      "from_screen_id": "crm-edit-customer",
+      "to_screen_id": "crm-customer-details",
+      "trigger": "Submit form successfully or Click 'Cancel'"
+    },
+    {
+      "from_screen_id": "crm-customer-details",
+      "to_screen_id": "crm-customer-list",
+      "trigger": "Click '← Back to List' button"
+    }
+  ],
+  "component_spec_refs": [
+    "plan/specs/customer-form-component.json"
+  ],
+  "accessibility_notes": [
+    "Status badges must follow WCAG AA guidelines (e.g., active = green bg with high contrast text, suspended = high contrast red).",
+    "B2B toggle button must declare aria-expanded and aria-controls to announce the visibility of B2B company fields.",
+    "Form inputs must associate label elements explicitly using HTML 'for' matching the input's 'id'."
+  ],
+  "analytics_events": [
+    {
+      "event_name": "view_customer_list",
+      "trigger": "Customer Tab mounted"
+    },
+    {
+      "event_name": "add_customer_initiated",
+      "trigger": "Add customer modal opened"
+    },
+    {
+      "event_name": "add_customer_success",
+      "trigger": "New customer registered successfully"
+    },
+    {
+      "event_name": "edit_customer_success",
+      "trigger": "Customer profile updated successfully"
+    },
+    {
+      "event_name": "customer_suspended",
+      "trigger": "Account status updated to suspended"
+    }
+  ],
+  "api_needs": [
+    {
+      "purpose": "Fetch all customers with aggregate order counts and total spent metrics",
+      "endpoint_or_resource": "/customers",
+      "fields": [
+        "id",
+        "email",
+        "first_name",
+        "last_name",
+        "phone",
+        "created_at",
+        "total_spent",
+        "total_orders"
+      ],
+      "notes": "Populates the main Customer Directory grid."
+    },
+    {
+      "purpose": "Fetch detailed customer data, including order list and registered addresses",
+      "endpoint_or_resource": "/customers/:id",
+      "fields": [
+        "customer",
+        "orders",
+        "addresses"
+      ],
+      "notes": "Required to display the profile overview card and recent orders/addresses pane."
+    },
+    {
+      "purpose": "Register a new customer account",
+      "endpoint_or_resource": "/customers",
+      "fields": [
+        "email",
+        "password",
+        "first_name",
+        "last_name",
+        "phone",
+        "status",
+        "dob",
+        "gender",
+        "company_name",
+        "vat_tax_id",
+        "accepts_marketing",
+        "tags_json",
+        "note"
+      ],
+      "notes": "Handles creation of customer account with comprehensive fields."
+    },
+    {
+      "purpose": "Update customer details and status",
+      "endpoint_or_resource": "/customers/:id",
+      "fields": [
+        "first_name",
+        "last_name",
+        "phone",
+        "status",
+        "dob",
+        "gender",
+        "company_name",
+        "vat_tax_id",
+        "accepts_marketing",
+        "tags_json",
+        "note"
+      ],
+      "notes": "Invoked to save profile updates."
+    }
+  ],
+  "open_questions": [
+    "Should we allow resetting the customer's password directly from the admin dashboard (e.g., generating password reset links or manually setting a new password)?",
+    "Should we allow deleting customer accounts, or is suspension/anonymization (for GDPR right to be forgotten) the preferred approach?"
+  ]
+}

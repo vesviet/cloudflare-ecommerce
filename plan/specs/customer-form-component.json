@@ -1,0 +1,163 @@
+{
+  "contract_type": "ui-component-spec",
+  "component_name": "CustomerForm",
+  "flow_id": "customer-management-flow",
+  "type": "stateful",
+  "props": [
+    {
+      "name": "onSubmit",
+      "type": "function",
+      "required": true,
+      "description": "Callback triggered on successful form submission."
+    },
+    {
+      "name": "isSubmitting",
+      "type": "boolean",
+      "required": true,
+      "description": "Controls disabling inputs and showing loading indicators."
+    },
+    {
+      "name": "initialData",
+      "type": "object",
+      "required": false,
+      "description": "Customer object passed for editing. Empty for creation mode."
+    }
+  ],
+  "events": [
+    {
+      "name": "onSubmit",
+      "payload": "object (CustomerPayload)",
+      "when": "User fills required fields and submits the form."
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "disabled",
+    "error",
+    "success"
+  ],
+  "copy_per_state": {
+    "form_title_create": "Add New Customer",
+    "form_title_edit": "Edit Customer Details",
+    "email_label": "Email Address *",
+    "first_name_label": "First Name",
+    "last_name_label": "Last Name",
+    "phone_label": "Phone Number",
+    "password_label": "Password (Optional)",
+    "password_placeholder": "Leave blank to auto-generate or keep existing",
+    "status_label": "Account Status",
+    "dob_label": "Date of Birth",
+    "gender_label": "Gender",
+    "b2b_toggle_label": "B2B Customer Profile",
+    "company_name_label": "Company Name",
+    "vat_tax_id_label": "VAT / Tax ID",
+    "accepts_marketing_label": "Subscribe to Marketing Campaigns (GDPR)",
+    "tags_label": "Customer Tags (JSON Array/Chips)",
+    "note_label": "Internal Account Notes",
+    "submit_button_create": "Create Customer Account",
+    "submit_button_edit": "Save Profile Changes",
+    "submitting_text": "Saving customer credentials and profiles...",
+    "success_message_create": "Customer account created successfully!",
+    "success_message_edit": "Customer profile updated successfully!",
+    "error_message": "Failed to save customer. Please verify input fields."
+  },
+  "api_fields": [
+    {
+      "field": "email",
+      "source": "user-input",
+      "required": true,
+      "type": "string"
+    },
+    {
+      "field": "password",
+      "source": "user-input",
+      "required": false,
+      "type": "string"
+    },
+    {
+      "field": "first_name",
+      "source": "user-input",
+      "required": false,
+      "type": "string"
+    },
+    {
+      "field": "last_name",
+      "source": "user-input",
+      "required": false,
+      "type": "string"
+    },
+    {
+      "field": "phone",
+      "source": "user-input",
+      "required": false,
+      "type": "string"
+    },
+    {
+      "field": "status",
+      "source": "user-input",
+      "required": true,
+      "type": "string",
+      "default": "active"
+    },
+    {
+      "field": "dob",
+      "source": "user-input",
+      "required": false,
+      "type": "string"
+    },
+    {
+      "field": "gender",
+      "source": "user-input",
+      "required": false,
+      "type": "string",
+      "default": "unspecified"
+    },
+    {
+      "field": "company_name",
+      "source": "user-input",
+      "required": false,
+      "type": "string"
+    },
+    {
+      "field": "vat_tax_id",
+      "source": "user-input",
+      "required": false,
+      "type": "string"
+    },
+    {
+      "field": "accepts_marketing",
+      "source": "user-input",
+      "required": false,
+      "type": "boolean",
+      "default": false
+    },
+    {
+      "field": "tags_json",
+      "source": "user-input",
+      "required": false,
+      "type": "string"
+    },
+    {
+      "field": "note",
+      "source": "user-input",
+      "required": false,
+      "type": "string"
+    }
+  ],
+  "accessibility": {
+    "role": "form",
+    "keyboard_support": true,
+    "focus_trap": false,
+    "aria_labels": [
+      "Add New Customer Form",
+      "Edit Customer Form",
+      "B2B Customer Profile Activation Toggle"
+    ]
+  },
+  "responsive_breakpoints": [
+    "desktop: 2-column grid layout for detailed profile, 1-column for preferences",
+    "mobile: single-column vertical stack"
+  ],
+  "dependencies": []
+}

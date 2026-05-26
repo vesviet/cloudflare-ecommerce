@@ -1,0 +1,85 @@
+{
+  "contract_type": "feature-ticket",
+  "title": "Storefront Customer Auth & Profile Management",
+  "type": "feature",
+  "business_value": "Allows storefront customers to securely manage their sessions, update profiles, and secure accounts via change password.",
+  "preserved_behavior": "Existing customer table schemas, address management endpoints, and admin password reset functionalities.",
+  "changed_behavior": "Interactive storefront components for Login, Logout, Profile Settings, and a new Change Password self-service flow.",
+  "actors": [
+    "Storefront Customer",
+    "Guest User"
+  ],
+  "business_rules": [
+    {
+      "id": "BR-01",
+      "rule": "Only active customers can log in; suspended accounts receive 403 Forbidden with support contact message."
+    },
+    {
+      "id": "BR-02",
+      "rule": "Password changes require verifying current_password match against DB hash."
+    },
+    {
+      "id": "BR-03",
+      "rule": "New password must be at least 8 characters and distinct from the current password."
+    },
+    {
+      "id": "BR-04",
+      "rule": "Email addresses are read-only for customer profile updates."
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "scenario": "Successful customer login",
+      "given": "Customer is on the login page",
+      "when": "Enters valid email and password",
+      "then": "Session token is stored in httpOnly cookie and redirected to dashboard."
+    },
+    {
+      "scenario": "Login fails for suspended user",
+      "given": "Customer account is suspended",
+      "when": "Enters valid credentials",
+      "then": "Access is denied with status 403 and custom Vietnamese error message."
+    },
+    {
+      "scenario": "Successful profile update",
+      "given": "Customer is on Profile Settings tab",
+      "when": "Submits valid first_name, last_name, phone, B2B details, and GDPR consent",
+      "then": "Database updates, success toast appears, and local auth state syncs."
+    },
+    {
+      "scenario": "Successful password change",
+      "given": "Customer is logged in and inputs valid current_password, new_password, and matching confirm_new_password",
+      "when": "Submits password change form",
+      "then": "Database password hash is updated, success feedback shown, form fields reset, and customer remains logged in."
+    },
+    {
+      "scenario": "Password change fails for incorrect current password",
+      "given": "Customer is logged in and inputs incorrect current_password",
+      "when": "Submits password change form",
+      "then": "Database does not update, and error message shows current password incorrect."
+    },
+    {
+      "scenario": "Password change fails for password reuse",
+      "given": "Customer is logged in and inputs current password as new password",
+      "when": "Submits password change form",
+      "then": "Form displays validation error and submit is blocked."
+    }
+  ],
+  "edge_cases": [
+    "Suspended customer session invalidation on active API calls.",
+    "Form submission during low network connectivity.",
+    "Client-side bypass of validation rules."
+  ],
+  "dependencies": [
+    "Backend endpoint PUT /customer/me/change-password verification check support"
+  ],
+  "out_of_scope": [
+    "Forgot password recovery email flows.",
+    "Avatar image upload.",
+    "Social OAuth integration."
+  ],
+  "open_questions": [
+    "Do we require double-entry email validation for profile updates?",
+    "Should we implement password strength meter thresholds?"
+  ]
+}

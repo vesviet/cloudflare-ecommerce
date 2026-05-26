@@ -11,6 +11,7 @@ export const jwtAuth = async (c: Context, next: Next) => {
 
   const jwtMiddleware = jwt({
     secret,
+    alg: 'HS256'
   })
 
   // Gọi middleware jwt của hono

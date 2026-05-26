@@ -1,0 +1,121 @@
+{
+  "contract_type": "ux-flow-spec",
+  "flow_id": "storefront-auth-profile-flow",
+  "flow_name": "Storefront Customer Auth & Profile Flow",
+  "feature_ticket_ref": "plan/specs/storefront-auth-profile-ticket.json",
+  "preserved_behavior": "Responsive dark mode layout, session state store in Zustand, cookie handling.",
+  "changed_behavior": "Clean Login/Register flow with redirection, expandable B2B section in Profile, and a new Change Password form inside Profile Settings.",
+  "user_goal": "Secure access and editing of customer account credentials and personal profiles.",
+  "actors": [
+    "Storefront Customer",
+    "Guest User"
+  ],
+  "screens": [
+    {
+      "screen_id": "storefront-my-account",
+      "name": "My Account Login/Register",
+      "purpose": "Entry point for guest users to log in or register a new customer account.",
+      "entry_points": [
+        "Header Navigation -> My Account link",
+        "Direct routing -> /my-account"
+      ]
+    },
+    {
+      "screen_id": "storefront-dashboard-profile",
+      "name": "Profile & Security Dashboard",
+      "purpose": "Consolidated screen containing profile details, B2B company information, marketing consents, and security password changes.",
+      "entry_points": [
+        "Login Screen -> Success Authentication Redirect",
+        "Direct routing -> /dashboard"
+      ]
+    }
+  ],
+  "transitions": [
+    {
+      "from_screen_id": "storefront-my-account",
+      "to_screen_id": "storefront-dashboard-profile",
+      "trigger": "User successfully logs in or registers"
+    },
+    {
+      "from_screen_id": "storefront-dashboard-profile",
+      "to_screen_id": "storefront-my-account",
+      "trigger": "User clicks 'Log Out' button or session token expires"
+    }
+  ],
+  "component_spec_refs": [
+    "plan/specs/storefront-login-component-spec.json",
+    "plan/specs/storefront-profile-settings-component-spec.json",
+    "plan/specs/storefront-change-password-component-spec.json"
+  ],
+  "accessibility_notes": [
+    "All password inputs must feature screen-reader announcement of password visibility state.",
+    "B2B form inputs must dynamically update aria-hidden attributes depending on toggle state.",
+    "Form labels must map explicitly to their input ids."
+  ],
+  "analytics_events": [
+    {
+      "event_name": "customer_login_initiated",
+      "trigger": "Login button clicked"
+    },
+    {
+      "event_name": "customer_login_success",
+      "trigger": "Login endpoint returns success: true"
+    },
+    {
+      "event_name": "customer_logout",
+      "trigger": "Logout button clicked"
+    },
+    {
+      "event_name": "customer_profile_update_success",
+      "trigger": "Profile PUT endpoint returns success: true"
+    },
+    {
+      "event_name": "customer_password_change_success",
+      "trigger": "Change password PUT endpoint returns success: true"
+    }
+  ],
+  "api_needs": [
+    {
+      "purpose": "Authenticate guest users and retrieve session cookies",
+      "endpoint_or_resource": "/auth/login",
+      "fields": [
+        "email",
+        "password"
+      ],
+      "notes": "Triggers httpOnly cookie assignment."
+    },
+    {
+      "purpose": "Terminate active sessions and evict cookies",
+      "endpoint_or_resource": "/auth/logout",
+      "fields": [],
+      "notes": "Clears httpOnly cookie."
+    },
+    {
+      "purpose": "Fetch and save profile personal/B2B/GDPR fields",
+      "endpoint_or_resource": "/customer/me",
+      "fields": [
+        "first_name",
+        "last_name",
+        "phone",
+        "dob",
+        "gender",
+        "company_name",
+        "vat_tax_id",
+        "accepts_marketing"
+      ],
+      "notes": "Handles view and updates of customer record."
+    },
+    {
+      "purpose": "Change active user password safely",
+      "endpoint_or_resource": "/customer/me/change-password",
+      "fields": [
+        "current_password",
+        "new_password"
+      ],
+      "notes": "Requires authentication middleware, validates current hash before updating."
+    }
+  ],
+  "open_questions": [
+    "Should we force active cookies to reset when a password is changed from a different device (session invalidation)?"
+  ]
+}

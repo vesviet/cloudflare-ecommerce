@@ -1,0 +1,90 @@
+{
+  "contract_type": "ui-component-spec",
+  "component_name": "StorefrontProfileSettings",
+  "flow_id": "storefront-auth-profile-flow",
+  "type": "stateful",
+  "props": [
+    {
+      "name": "initialProfile",
+      "type": "object",
+      "required": true,
+      "description": "Pre-filled customer profile details."
+    }
+  ],
+  "events": [
+    {
+      "name": "onProfileSave",
+      "payload": "object (ProfileData)",
+      "when": "Form details submitted and validated."
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "error",
+    "success"
+  ],
+  "copy_per_state": {
+    "section_title": "Profile Settings",
+    "save_btn": "Save Profile",
+    "saving_text": "Saving...",
+    "success_msg": "Profile updated successfully!",
+    "error_msg": "Failed to update profile. Please verify fields."
+  },
+  "api_fields": [
+    {
+      "field": "first_name",
+      "source": "user-input",
+      "required": false
+    },
+    {
+      "field": "last_name",
+      "source": "user-input",
+      "required": false
+    },
+    {
+      "field": "phone",
+      "source": "user-input",
+      "required": false
+    },
+    {
+      "field": "dob",
+      "source": "user-input",
+      "required": false
+    },
+    {
+      "field": "gender",
+      "source": "user-input",
+      "required": false
+    },
+    {
+      "field": "company_name",
+      "source": "user-input",
+      "required": false
+    },
+    {
+      "field": "vat_tax_id",
+      "source": "user-input",
+      "required": false
+    },
+    {
+      "field": "accepts_marketing",
+      "source": "user-input",
+      "required": false
+    }
+  ],
+  "accessibility": {
+    "role": "form",
+    "keyboard_support": true,
+    "focus_trap": false,
+    "aria_labels": [
+      "Edit profile details form",
+      "Marketing newsletter GDPR consent checkbox"
+    ]
+  },
+  "responsive_breakpoints": [
+    "desktop: 2-column layout grid for inputs",
+    "mobile: single column layout stack"
+  ],
+  "dependencies": []
+}

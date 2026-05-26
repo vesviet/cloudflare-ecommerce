@@ -1,0 +1,85 @@
+{
+  "contract_type": "technical-delivery-plan",
+  "work_title": "Storefront Customer Auth & Profile Implementation",
+  "feature_ticket_ref": "plan/specs/storefront-auth-profile-ticket.json",
+  "adr_refs": [
+    "plan/specs/adr-storefront-auth-profile.json"
+  ],
+  "goal_summary": "Migrate customer-facing routes from admin-api to public-api and implement profile editing and change password features on storefront-ui.",
+  "preserved_behavior": "Admin customer control, database schema structure, address CRUD endpoints logic.",
+  "slices": [
+    {
+      "slice_id": "slice-01",
+      "description": "Backend Setup & Auth Helpers Migration: copy or export password hashing and JWT signing utilities to public-api.",
+      "owner_role": "Backend Developer",
+      "depends_on": [],
+      "output_schema_ref": "Code change"
+    },
+    {
+      "slice_id": "slice-02",
+      "description": "Customer API Migration: migrate customer routes and auth middleware from admin-api to public-api under /api/customer.",
+      "owner_role": "Backend Developer",
+      "depends_on": [
+        "slice-01"
+      ],
+      "output_schema_ref": "storefront-login-component-spec"
+    },
+    {
+      "slice_id": "slice-03",
+      "description": "Change Password API Endpoint: implement PUT /customer/me/change-password endpoint with PBKDF2 hash checking.",
+      "owner_role": "Backend Developer",
+      "depends_on": [
+        "slice-02"
+      ],
+      "output_schema_ref": "storefront-change-password-component-spec"
+    },
+    {
+      "slice_id": "slice-04",
+      "description": "Storefront API Pointer Redirection: update API base URL to port 8787 in storefront-ui and configure CORS credentials true.",
+      "owner_role": "Frontend Developer",
+      "depends_on": [
+        "slice-02"
+      ],
+      "output_schema_ref": "Code change"
+    },
+    {
+      "slice_id": "slice-05",
+      "description": "Profile Settings & Change Password UI: develop B2B form animations and change-password form client validations.",
+      "owner_role": "Frontend Developer",
+      "depends_on": [
+        "slice-03",
+        "slice-04"
+      ],
+      "output_schema_ref": "storefront-profile-settings-component-spec"
+    },
+    {
+      "slice_id": "slice-06",
+      "description": "QA verification testing: execute manual and integration test scripts validating user login/logout/profile/password flows.",
+      "owner_role": "QA Engineer",
+      "depends_on": [
+        "slice-05"
+      ],
+      "output_schema_ref": "Test report"
+    }
+  ],
+  "impact_radius": [
+    "Cookie sharing across localhost ports 8787 and 8788",
+    "CORS configuration allowing credentials transmission"
+  ],
+  "quality_gates": {
+    "tests": "Mock testing validating login blocker for suspended users and password hashing validation.",
+    "review": "Verification of password input variables zero-logging compliance.",
+    "build": "Successful compilation of storefront-ui, public-api, and admin-api workers.",
+    "security": "Enforce Origin checking in public-api middleware to block cross-site request forgery."
+  },
+  "rollout_notes": "Deploy public-api customer routing first, verify functionality, then update storefront-ui pointer. Deprecate admin-api routes after verification.",
+  "rollback_notes": "Revert storefront API_BASE endpoint back to port 8788 to bypass public-api customer routes in case of runtime issues.",
+  "documentation_deltas": [
+    "Update public-api route documentation",
+    "Update admin-api security perimeter rules"
+  ],
+  "open_questions": [
+    "Do we require Cloudflare edge rate-limiting for auth routes?"
+  ],
+  "readiness_status": "planning"
+}

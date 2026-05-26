@@ -2,10 +2,12 @@
   "name": "admin-api",
   "private": true,
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "wrangler dev --port 8788 --inspector-port 9230",
     "deploy": "wrangler deploy"
   },
   "dependencies": {
+    "@ecommerce/database": "workspace:^",
+    "drizzle-orm": "^0.30.10",
     "hono": "^4.3.7",
     "jose": "^6.2.3"
   },

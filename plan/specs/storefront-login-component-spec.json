@@ -1,0 +1,55 @@
+{
+  "contract_type": "ui-component-spec",
+  "component_name": "StorefrontLogin",
+  "flow_id": "storefront-auth-profile-flow",
+  "type": "stateful",
+  "props": [],
+  "events": [
+    {
+      "name": "onLoginSuccess",
+      "payload": "object (CustomerDetails)",
+      "when": "Authentication endpoint returns success."
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "error",
+    "success"
+  ],
+  "copy_per_state": {
+    "login_title": "Welcome Back",
+    "register_title": "Create Account",
+    "login_btn": "Log In",
+    "register_btn": "Create Account",
+    "submitting_text": "Processing...",
+    "error_suspended": "Tài khoản của bạn đã bị khóa. Vui lòng liên hệ bộ phận hỗ trợ.",
+    "error_generic": "Invalid email or password"
+  },
+  "api_fields": [
+    {
+      "field": "email",
+      "source": "user-input",
+      "required": true
+    },
+    {
+      "field": "password",
+      "source": "user-input",
+      "required": true
+    }
+  ],
+  "accessibility": {
+    "role": "form",
+    "keyboard_support": true,
+    "focus_trap": false,
+    "aria_labels": [
+      "Customer Login Form",
+      "Password visibility toggle"
+    ]
+  },
+  "responsive_breakpoints": [
+    "desktop: centered column max 600px width",
+    "mobile: full width side padding"
+  ],
+  "dependencies": []
+}

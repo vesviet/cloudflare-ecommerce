@@ -12,3 +12,9 @@ migrations_dir = "../../packages/database/migrations"
 [[r2_buckets]]
 binding = "MEDIA_R2"
 bucket_name = "ecommerce-media-prod"
+
+[[kv_namespaces]]
+binding = "CACHE_KV"
+id = "xxxx-xxxx-xxxx-xxxx"
+preview_id = "local-cache-kv"
+

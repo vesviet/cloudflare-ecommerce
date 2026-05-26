@@ -7,6 +7,12 @@ interface Customer {
   first_name?: string;
   last_name?: string;
   phone?: string;
+  dob?: string;
+  gender?: string;
+  company_name?: string;
+  vat_tax_id?: string;
+  accepts_marketing?: number;
+  status?: string;
 }
 
 interface AuthState {

@@ -3,7 +3,8 @@
 - `[/]` **Phase 1: Infrastructure & Data Model (Backend)**
   - `[x]` Khởi tạo dự án Hono.js (`npm create hono@latest`) với template Cloudflare Workers (Cấu trúc Monorepo).
   - `[x]` Cấu hình `wrangler.toml` để bind D1 (DB), KV (Cache), R2 (Storage), và Queues.
-  - `[x]` Viết D1 Migrations (SQL): Tạo bảng `products` (kèm FTS5 cho search), `product_variations`, `orders`, `order_items`.
+  - `[x]` Viết D1 Migrations (SQL): Tạo bảng `products`, `product_variations`, `orders`.
+  - `[x]` Viết D1 Migrations (SQL) & Drizzle Schema: Tạo bảng `order_items` và cấu hình FTS5 cho `products`.
   - `[ ]` Setup Cloudflare R2 bucket & cấu hình luồng upload/read hình ảnh sản phẩm.
 
 - `[/]` **Phase 2: API Contract & Security (Backend & DevOps)**
@@ -15,8 +16,8 @@
 - `[/]` **Phase 3: Core Logic & Integrations (Backend)**
   - `[x]` Code API Catalog: Đọc danh sách, chi tiết sản phẩm và chức năng tìm kiếm FTS5.
   - `[x]` Code API Cart & Shipping: Tích hợp Fetch API FedEx/USPS, cache biểu phí vào KV trong 10 phút.
-  - `[x]` Code API Checkout (Stripe): Sinh Payment Intent, lưu tracking UTM/Affiliate ID vào metadata của Stripe.
-  - `[x]` Code API Stripe Webhook: Viết cơ chế Idempotency chống lặp, cập nhật kho bằng D1 Transaction (`UPDATE stock WHERE stock >= ?`), đẩy thông báo hoa hồng/email vào Cloudflare Queues.
+  - `[ ]` Code API Checkout (Stripe): Sinh Payment Intent, lưu tracking UTM/Affiliate ID vào metadata của Stripe.
+  - `[ ]` Code API Stripe Webhook: Viết cơ chế Idempotency chống lặp, cập nhật kho bằng D1 Transaction (`UPDATE stock WHERE stock >= ?`), đẩy thông báo hoa hồng/email vào Cloudflare Queues.
   - `[x]` Code API Customer Portal: Xây dựng luồng Đăng ký/Đăng nhập sinh JWT, API CRUD Sổ địa chỉ (Address Book) và API truy xuất Lịch sử Đơn hàng (Order History).
 
 - `[/]` **Phase 4: Async Workers & Maintenance (Backend)**
@@ -39,7 +40,7 @@
   - `[x]` Dựng Admin UI (Frontend): Khởi tạo dự án Vite/React hoặc Next.js nội bộ (dùng framework `Refine` hoặc `react-admin`).
   - `[x]` Ghép nối Admin UI với Admin API: Xây dựng màn hình xem danh sách đơn hàng, thêm ảnh sản phẩm (upload lên R2), và ấn nút hoàn tiền.
 
-- `[/]` **Phase 7: QA & Testing (QA)**
-  - `[x]` Load Test (Overselling): Dùng k6/Artillery giả lập 1,000 request/giây thanh toán cùng 1 sản phẩm.
-  - `[x]` Security Test (IDOR): Lấy guest token user A đi xem Order ID user B.
-  - `[x]` Stripe Mock Test: Gửi webhook giả lập lỗi/trùng lặp qua Stripe CLI.
+- `[ ]` **Phase 7: QA & Testing (QA)**
+  - `[ ]` Load Test (Overselling): Dùng k6/Artillery giả lập 1,000 request/giây thanh toán cùng 1 sản phẩm.
+  - `[ ]` Security Test (IDOR): Lấy guest token user A đi xem Order ID user B.
+  - `[ ]` Stripe Mock Test: Gửi webhook giả lập lỗi/trùng lặp qua Stripe CLI.

@@ -1,0 +1,83 @@
+{
+  "contract_type": "coordination-plan",
+  "work_id": "storefront-auth-profile-research",
+  "work_type": "feature",
+  "goal_summary": "Coordinate the research, architectural validation, business analysis, and implementation planning phases for the storefront customer authentication and profile management features.",
+  "risk_tier": "security",
+  "phases": [
+    {
+      "phase_id": "phase-ba-brief",
+      "name": "Storefront Auth & Profile Business Requirements",
+      "owner_role": "Business Analyst",
+      "status": "completed",
+      "exit_criteria": [
+        "Create Business Analysis Brief.",
+        "Populate feature-ticket specification JSON contract."
+      ],
+      "output_schema_ref": "feature-ticket"
+    },
+    {
+      "phase_id": "phase-ux-design",
+      "name": "Storefront UI/UX Flow & Component specs",
+      "owner_role": "UI/UX Designer",
+      "status": "completed",
+      "exit_criteria": [
+        "Produce UX/UI Brief.",
+        "Produce storefront-auth-profile-flow-spec.json.",
+        "Produce login, profile, and change-password ui-component-spec.json contracts."
+      ],
+      "output_schema_ref": "ux-flow-spec",
+      "depends_on": [
+        "phase-ba-brief"
+      ]
+    },
+    {
+      "phase_id": "phase-architecture",
+      "name": "Storefront API Boundary & Security ADR",
+      "owner_role": "Technical Architect",
+      "status": "completed",
+      "exit_criteria": [
+        "Publish Architecture Brief and adr-spec.json.",
+        "Address service boundaries between admin-api and public-api."
+      ],
+      "output_schema_ref": "adr-spec",
+      "depends_on": [
+        "phase-ux-design"
+      ]
+    },
+    {
+      "phase_id": "phase-tech-lead",
+      "name": "Technical Delivery Planning & Sequencing",
+      "owner_role": "Technical Lead",
+      "status": "completed",
+      "exit_criteria": [
+        "Publish Tech Lead Plan and technical-delivery-plan.json."
+      ],
+      "output_schema_ref": "technical-delivery-plan",
+      "depends_on": [
+        "phase-architecture"
+      ]
+    },
+    {
+      "phase_id": "phase-handoff",
+      "name": "Release Ready Handoff & Verification",
+      "owner_role": "Agent Coordinator",
+      "status": "active",
+      "exit_criteria": [
+        "Verify clean working tree state.",
+        "Compile coordination-storefront-auth-profile.md report.",
+        "Wait for user confirmation."
+      ],
+      "depends_on": [
+        "phase-tech-lead"
+      ]
+    }
+  ],
+  "parallel_groups": [],
+  "current_phase_id": "phase-handoff",
+  "blockers": [],
+  "residual_risks": [
+    "Cookie cross-port credential sharing on localhost during development",
+    "Missing rate-limiting on public edge auth endpoints"
+  ]
+}

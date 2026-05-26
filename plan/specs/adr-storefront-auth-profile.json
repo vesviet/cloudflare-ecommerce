@@ -1,0 +1,51 @@
+{
+  "contract_type": "adr-spec",
+  "title": "Storefront Customer API Boundary and Password Management Architecture",
+  "status": "proposed",
+  "feature_ticket_ref": "plan/specs/storefront-auth-profile-ticket.json",
+  "context": "The storefront UI needs to access customer authentication, profile editing, and secure password changing. Customer data logic is currently hosted in admin-api, causing storefront-ui to call the admin port directly, which presents security and boundary concerns.",
+  "affected_services": [
+    "apps/storefront-ui",
+    "apps/public-api",
+    "apps/admin-api"
+  ],
+  "api_contract_refs": [
+    "plan/specs/storefront-auth-profile-flow-spec.json"
+  ],
+  "options_considered": [
+    {
+      "option": "Option A: Retain customer routes in admin-api (Port 8788) and make storefront-ui call the admin port directly.",
+      "pros": [
+        "Faster MVP development: no need to migrate files or rebind database connections."
+      ],
+      "cons": [
+        "Critical Security Boundary Issue: exposes the administrative API port to the public storefront/web traffic.",
+        "Violates the principle of least privilege and proper service segregation."
+      ]
+    },
+    {
+      "option": "Option B: Migrate all customer-facing routes (/auth/*, /customer/*) into public-api (Port 8787). Storefront-ui calls only public-api.",
+      "pros": [
+        "Clean security boundary: administrative API (8788) can be closed to external public traffic.",
+        "Correct separation of concerns: public shopper traffic is handled by public-api, independent of admin operations.",
+        "Allows independent scaling and caching profiles at Cloudflare Edge."
+      ],
+      "cons": [
+        "Requires shifting customer.ts, auth.ts, and middleware from admin-api to public-api."
+      ]
+    }
+  ],
+  "decision": "Adopt Option B. Migrate customer routes from admin-api to public-api. Storefront UI must only communicate with public-api (Port 8787). Enforce secure httpOnly cookies for session management with SameSite=Lax. In the new customer change-password endpoint, verify current password hash via PBKDF2 before updating, reject password reuse, and maintain current session cookie after update.",
+  "consequences": {
+    "positive": [
+      "Secures administrative API from direct exposure to storefront web clients.",
+      "Ensures clear service boundaries between administrative and customer operations.",
+      "Protects user passwords from timing attacks, dictionary reuse, and token exposure."
+    ],
+    "negative": [
+      "Requires small effort to migrate and test Honos customerApp router in public-api."
+    ]
+  },
+  "migration_plan": "1. Move customerApp Hono router from admin-api/src/customer.ts to public-api/src/routes/customer.ts. 2. Bind CACHE_KV and DB to public-api Cloudflare Worker. 3. Update storefront API_BASE environment variable to point to port 8787. 4. Implement customer change-password endpoint in public-api.",
+  "rollback_plan": "If public-api customer routing fails, fallback to admin-api customer routing by reverting the storefront API_BASE pointer back to 8788."
+}

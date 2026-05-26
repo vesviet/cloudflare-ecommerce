@@ -8,8 +8,18 @@ import { useAuthStore } from '../store/authStore';
 import CartDrawer from './CartDrawer';
 import { useRouter } from 'next/navigation';
 
+interface Category {
+  id: string;
+  name: string;
+  slug: string;
+  parent_id: string | null;
+  children?: Category[];
+}
+
 export default function Header() {
   const [isScrolled, setIsScrolled] = useState(false);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [showCategories, setShowCategories] = useState(false);
   const { items, toggleCart } = useCartStore();
   const { isAuthenticated } = useAuthStore();
   const router = useRouter();
@@ -24,6 +34,17 @@ export default function Header() {
     };
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    fetch('http://localhost:8787/api/categories')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          setCategories(data.data || []);
+        }
+      })
+      .catch(err => console.error('Failed to fetch categories', err));
   }, []);
 
   return (
@@ -52,6 +73,42 @@ export default function Header() {
         
         <nav className="links" style={{ display: 'flex', gap: '30px', alignItems: 'center' }}>
           <Link href="/" style={{ fontWeight: 500 }}>Catalog</Link>
+          
+          <div 
+            style={{ position: 'relative' }} 
+            onMouseEnter={() => setShowCategories(true)} 
+            onMouseLeave={() => setShowCategories(false)}
+          >
+            <span style={{ fontWeight: 500, cursor: 'pointer' }}>Categories ▾</span>
+            {showCategories && categories.length > 0 && (
+              <div style={{
+                position: 'absolute',
+                top: '100%',
+                left: '-20px',
+                background: 'rgba(20, 20, 30, 0.95)',
+                backdropFilter: 'blur(10px)',
+                border: '1px solid var(--glass-border)',
+                borderRadius: '8px',
+                padding: '10px 0',
+                minWidth: '200px',
+                display: 'flex',
+                flexDirection: 'column',
+                boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+                zIndex: 100
+              }}>
+                {categories.map(cat => (
+                  <Link 
+                    key={cat.id} 
+                    href={`/category/${cat.slug}`}
+                    style={{ padding: '8px 20px', display: 'block', fontSize: '0.9rem', color: '#fff', textDecoration: 'none' }}
+                  >
+                    {cat.name}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+
           <Link href="/about" style={{ fontWeight: 500, color: 'var(--text-muted)' }}>Story</Link>
           
           <div style={{ display: 'flex', gap: '20px', alignItems: 'center', marginLeft: '20px' }}>

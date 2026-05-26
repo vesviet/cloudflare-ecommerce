@@ -1,68 +1,162 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { useCartStore } from '../../store/cartStore';
 import { useAuthStore } from '../../store/authStore';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { MapPin, Building2, ShieldCheck } from 'lucide-react';
+
+const API_BASE = 'http://localhost:8787/api';
+
+const inputStyle: React.CSSProperties = {
+  width: '100%', padding: '11px 14px', borderRadius: '8px',
+  background: 'rgba(0,0,0,0.45)', color: 'white',
+  border: '1px solid rgba(255,255,255,0.12)', outline: 'none',
+  fontSize: '0.95rem', boxSizing: 'border-box',
+};
+
+const labelStyle: React.CSSProperties = {
+  display: 'block', marginBottom: '7px',
+  color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 500,
+};
+
+interface GuestAddress {
+  first_name: string; last_name: string; company: string;
+  address_1: string; address_2: string; city: string;
+  state: string; postcode: string; country: string; phone: string;
+}
+
+const EMPTY_GUEST: GuestAddress = {
+  first_name: '', last_name: '', company: '',
+  address_1: '', address_2: '', city: '',
+  state: '', postcode: '', country: 'VN', phone: '',
+};
 
 export default function CheckoutPage() {
+  return (
+    <Suspense fallback={<main style={{ maxWidth: '600px', margin: '100px auto', textAlign: 'center' }}><p style={{ color: 'var(--text-muted)' }}>Loading checkout...</p></main>}>
+      <CheckoutInner />
+    </Suspense>
+  );
+}
+
+function CheckoutInner() {
   const { items, getCartTotal, clearCart } = useCartStore();
   const { isAuthenticated, customer } = useAuthStore();
-  
+  const searchParams = useSearchParams();
+
+  // --- Contact ---
   const [email, setEmail] = useState('');
-  const [shippingAddress, setShippingAddress] = useState<any>(null);
-  
+
+  // --- Addresses ---
+  const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
+  const [guestAddress, setGuestAddress] = useState<GuestAddress>(EMPTY_GUEST);
+
+  // --- B2B ---
+  const [isB2B, setIsB2B] = useState(false);
+  const [b2bCompany, setB2bCompany] = useState('');
+  const [b2bVatId, setB2bVatId] = useState('');
+
+  // --- GDPR ---
+  const [acceptsMarketing, setAcceptsMarketing] = useState(false);
+
+  // --- UTM (extracted from URL) ---
+  const [utm, setUtm] = useState({ source: '', medium: '', campaign: '' });
+
+  // --- Order status ---
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
   const [orderId, setOrderId] = useState('');
 
-  // Auto-fill email if logged in
+  // Extract UTM params from URL on mount
   useEffect(() => {
-    if (isAuthenticated && customer) {
-      setEmail(customer.email);
-      // Fetch default address
-      fetch('http://localhost:8788/customer/addresses', { credentials: 'include' })
-        .then(res => res.json())
-        .then(data => {
-          if (data.success && data.data.length > 0) {
-            const defaultAddress = data.data.find((a: any) => a.is_default_shipping === 1) || data.data[0];
-            setShippingAddress(defaultAddress);
-          }
-        })
-        .catch(console.error);
+    setUtm({
+      source: searchParams.get('utm_source') || '',
+      medium: searchParams.get('utm_medium') || '',
+      campaign: searchParams.get('utm_campaign') || '',
+    });
+  }, [searchParams]);
+
+  // Pre-fill from account profile
+  const loadUserData = useCallback(async () => {
+    if (!isAuthenticated || !customer) return;
+    setEmail(customer.email);
+
+    // Pre-fill B2B if profile has company
+    if (customer.company_name) {
+      setIsB2B(true);
+      setB2bCompany(customer.company_name);
+      setB2bVatId(customer.vat_tax_id || '');
     }
+
+    // Pre-fill marketing consent from profile
+    if (customer.accepts_marketing) {
+      setAcceptsMarketing(customer.accepts_marketing === 1);
+    }
+
+    // Fetch saved addresses
+    try {
+      const res = await fetch(`${API_BASE}/customer/addresses`, { credentials: 'include' });
+      const data = await res.json();
+      if (data.success && data.data.length > 0) {
+        setSavedAddresses(data.data);
+        const def = data.data.find((a: any) => a.is_default_shipping === 1) || data.data[0];
+        setSelectedAddressId(def.id);
+      }
+    } catch (e) { console.error(e); }
   }, [isAuthenticated, customer]);
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount / 100);
-  };
+  useEffect(() => { loadUserData(); }, [loadUserData]);
+
+  const selectedAddress = savedAddresses.find(a => a.id === selectedAddressId) || null;
+
+  const formatCurrency = (amount: number) =>
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount / 100);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (items.length === 0) return;
-    
     setStatus('loading');
     setErrorMessage('');
 
-    try {
-      const payload = {
-        email,
-        customer_id: customer?.id || undefined,
-        shipping_address_json: shippingAddress,
-        items: items.map(item => ({
-          variation_id: item.id,
-          quantity: item.quantity
-        }))
-      };
+    const shippingAddressJson = isAuthenticated && selectedAddress
+      ? selectedAddress
+      : guestAddress;
 
-      const res = await fetch('http://localhost:8788/store/orders', {
+    // Merge B2B into address if applicable
+    if (isB2B && b2bCompany) {
+      (shippingAddressJson as any).company = b2bCompany;
+      (shippingAddressJson as any).vat_id = b2bVatId;
+    }
+
+    const payload: Record<string, any> = {
+      email,
+      customer_id: customer?.id || undefined,
+      shipping_address_json: shippingAddressJson,
+      items: items.map(item => ({ variation_id: item.id, quantity: item.quantity })),
+      accepts_marketing: acceptsMarketing ? 1 : 0,
+    };
+
+    // UTM attribution
+    if (utm.source) payload.utm_source = utm.source;
+    if (utm.medium) payload.utm_medium = utm.medium;
+    if (utm.campaign) payload.utm_campaign = utm.campaign;
+
+    // B2B billing context
+    if (isB2B) {
+      payload.b2b_company = b2bCompany;
+      payload.b2b_vat_id = b2bVatId;
+    }
+
+    try {
+      const res = await fetch(`http://localhost:8788/store/orders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       });
-
       const data = await res.json();
-
       if (data.success) {
         setStatus('success');
         setOrderId(data.orderId);
@@ -77,131 +171,262 @@ export default function CheckoutPage() {
     }
   };
 
+  // --- Success screen ---
   if (status === 'success') {
     return (
-      <main style={{ maxWidth: '600px', margin: '100px auto', textAlign: 'center' }}>
+      <main style={{ maxWidth: '600px', margin: '100px auto', textAlign: 'center', padding: '0 20px' }}>
         <div className="glass glass-card" style={{ padding: '60px 40px' }}>
           <div style={{ fontSize: '4rem', marginBottom: '20px' }}>🎉</div>
-          <h1 style={{ marginBottom: '20px', color: 'var(--accent-color)' }}>Order Confirmed!</h1>
-          <p style={{ color: 'var(--text-muted)', marginBottom: '30px', fontSize: '1.1rem' }}>
-            Thank you for your purchase. Your order ID is <strong>{orderId}</strong>.
+          <h1 style={{ marginBottom: '16px', color: 'var(--accent-color)' }}>Order Confirmed!</h1>
+          <p style={{ color: 'var(--text-muted)', marginBottom: '8px', fontSize: '1rem' }}>
+            Thank you for your purchase!
           </p>
-          <Link href="/">
-            <button className="btn">Continue Shopping</button>
-          </Link>
+          <p style={{ color: 'rgba(255,255,255,0.5)', marginBottom: '32px', fontSize: '0.85rem', fontFamily: 'monospace' }}>
+            Order ID: {orderId}
+          </p>
+          {!isAuthenticated && (
+            <p style={{ color: 'var(--text-muted)', marginBottom: '24px', fontSize: '0.9rem' }}>
+              <Link href="/my-account" style={{ color: 'var(--accent-color)', textDecoration: 'underline' }}>Create an account</Link> to track your order and save your address for next time.
+            </p>
+          )}
+          <Link href="/"><button className="btn">Continue Shopping</button></Link>
         </div>
       </main>
     );
   }
 
+  // --- Empty cart screen ---
   if (items.length === 0) {
     return (
-      <main style={{ maxWidth: '600px', margin: '100px auto', textAlign: 'center' }}>
+      <main style={{ maxWidth: '600px', margin: '100px auto', textAlign: 'center', padding: '0 20px' }}>
         <h1 style={{ marginBottom: '20px' }}>Your Cart is Empty</h1>
         <p style={{ color: 'var(--text-muted)', marginBottom: '30px' }}>Add some premium gear to your cart before checking out.</p>
-        <Link href="/">
-          <button className="btn">Browse Catalog</button>
-        </Link>
+        <Link href="/"><button className="btn">Browse Catalog</button></Link>
       </main>
     );
   }
 
   return (
-    <main style={{ maxWidth: '1000px', margin: '40px auto' }}>
+    <main style={{ maxWidth: '1040px', margin: '40px auto', padding: '0 20px' }}>
       <h1 style={{ marginBottom: '40px' }}>Checkout</h1>
-      
-      <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '40px' }}>
-        
-        {/* Left: Form */}
-        <div className="glass glass-card">
-          <h2 style={{ marginBottom: '24px', fontSize: '1.4rem' }}>Contact Information</h2>
-          <form onSubmit={handleSubmit}>
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)' }}>Email Address</label>
-              <input 
-                type="email" 
-                required 
-                value={email}
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '32px', alignItems: 'start' }}>
+
+        {/* ─── Left: Form ─── */}
+        <div className="glass glass-card" style={{ padding: '32px' }}>
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+
+            {/* Section: Contact */}
+            <h2 style={{ marginBottom: '20px', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ width: '28px', height: '28px', background: 'var(--accent-color)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 700 }}>1</span>
+              Contact Information
+            </h2>
+            <div style={{ marginBottom: '28px' }}>
+              <label style={labelStyle}>Email Address *</label>
+              <input
+                type="email" required value={email}
                 onChange={e => setEmail(e.target.value)}
-                style={{ width: '100%', padding: '12px', borderRadius: '6px', background: 'rgba(0,0,0,0.5)', color: 'white', border: '1px solid var(--glass-border)', outline: 'none' }} 
+                placeholder="your@email.com"
+                style={inputStyle}
               />
             </div>
 
-            <h2 style={{ marginBottom: '24px', marginTop: '40px', fontSize: '1.4rem' }}>Shipping Address</h2>
-            
-            {isAuthenticated && shippingAddress ? (
-              <div style={{ padding: '20px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <h3 style={{ margin: 0 }}>{shippingAddress.alias}</h3>
-                  <Link href="/dashboard"><span style={{ color: 'var(--accent-color)', fontSize: '0.9rem', cursor: 'pointer' }}>Change</span></Link>
+            {/* Section: Shipping Address */}
+            <h2 style={{ marginBottom: '20px', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ width: '28px', height: '28px', background: 'var(--accent-color)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 700 }}>2</span>
+              <MapPin size={18} /> Shipping Address
+            </h2>
+
+            {isAuthenticated && savedAddresses.length > 0 ? (
+              /* Logged-in: Address selector */
+              <div style={{ marginBottom: '28px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {savedAddresses.map(addr => (
+                    <label
+                      key={addr.id}
+                      style={{ display: 'flex', gap: '14px', padding: '16px', background: selectedAddressId === addr.id ? 'rgba(99,102,241,0.12)' : 'rgba(255,255,255,0.02)', border: `1px solid ${selectedAddressId === addr.id ? 'rgba(99,102,241,0.4)' : 'rgba(255,255,255,0.08)'}`, borderRadius: '10px', cursor: 'pointer', transition: 'all 0.2s' }}
+                    >
+                      <input
+                        type="radio" name="address"
+                        value={addr.id}
+                        checked={selectedAddressId === addr.id}
+                        onChange={() => setSelectedAddressId(addr.id)}
+                        style={{ marginTop: '2px', cursor: 'pointer', accentColor: 'var(--accent-color)' }}
+                      />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                          <strong style={{ fontSize: '0.95rem' }}>{addr.alias}</strong>
+                          {addr.is_default_shipping === 1 && (
+                            <span style={{ background: 'var(--accent-color)', color: '#fff', fontSize: '0.65rem', padding: '2px 7px', borderRadius: '20px', fontWeight: 700 }}>DEFAULT</span>
+                          )}
+                        </div>
+                        <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: 1.6 }}>
+                          {addr.first_name} {addr.last_name}{addr.company ? ` · ${addr.company}` : ''}<br />
+                          {addr.address_1}{addr.address_2 ? `, ${addr.address_2}` : ''}<br />
+                          {addr.city}{addr.state ? `, ${addr.state}` : ''} {addr.postcode}, {addr.country}
+                        </div>
+                      </div>
+                    </label>
+                  ))}
                 </div>
-                <p style={{ color: 'var(--text-muted)', margin: 0 }}>
-                  {shippingAddress.first_name} {shippingAddress.last_name}<br/>
-                  {shippingAddress.address_1} {shippingAddress.address_2 ? `, ${shippingAddress.address_2}` : ''}<br/>
-                  {shippingAddress.city}, {shippingAddress.state} {shippingAddress.postcode}<br/>
-                  {shippingAddress.country}<br/>
-                  {shippingAddress.phone}
-                </p>
+                <Link href="/dashboard" style={{ display: 'inline-block', marginTop: '12px', color: 'var(--accent-color)', fontSize: '0.85rem', textDecoration: 'underline' }}>
+                  + Manage addresses
+                </Link>
+              </div>
+            ) : isAuthenticated && savedAddresses.length === 0 ? (
+              /* Logged-in but no addresses */
+              <div style={{ padding: '20px', background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: '10px', marginBottom: '28px', textAlign: 'center' }}>
+                <p style={{ color: 'var(--text-muted)', marginBottom: '12px', fontSize: '0.9rem' }}>No saved addresses yet.</p>
+                <Link href="/dashboard"><button type="button" className="btn" style={{ padding: '8px 20px', fontSize: '0.85rem' }}>Add Address</button></Link>
               </div>
             ) : (
-              <div style={{ color: 'var(--text-muted)', fontSize: '0.95rem' }}>
-                <p>Please <Link href="/my-account" style={{ color: 'var(--accent-color)', textDecoration: 'underline' }}>log in</Link> to use your saved addresses, or proceed as guest.</p>
-                {/* Guest Address Form placeholder */}
+              /* Guest: Full address form */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '28px' }}>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '4px' }}>
+                  <Link href="/my-account" style={{ color: 'var(--accent-color)', textDecoration: 'underline' }}>Sign in</Link> to use saved addresses, or fill in below as guest.
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                  <div><label style={labelStyle}>First Name *</label><input style={inputStyle} required value={guestAddress.first_name} onChange={e => setGuestAddress({ ...guestAddress, first_name: e.target.value })} /></div>
+                  <div><label style={labelStyle}>Last Name *</label><input style={inputStyle} required value={guestAddress.last_name} onChange={e => setGuestAddress({ ...guestAddress, last_name: e.target.value })} /></div>
+                </div>
+                <div><label style={labelStyle}>Street Address *</label><input style={inputStyle} required value={guestAddress.address_1} onChange={e => setGuestAddress({ ...guestAddress, address_1: e.target.value })} placeholder="Street, House No." /></div>
+                <div><label style={labelStyle}>Address Line 2</label><input style={inputStyle} value={guestAddress.address_2} onChange={e => setGuestAddress({ ...guestAddress, address_2: e.target.value })} placeholder="Apartment, Floor (Optional)" /></div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                  <div><label style={labelStyle}>City *</label><input style={inputStyle} required value={guestAddress.city} onChange={e => setGuestAddress({ ...guestAddress, city: e.target.value })} /></div>
+                  <div><label style={labelStyle}>State</label><input style={inputStyle} value={guestAddress.state} onChange={e => setGuestAddress({ ...guestAddress, state: e.target.value })} /></div>
+                  <div><label style={labelStyle}>Postcode *</label><input style={inputStyle} required value={guestAddress.postcode} onChange={e => setGuestAddress({ ...guestAddress, postcode: e.target.value })} /></div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                  <div>
+                    <label style={labelStyle}>Country *</label>
+                    <select style={{ ...inputStyle, cursor: 'pointer' }} value={guestAddress.country} onChange={e => setGuestAddress({ ...guestAddress, country: e.target.value })}>
+                      <option value="VN">Vietnam</option>
+                      <option value="US">United States</option>
+                      <option value="SG">Singapore</option>
+                      <option value="JP">Japan</option>
+                      <option value="AU">Australia</option>
+                      <option value="GB">United Kingdom</option>
+                      <option value="DE">Germany</option>
+                    </select>
+                  </div>
+                  <div><label style={labelStyle}>Phone</label><input type="tel" style={inputStyle} value={guestAddress.phone} onChange={e => setGuestAddress({ ...guestAddress, phone: e.target.value })} /></div>
+                </div>
+              </div>
+            )}
+
+            {/* Section: B2B */}
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', padding: '14px 16px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', marginBottom: isB2B ? '14px' : 0 }}>
+                <input
+                  type="checkbox" checked={isB2B}
+                  onChange={e => setIsB2B(e.target.checked)}
+                  style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: 'var(--accent-color)' }}
+                />
+                <Building2 size={16} color="var(--text-muted)" />
+                <span style={{ fontSize: '0.9rem' }}>This is a <strong>B2B / Business purchase</strong> (I need a VAT invoice)</span>
+              </label>
+              {isB2B && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', padding: '16px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '10px' }}>
+                  <div>
+                    <label style={labelStyle}>Company Name *</label>
+                    <input style={inputStyle} required={isB2B} value={b2bCompany} onChange={e => setB2bCompany(e.target.value)} placeholder="Your Company Ltd." />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>VAT / Tax ID</label>
+                    <input style={inputStyle} value={b2bVatId} onChange={e => setB2bVatId(e.target.value)} placeholder="Optional" />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Section: GDPR Consent */}
+            <div style={{ marginBottom: '28px', padding: '14px 16px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '10px', display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+              <input
+                id="checkout-marketing"
+                type="checkbox"
+                checked={acceptsMarketing}
+                onChange={e => setAcceptsMarketing(e.target.checked)}
+                style={{ marginTop: '3px', cursor: 'pointer', width: '15px', height: '15px', flexShrink: 0, accentColor: 'var(--accent-color)' }}
+              />
+              <label htmlFor="checkout-marketing" style={{ cursor: 'pointer', lineHeight: 1.5 }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                  <ShieldCheck size={14} color="var(--accent-color)" />
+                  <strong style={{ fontSize: '0.88rem' }}>Marketing Consent (GDPR)</strong>
+                </span>
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                  I agree to receive personalized promotions and newsletters from Aura. You can unsubscribe at any time.
+                </span>
+              </label>
+            </div>
+
+            {/* UTM attribution indicator (debug info hidden in production) */}
+            {(utm.source || utm.medium || utm.campaign) && (
+              <div style={{ marginBottom: '20px', padding: '10px 14px', background: 'rgba(74,222,128,0.05)', border: '1px solid rgba(74,222,128,0.15)', borderRadius: '8px', fontSize: '0.78rem', color: 'rgba(74,222,128,0.7)' }}>
+                📊 Attribution tracked: {[utm.source, utm.medium, utm.campaign].filter(Boolean).join(' / ')}
               </div>
             )}
 
             {status === 'error' && (
-              <div style={{ padding: '12px', background: 'rgba(255, 88, 88, 0.1)', color: '#ff5858', borderRadius: '8px', marginTop: '20px', border: '1px solid rgba(255, 88, 88, 0.2)' }}>
-                {errorMessage}
+              <div style={{ padding: '12px 16px', background: 'rgba(248,113,113,0.1)', color: '#f87171', borderRadius: '8px', marginBottom: '20px', border: '1px solid rgba(248,113,113,0.25)', fontSize: '0.9rem' }}>
+                ✕ {errorMessage}
               </div>
             )}
 
-            <button 
-              className="btn" 
-              type="submit" 
+            <button
+              className="btn" type="submit"
               disabled={status === 'loading'}
-              style={{ width: '100%', padding: '16px', marginTop: '40px', fontSize: '1.1rem' }}
+              style={{ width: '100%', padding: '16px', fontSize: '1.05rem', letterSpacing: '0.02em' }}
             >
-              {status === 'loading' ? 'Processing...' : 'Place Order'}
+              {status === 'loading' ? 'Processing...' : '🔒 Place Order'}
             </button>
           </form>
         </div>
 
-        {/* Right: Order Summary */}
-        <div className="glass glass-card" style={{ height: 'fit-content' }}>
-          <h2 style={{ marginBottom: '24px', fontSize: '1.4rem' }}>Order Summary</h2>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px' }}>
+        {/* ─── Right: Order Summary ─── */}
+        <div className="glass glass-card" style={{ padding: '28px', position: 'sticky', top: '24px' }}>
+          <h2 style={{ marginBottom: '20px', fontSize: '1.2rem' }}>Order Summary</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '20px' }}>
             {items.map(item => (
-              <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div style={{ position: 'relative' }}>
-                    <div style={{ width: '50px', height: '50px', background: 'rgba(255,255,255,0.1)', borderRadius: '8px' }}></div>
-                    <span style={{ position: 'absolute', top: '-6px', right: '-6px', background: 'var(--text-main)', color: '#000', width: '20px', height: '20px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 'bold' }}>{item.quantity}</span>
+              <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
+                  <div style={{ position: 'relative', flexShrink: 0 }}>
+                    <div style={{ width: '46px', height: '46px', background: 'rgba(255,255,255,0.08)', borderRadius: '8px' }} />
+                    <span style={{ position: 'absolute', top: '-6px', right: '-6px', background: 'var(--accent-color)', color: '#fff', width: '18px', height: '18px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: 700 }}>{item.quantity}</span>
                   </div>
-                  <div>
-                    <div style={{ fontWeight: 500 }}>{item.name}</div>
-                    <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{item.attributes ? Object.values(item.attributes).join(', ') : ''}</div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 500, fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.name}</div>
+                    <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{item.attributes ? Object.values(item.attributes).join(', ') : ''}</div>
                   </div>
                 </div>
-                <div style={{ fontWeight: 600 }}>{formatCurrency(item.price * item.quantity)}</div>
+                <div style={{ fontWeight: 600, fontSize: '0.9rem', flexShrink: 0 }}>{formatCurrency(item.price * item.quantity)}</div>
               </div>
             ))}
           </div>
 
-          <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)' }}>
+          <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
               <span>Subtotal</span>
               <span>{formatCurrency(getCartTotal())}</span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
               <span>Shipping</span>
-              <span>Free</span>
+              <span style={{ color: '#4ade80' }}>Free</span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.2rem', fontWeight: 600, marginTop: '10px', color: '#fff' }}>
+            {isB2B && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                <span>VAT (B2B)</span>
+                <span>Invoiced separately</span>
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.15rem', fontWeight: 700, marginTop: '8px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
               <span>Total</span>
-              <span>{formatCurrency(getCartTotal())}</span>
+              <span style={{ color: 'var(--accent-color)' }}>{formatCurrency(getCartTotal())}</span>
             </div>
           </div>
+
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '16px', textAlign: 'center', lineHeight: 1.5 }}>
+            🔒 Payments are encrypted and secured via Stripe.
+          </p>
         </div>
       </div>
     </main>

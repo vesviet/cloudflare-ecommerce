@@ -32,10 +32,11 @@ stateDiagram-v2
 ### 2. Vòng đời đơn hàng (Order State Machine)
 ```mermaid
 stateDiagram-v2
-    [*] --> Pending_Payment: Khởi tạo (Chờ Stripe callback)
-    Pending_Payment --> Processing: Stripe báo thành công (Trừ tồn kho)
-    Pending_Payment --> Cancelled: Quá hạn thanh toán (ví dụ: 30 phút)
-    Processing --> Completed: Giao hàng thành công (qua FedEx / USPS)
+    [*] --> Pending_Payment: Khởi tạo (Chờ Stripe, Soft-lock tồn kho)
+    Pending_Payment --> Processing: Stripe báo thành công (Trừ kho cứng)
+    Pending_Payment --> Cancelled: Quá hạn thanh toán (Cronjob hủy & nhả kho)
+    Processing --> Shipped: Cập nhật mã vận đơn (Shop Manager)
+    Shipped --> Completed: Giao hàng thành công (qua FedEx / USPS)
     Processing --> Refunded: Hoàn tiền qua Stripe
     Processing --> Failed: Thanh toán thất bại hoặc lỗi hệ thống
     Completed --> [*]
@@ -64,52 +65,56 @@ stateDiagram-v2
 
 ### 3. Tích hợp Vận chuyển (Shipping Integration - FedEx / USPS)
 - **Functional requirements:**
-  - Tích hợp API FedEx và USPS để tính phí vận chuyển theo thời gian thực (Real-time shipping rates) dựa trên kích thước, khối lượng sản phẩm và địa chỉ nhận hàng (Zipcode).
-  - Hiển thị danh sách phương thức vận chuyển và phí tương ứng tại trang checkout.
+  - Hỗ trợ biểu phí cố định (Flat Rate) làm mặc định để tính tổng tiền ngay ở giỏ hàng.
+  - Tích hợp API FedEx và USPS để tính phí vận chuyển theo thời gian thực dựa trên địa chỉ nhận hàng (Zipcode).
 - **Business rules:**
-  - Phí vận chuyển được tính động từ API bên thứ ba và cộng trực tiếp vào Tổng tiền đơn hàng trước khi thanh toán.
+  - **Chưa nhập địa chỉ:** Áp dụng phí vận chuyển cố định (**Flat Rate**).
+  - **Đã nhập địa chỉ:** Kiểm tra cấu hình API Key của FedEx/USPS. Nếu có, lấy phí vận chuyển theo thời gian thực (lưu cache KV 10 phút). Nếu không có (hoặc gọi API lỗi), tự động fallback về **Flat Rate**.
 
 ### 4. Tích hợp Thanh toán & Hoàn tiền (Payment & Refund - Stripe)
 - **Functional requirements:**
-  - Tích hợp **Stripe** (Stripe Elements / Checkout Session) để xử lý thanh toán online bảo mật.
-  - Đồng bộ trạng thái đơn hàng thông qua Stripe Webhook.
+  - Tích hợp **Stripe Checkout Session** để xử lý thanh toán online, tự động tính Thuế (Stripe Tax) và Khuyến mãi (Stripe Coupons).
+  - Đồng bộ trạng thái đơn hàng thông qua Stripe Webhook, xử lý an toàn chống trùng lặp (Idempotency).
   - Xử lý API Hoàn tiền (Refund API) để đổi trạng thái đơn hàng sang `Refunded`.
 - **Business rules:**
-  - Đơn hàng chỉ chuyển sang trạng thái `Processing` sau khi Stripe Webhook xác nhận thanh toán thành công (`payment_intent.succeeded`).
-  - Tồn kho của sản phẩm chỉ được trừ chính thức khi webhook báo thành công để tránh giữ chỗ ảo quá lâu (Hold stock tối đa 30 phút ở trạng thái Pending Payment).
-  - Quy trình Hoàn tiền (Refund): Khi Admin/Shop Manager kích hoạt hoàn tiền trên Dashboard, hệ thống phải gọi API Stripe Refund, đồng thời hoàn lại (+1) số lượng tồn kho trên D1.
+  - **Tồn kho (Soft-lock):** Khi tạo Checkout Session, hệ thống giữ chỗ tồn kho (Soft-lock) trong 30 phút ở bảng `inventory_reservations`. Nếu quá hạn chưa thanh toán, Cronjob 5 phút/lần sẽ tự động hủy đơn và hoàn tồn kho.
+  - **Trừ kho cứng:** Đơn hàng chỉ chuyển sang trạng thái `Processing` và trừ tồn kho chính thức khi Stripe Webhook xác nhận thanh toán thành công (`checkout.session.completed`).
+  - **Thuế & Khuyến mãi:** Giao phó hoàn toàn việc tính toán Thuế tự động và Khuyến mãi cho nền tảng Stripe xử lý trong Checkout Session. Dữ liệu sẽ được trích xuất từ webhook metadata để lưu vào hệ thống.
+  - **Quy trình Hoàn tiền (Refund):** Khi Admin/Shop Manager kích hoạt hoàn tiền trên Dashboard, hệ thống gọi API Stripe Refund, hoàn lại (+1) số lượng tồn kho trên D1.
 
 ### 5. Affiliate & Marketing Analytics
 - **Functional requirements:**
   - Hệ thống phải nhận diện được các tham số theo dõi (UTM params, `affiliate_id`) từ URL khi khách (Guest hoặc Customer) truy cập.
 - **Business rules:**
   - Các tham số Affiliate này phải được lưu vào Session giỏ hàng.
-  - Khi thanh toán, tham số Tracking bắt buộc phải được truyền vào **Stripe Metadata** để phục vụ bộ phận Kế toán (Finance) đối soát hoa hồng trên Dashboard của Stripe mà không cần chắp vá dữ liệu thủ công.
+  - Khi thanh toán, tham số Tracking bắt buộc phải được truyền vào **Stripe Metadata** để phục vụ bộ phận Kế toán (Finance) đối soát hoa hồng trên Dashboard của Stripe.
 
-### 6. Kiến trúc kỹ thuật (Headless Cloudflare Workers)
+### 6. Transactional Emails (Thông báo giao dịch)
 - **Functional requirements:**
-  - Phân tách hoàn toàn Front-end (ví dụ: Next.js/Vite deploy trên Cloudflare Pages) và Back-end API (chạy trên Cloudflare Workers).
-  - Lưu trữ dữ liệu tối ưu hóa cho Edge (D1 SQL Database, KV, R2 cho hình ảnh, Queues cho tác vụ ngầm).
+  - Gửi email tự động không đồng bộ thông qua Cloudflare Queues để không làm chậm webhook thanh toán.
+- **Business rules:**
+  - Các sự kiện gửi email: Xác nhận đơn hàng (Khi sang `Processing`), Gửi hàng (Khi sang `Shipped`), Hoàn tiền (`Refunded`).
+  - Giai đoạn MVP sử dụng Mock Email ghi log ra console; sau đó tích hợp Resend API.
+
+### 7. Kiến trúc kỹ thuật (Headless Cloudflare Workers)
+- **Functional requirements:**
+  - Phân tách hoàn toàn Front-end (Next.js/Vite) và Back-end API (Cloudflare Workers).
+  - Lưu trữ dữ liệu tối ưu hóa cho Edge (D1 SQL Database, KV, R2, Queues cho tác vụ ngầm).
 
 ---
 
 ## Acceptance Criteria (Ví dụ: Thanh toán qua Stripe & Tạo đơn)
-- **Given** người dùng (Guest/Customer) đã chọn phương thức vận chuyển FedEx/USPS và nhập địa chỉ hợp lệ.
-- **When** người dùng thực hiện thanh toán thành công qua Stripe.
-- **Then** Stripe Webhook gửi callback về API Cloudflare Workers.
-- **And** hệ thống chuyển trạng thái đơn hàng thành `Processing`.
-- **And** số lượng tồn kho của các sản phẩm tương ứng giảm đi.
-- **And** gửi email thông báo đơn hàng kèm mã vận đơn dự kiến cho khách hàng.
+- **Given** người dùng ở trang Checkout và chưa nhập địa chỉ.
+- **Then** hệ thống tính phí vận chuyển theo mức Flat Rate.
+- **When** người dùng nhập địa chỉ và tiến hành thanh toán qua Stripe Checkout.
+- **Then** hệ thống tạo bản ghi giữ chỗ tồn kho (Soft-lock) trong 30 phút.
+- **And** hệ thống hiển thị trang Stripe với số tiền đã cộng đủ Thuế tự động (Stripe Tax).
+- **When** thanh toán thành công, Stripe gửi webhook.
+- **Then** hệ thống chuyển trạng thái đơn hàng thành `Processing`.
+- **And** trừ tồn kho chính thức (Hard-lock) và xóa bản ghi Soft-lock.
+- **And** đẩy thông báo vào Queue để gửi email (Mock) xác nhận đơn hàng cho khách.
 - **And** giỏ hàng được xóa sạch.
 
 ---
 
-## Open Questions (Đã xác nhận)
-1. **Payment Methods:** Stripe (Đã xác nhận).
-2. **Shipping Rules:** Tích hợp FedEx & USPS (Đã xác nhận).
-3. **Guest Checkout:** Cho phép (Đã xác nhận).
-4. **Sản phẩm:** Chỉ sản phẩm vật lý - Physical (Đã xác nhận).
-5. **Giao diện/Front-end:** Headless dựa trên mô hình Cloudflare Workers (Đã xác nhận).
-
----
 *Documented by: Business Analyst Agent (theo role agent-skills)*
