@@ -1,0 +1,29 @@
+name: Generate OpenAPI SDKs
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'packages/contract/src/**'
+
+jobs:
+  generate-sdks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install OpenAPI Generator
+        run: npm install -g @openapitools/openapi-generator-cli
+
+      # Trong thực tế, bạn sẽ chạy một script để export từ Hono Zod sang file `openapi.json`
+      # Ở đây giả lập việc sinh SDK từ file đó
+      - name: Generate Dart SDK (Flutter)
+        run: |
+          # openapi-generator-cli generate -i ./packages/contract/openapi.json -g dart -o ./sdks/dart
+          echo "Simulating Dart SDK Generation..."
+
+      - name: Generate Swift SDK (iOS)
+        run: |
+          # openapi-generator-cli generate -i ./packages/contract/openapi.json -g swift5 -o ./sdks/swift
+          echo "Simulating Swift SDK Generation..."

@@ -1,0 +1,132 @@
+{
+  "contract_type": "technical-delivery-plan",
+  "work_title": "E-Commerce Core MVP (Headless Cloudflare Workers)",
+  "feature_ticket_ref": "plan/feature-ticket-ecommerce-mvp.json",
+  "adr_refs": [
+    "plan/adr-headless-cloudflare-workers.json"
+  ],
+  "goal_summary": "Deliver a serverless backend and headless storefront for the E-Commerce MVP, ensuring atomic inventory updates and integrating Stripe + FedEx/USPS.",
+  "preserved_behavior": "WooCommerce standard order states: Pending_Payment -> Processing -> Completed.",
+  "slices": [
+    {
+      "slice_id": "slice-1-infra-db",
+      "description": "Initialize Cloudflare Worker with Hono.js. Setup Wrangler and create D1 schema migrations for products, variants, orders, and customers.",
+      "owner_role": "Backend Developer",
+      "depends_on": [],
+      "output_schema_ref": "schema-migration.json"
+    },
+    {
+      "slice_id": "slice-2-api-contract",
+      "description": "Define API definitions for Catalog, Cart, and Checkout domains using @hono/zod-openapi for future SDK generation.",
+      "owner_role": "Backend Developer",
+      "depends_on": ["slice-1-infra-db"],
+      "output_schema_ref": "api-contract-spec.json"
+    },
+    {
+      "slice_id": "slice-3-catalog-api",
+      "description": "Implement D1 queries for Product listings and details. Apply cache control headers.",
+      "owner_role": "Backend Developer",
+      "depends_on": ["slice-2-api-contract"],
+      "output_schema_ref": "implementation-result.json"
+    },
+    {
+      "slice_id": "slice-4-ui-scaffold",
+      "description": "Scaffold Next.js storefront project on Cloudflare Pages. Setup routing for Home and Product Detail pages.",
+      "owner_role": "Frontend Developer",
+      "depends_on": ["slice-2-api-contract"],
+      "output_schema_ref": "implementation-result.json"
+    },
+    {
+      "slice_id": "slice-5-cart-shipping",
+      "description": "Implement cart API endpoints and integrate external HTTP fetch to FedEx/USPS APIs with KV caching for shipping rates.",
+      "owner_role": "Backend Developer",
+      "depends_on": ["slice-2-api-contract"],
+      "output_schema_ref": "implementation-result.json"
+    },
+    {
+      "slice_id": "slice-6-stripe-transaction",
+      "description": "Implement Stripe Intent generation and Webhook validation. Create atomic D1 transaction logic to reduce inventory upon payment success.",
+      "owner_role": "Backend Developer",
+      "depends_on": ["slice-1-infra-db", "slice-5-cart-shipping"],
+      "output_schema_ref": "implementation-result.json"
+    },
+    {
+      "slice_id": "slice-7-cron-cleanup",
+      "description": "Implement Scheduled Worker (Cron Triggers) to cancel unpaid orders over 30 minutes old and restore inventory.",
+      "owner_role": "Backend Developer",
+      "depends_on": ["slice-6-stripe-transaction"],
+      "output_schema_ref": "implementation-result.json"
+    },
+    {
+      "slice_id": "slice-8-checkout-ui",
+      "description": "Implement Checkout Page with Stripe Elements. Integrate shipping option selection.",
+      "owner_role": "Frontend Developer",
+      "depends_on": ["slice-4-ui-scaffold", "slice-5-cart-shipping", "slice-6-stripe-transaction"],
+      "output_schema_ref": "implementation-result.json"
+    },
+    {
+      "slice_id": "slice-9-openapi-sdk",
+      "description": "Setup CI/CD to auto-generate openapi.json and compile Client SDKs for Mobile/Marketplace consumers.",
+      "owner_role": "DevOps / Backend Developer",
+      "depends_on": ["slice-2-api-contract"],
+      "output_schema_ref": "implementation-result.json"
+    },
+    {
+      "slice_id": "slice-10-marketplace-affiliate",
+      "description": "Implement API Key management middleware for Marketplace partners and UTM/Affiliate ID tracking for orders in D1.",
+      "owner_role": "Backend Developer",
+      "depends_on": ["slice-1-infra-db", "slice-2-api-contract"],
+      "output_schema_ref": "implementation-result.json"
+    },
+    {
+      "slice_id": "slice-11-admin-api",
+      "description": "Implement secure Admin API endpoints (CRUD for Products, Categories, Orders, Refunds) protected by Cloudflare Access or Admin JWT.",
+      "owner_role": "Backend Developer",
+      "depends_on": ["slice-2-api-contract", "slice-1-infra-db"],
+      "output_schema_ref": "implementation-result.json"
+    },
+    {
+      "slice_id": "slice-12-admin-ui",
+      "description": "Scaffold internal Admin Dashboard (React/Vite or Next.js) using Refine.dev or react-admin to consume Admin API for managing store operations.",
+      "owner_role": "Frontend Developer",
+      "depends_on": ["slice-11-admin-api"],
+      "output_schema_ref": "implementation-result.json"
+    },
+    {
+      "slice_id": "slice-13-customer-api",
+      "description": "Implement End-User Authentication (JWT) and Customer Portal APIs (Profile, Address Book, Order History).",
+      "owner_role": "Backend Developer",
+      "depends_on": ["slice-1-infra-db", "slice-2-api-contract"],
+      "output_schema_ref": "implementation-result.json"
+    },
+    {
+      "slice_id": "slice-14-customer-portal-ui",
+      "description": "Implement 'My Account' area in Next.js Storefront for registered users to manage addresses and view order history.",
+      "owner_role": "Frontend Developer",
+      "depends_on": ["slice-4-ui-scaffold", "slice-13-customer-api"],
+      "output_schema_ref": "implementation-result.json"
+    }
+  ],
+  "impact_radius": [
+    "Database Schema Constraints (Stock must not drop below 0)",
+    "Payment Webhook Idempotency (Prevent double-processing of Stripe events)",
+    "Worker Bundle Size Limit",
+    "API Key Security & SDK Versioning for external partners",
+    "Admin Auth Bypass (Must secure admin endpoints rigorously)",
+    "Customer PII Security & IDOR (Users must only access their own profile/addresses)"
+  ],
+  "quality_gates": {
+    "tests": "Miniflare unit tests for API; Vitest for UI components. Stripe Webhook mock tests required.",
+    "review": "Code review finding required for DB Transaction logic and Stripe Signature validation.",
+    "build": "Wrangler bundle size must stay under 1MB. ESLint and Prettier passing.",
+    "security": "Stripe secret keys must be securely stored in Wrangler secrets, not plain text."
+  },
+  "rollout_notes": "Deploy D1 migrations first. Then deploy API worker. Finally deploy Pages storefront. Validate Stripe Webhook endpoint in Stripe Dashboard.",
+  "rollback_notes": "Use 'wrangler rollback' for API worker. DB rollbacks require manual migration down-scripts.",
+  "documentation_deltas": [
+    "Document local development setup using Miniflare and local D1.",
+    "Document FedEx/USPS API key requirements."
+  ],
+  "open_questions": [],
+  "readiness_status": "planning"
+}

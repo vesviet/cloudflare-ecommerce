@@ -1,0 +1,67 @@
+{
+  "contract_type": "feature-ticket",
+  "title": "E-Commerce Core Flow MVP (WooCommerce Model)",
+  "type": "feature",
+  "business_value": "Provide a fast, serverless-based headless e-commerce core matching WooCommerce's simplicity with Stripe payment and FedEx/USPS shipping.",
+  "preserved_behavior": "WooCommerce-like order state machine (Pending Payment -> Processing -> Completed)",
+  "changed_behavior": "Headless architecture running on Cloudflare Workers edge instead of standard monolithic WordPress PHP runtime.",
+  "actors": [
+    "Guest",
+    "Customer",
+    "Shop Manager",
+    "Administrator"
+  ],
+  "business_rules": [
+    {
+      "id": "BR-01",
+      "rule": "Physical goods only. Stock management is strictly calculated at edge."
+    },
+    {
+      "id": "BR-02",
+      "rule": "Guest checkout allowed. Account creation is optional during checkout."
+    },
+    {
+      "id": "BR-03",
+      "rule": "Order inventory is held for a maximum of 30 minutes in Pending_Payment state before auto-cancellation."
+    },
+    {
+      "id": "BR-04",
+      "rule": "Real-time shipping calculations are fetched dynamically via FedEx/USPS APIs at checkout based on package weight and Zipcode."
+    },
+    {
+      "id": "BR-05",
+      "rule": "Transition to Processing state requires Stripe Webhook verification of payment success."
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "scenario": "Successful Guest Checkout via Stripe",
+      "given": "A Guest cart containing physical items with stock available, shipping destination Zipcode provided.",
+      "when": "Guest selects shipping method (FedEx/USPS), inputs payment via Stripe Elements, and clicks Place Order.",
+      "then": "Stripe webhook confirms payment, order is created in 'Processing' state, inventory is decremented, email confirmation is triggered, and client cart is cleared."
+    },
+    {
+      "scenario": "Order Auto-Cancellation on Stripe Payment Timeout",
+      "given": "An order has been initialized in 'Pending_Payment' state and stock is reserved.",
+      "when": "30 minutes pass without a successful payment webhook confirmation from Stripe.",
+      "then": "The order state transitions to 'Cancelled', and reserved stock is released back to inventory."
+    }
+  ],
+  "edge_cases": [
+    "Simultaneous checkout of the last remaining item in stock before payment webhook finishes.",
+    "FedEx/USPS API downtime during checkout (need fallback to standard flat rates).",
+    "Stripe webhook delay or delivery failure (need scheduler/polling fallback to check payment intent status)."
+  ],
+  "dependencies": [
+    "Stripe API & Webhooks setup",
+    "FedEx & USPS developer credentials & API endpoints",
+    "Cloudflare Workers ecosystem (D1 Database, KV)"
+  ],
+  "out_of_scope": [
+    "Virtual/downloadable goods",
+    "Subscriptions or recurring payments",
+    "Advanced B2B flows (invoices, PO numbers)"
+  ],
+  "open_questions": [],
+  "process_impact": "Requires development of Cloudflare Worker back-end, frontend integration with Stripe Elements, and shipping API routing."
+}

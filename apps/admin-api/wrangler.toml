@@ -1,0 +1,14 @@
+name = "admin-api-worker"
+main = "src/index.ts"
+compatibility_date = "2024-05-12"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "ecommerce-db-prod"
+database_id = "xxxx-xxxx-xxxx-xxxx"
+preview_database_id = "local" # Dùng SQLite local khi chạy wrangler dev
+migrations_dir = "../../packages/database/migrations"
+
+[[r2_buckets]]
+binding = "MEDIA_R2"
+bucket_name = "ecommerce-media-prod"

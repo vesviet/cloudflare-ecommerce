@@ -1,0 +1,50 @@
+{
+  "contract_type": "adr-spec",
+  "title": "Headless E-Commerce Backend on Cloudflare Workers",
+  "status": "accepted",
+  "feature_ticket_ref": "plan/feature-ticket-ecommerce-mvp.json",
+  "context": "We need to design a high-performance, cost-effective, and low-latency headless backend for an e-commerce application. The backend must handle real-time inventory management, integration with Stripe (payments), and FedEx/USPS (shipping calculations). It must run entirely in a serverless environment on Cloudflare Workers.",
+  "affected_services": [
+    "storefront-ui",
+    "ecommerce-api-worker"
+  ],
+  "options_considered": [
+    {
+      "option": "Option A: Monolithic Worker with Hono and Cloudflare D1",
+      "pros": [
+        "Simple implementation and deployment within a single project.",
+        "Zero inter-worker network latency.",
+        "Transactional safety inside D1 database for inventory checks."
+      ],
+      "cons": [
+        "Risk of V8 isolate bundle size limits if bloated with external SDKs.",
+        "SQLite-backed D1 is localized, may have write locks under heavy loads."
+      ]
+    },
+    {
+      "option": "Option B: Decoupled Workers with Durable Objects for Inventory",
+      "pros": [
+        "Strong consistency and single-threaded execution for inventory prevents race conditions entirely.",
+        "Clear boundary separation between catalog, checkout, and order domains."
+      ],
+      "cons": [
+        "Higher operational costs (Durable Objects require paid Cloudflare Plan).",
+        "Increased architecture complexity with inter-worker bindings."
+      ]
+    }
+  ],
+  "decision": "We accept Option A (Monolithic Worker with Hono & D1) for the MVP phase. To resolve inventory race conditions, we will use D1's SQL-level transactional queries (atomic decrements with condition checks) rather than relying on KV cache. Stripe webhooks will trigger order processing, and a Workers Cron Trigger will handle automatic cleanup of unpaid pending orders (timeout at 30 minutes).",
+  "consequences": {
+    "positive": [
+      "Extremely cost-effective running on Cloudflare Free/Pro plans.",
+      "Fast edge-routing via Hono framework.",
+      "Atomic inventory updates via D1 database engine."
+    ],
+    "negative": [
+      "Bundle size must be carefully monitored (must not exceed 1MB uncompressed).",
+      "Cron scheduler executes at 5-minute intervals, meaning some unpaid order cancellations might be delayed up to 34 minutes."
+    ]
+  },
+  "migration_plan": "Initialize D1 database migrations for schema setup. Deploy worker with Wrangler env pointing to staging D1 binding. Once verified, bind to production D1 and deploy.",
+  "rollback_plan": "Execute 'wrangler rollback' to revert to the previous working deployment hash."
+}

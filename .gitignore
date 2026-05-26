@@ -1,0 +1,49 @@
+# ==========================
+# SECRETS — KHÔNG BAO GIỜ COMMIT
+# ==========================
+.dev.vars
+apps/**/.dev.vars
+.env
+.env.local
+apps/**/.env.local
+.env.*.local
+
+# ==========================
+# Dependencies
+# ==========================
+node_modules/
+.pnpm-store/
+
+# ==========================
+# Build outputs
+# ==========================
+dist/
+.next/
+out/
+.vercel/
+
+# ==========================
+# Cloudflare Wrangler
+# ==========================
+.wrangler/
+wrangler-dist/
+
+# ==========================
+# OS & Editor
+# ==========================
+.DS_Store
+Thumbs.db
+.vscode/settings.json
+*.local
+
+# ==========================
+# Logs
+# ==========================
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# ==========================
+# TypeScript
+# ==========================
+*.tsbuildinfo
