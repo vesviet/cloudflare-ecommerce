@@ -7,7 +7,10 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { MapPin, Building2, ShieldCheck } from 'lucide-react';
 
-const API_BASE = 'http://localhost:8787/api';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
+
+// Flat rate shipping fee in dollars — matches backend FLAT_SHIPPING_FEE_CENTS / 100
+const FLAT_SHIPPING_FEE = 9.99;
 
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '11px 14px', borderRadius: '8px',
@@ -42,7 +45,7 @@ export default function CheckoutPage() {
 }
 
 function CheckoutInner() {
-  const { items, getCartTotal, clearCart } = useCartStore();
+  const { items, getCartTotal, clearCart, updateQuantity } = useCartStore();
   const { isAuthenticated, customer } = useAuthStore();
   const searchParams = useSearchParams();
 
@@ -65,18 +68,25 @@ function CheckoutInner() {
   // --- UTM (extracted from URL) ---
   const [utm, setUtm] = useState({ source: '', medium: '', campaign: '' });
 
-  // --- Order status ---
-  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-  const [errorMessage, setErrorMessage] = useState('');
-  const [orderId, setOrderId] = useState('');
+  // --- Price validation ---
+  const [priceChanged, setPriceChanged] = useState(false);
 
-  // Extract UTM params from URL on mount
+  // --- Order status ---
+  const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [errorMessage, setErrorMessage] = useState('');
+
+  // Extract UTM params on mount
   useEffect(() => {
     setUtm({
       source: searchParams.get('utm_source') || '',
       medium: searchParams.get('utm_medium') || '',
       campaign: searchParams.get('utm_campaign') || '',
     });
+
+    // Handle Stripe cancel redirect
+    if (searchParams.get('cancelled') === 'true') {
+      setErrorMessage('Payment was cancelled. Your cart has been preserved — you can try again.');
+    }
   }, [searchParams]);
 
   // Pre-fill from account profile
@@ -84,21 +94,18 @@ function CheckoutInner() {
     if (!isAuthenticated || !customer) return;
     setEmail(customer.email);
 
-    // Pre-fill B2B if profile has company
     if (customer.company_name) {
       setIsB2B(true);
       setB2bCompany(customer.company_name);
       setB2bVatId(customer.vat_tax_id || '');
     }
 
-    // Pre-fill marketing consent from profile
     if (customer.accepts_marketing) {
       setAcceptsMarketing(customer.accepts_marketing === 1);
     }
 
-    // Fetch saved addresses
     try {
-      const res = await fetch(`${API_BASE}/customer/addresses`, { credentials: 'include' });
+      const res = await fetch(`${API_BASE}/api/customer/addresses`, { credentials: 'include' });
       const data = await res.json();
       if (data.success && data.data.length > 0) {
         setSavedAddresses(data.data);
@@ -109,6 +116,34 @@ function CheckoutInner() {
   }, [isAuthenticated, customer]);
 
   useEffect(() => { loadUserData(); }, [loadUserData]);
+
+  // Server-side price validation — detect if prices changed since add-to-cart
+  useEffect(() => {
+    if (items.length === 0) return;
+
+    const validatePrices = async () => {
+      let changed = false;
+      for (const item of items) {
+        try {
+          const res = await fetch(`${API_BASE}/api/products/${item.product_id}`);
+          if (!res.ok) continue;
+          const data = await res.json();
+          const variation = data.data?.variations?.find((v: any) => v.id === item.id);
+          if (variation) {
+            const serverPrice = variation.sale_price ?? variation.regular_price;
+            if (serverPrice !== item.price) {
+              changed = true;
+              // Update cart with latest server price (quantity unchanged)
+              updateQuantity(item.id, item.quantity);
+            }
+          }
+        } catch { /* fail silently — server price will win at submit */ }
+      }
+      if (changed) setPriceChanged(true);
+    };
+
+    validatePrices();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectedAddress = savedAddresses.find(a => a.id === selectedAddressId) || null;
 
@@ -125,7 +160,6 @@ function CheckoutInner() {
       ? selectedAddress
       : guestAddress;
 
-    // Merge B2B into address if applicable
     if (isB2B && b2bCompany) {
       (shippingAddressJson as any).company = b2bCompany;
       (shippingAddressJson as any).vat_id = b2bVatId;
@@ -139,61 +173,37 @@ function CheckoutInner() {
       accepts_marketing: acceptsMarketing ? 1 : 0,
     };
 
-    // UTM attribution
     if (utm.source) payload.utm_source = utm.source;
     if (utm.medium) payload.utm_medium = utm.medium;
     if (utm.campaign) payload.utm_campaign = utm.campaign;
 
-    // B2B billing context
     if (isB2B) {
       payload.b2b_company = b2bCompany;
       payload.b2b_vat_id = b2bVatId;
     }
 
     try {
-      const res = await fetch(`http://localhost:8788/store/orders`, {
+      const res = await fetch(`${API_BASE}/api/checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(payload),
       });
       const data = await res.json();
-      if (data.success) {
-        setStatus('success');
-        setOrderId(data.orderId);
-        clearCart();
+
+      if (data.success && data.checkout_url) {
+        // Redirect to Stripe hosted checkout — do NOT clearCart() here.
+        // Cart is cleared on the /checkout/success page after Stripe confirms.
+        window.location.href = data.checkout_url;
       } else {
         setStatus('error');
-        setErrorMessage(data.error || 'Failed to place order.');
+        setErrorMessage(data.error || 'Failed to place order. Please try again.');
       }
     } catch (err: any) {
       setStatus('error');
-      setErrorMessage(err.message || 'Network error occurred.');
+      setErrorMessage(err.message || 'A network error occurred. Please try again.');
     }
   };
-
-  // --- Success screen ---
-  if (status === 'success') {
-    return (
-      <main style={{ maxWidth: '600px', margin: '100px auto', textAlign: 'center', padding: '0 20px' }}>
-        <div className="glass glass-card" style={{ padding: '60px 40px' }}>
-          <div style={{ fontSize: '4rem', marginBottom: '20px' }}>🎉</div>
-          <h1 style={{ marginBottom: '16px', color: 'var(--accent-color)' }}>Order Confirmed!</h1>
-          <p style={{ color: 'var(--text-muted)', marginBottom: '8px', fontSize: '1rem' }}>
-            Thank you for your purchase!
-          </p>
-          <p style={{ color: 'rgba(255,255,255,0.5)', marginBottom: '32px', fontSize: '0.85rem', fontFamily: 'monospace' }}>
-            Order ID: {orderId}
-          </p>
-          {!isAuthenticated && (
-            <p style={{ color: 'var(--text-muted)', marginBottom: '24px', fontSize: '0.9rem' }}>
-              <Link href="/my-account" style={{ color: 'var(--accent-color)', textDecoration: 'underline' }}>Create an account</Link> to track your order and save your address for next time.
-            </p>
-          )}
-          <Link href="/"><button className="btn">Continue Shopping</button></Link>
-        </div>
-      </main>
-    );
-  }
 
   // --- Empty cart screen ---
   if (items.length === 0) {
@@ -214,6 +224,14 @@ function CheckoutInner() {
 
         {/* ─── Left: Form ─── */}
         <div className="glass glass-card" style={{ padding: '32px' }}>
+
+          {/* Price change warning banner */}
+          {priceChanged && (
+            <div style={{ padding: '10px 14px', background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.3)', borderRadius: '8px', marginBottom: '20px', color: '#fbbf24', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              ⚠️ Some prices were updated since you added items. Your total reflects the latest prices.
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
 
             {/* Section: Contact */}
@@ -238,7 +256,6 @@ function CheckoutInner() {
             </h2>
 
             {isAuthenticated && savedAddresses.length > 0 ? (
-              /* Logged-in: Address selector */
               <div style={{ marginBottom: '28px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   {savedAddresses.map(addr => (
@@ -274,13 +291,11 @@ function CheckoutInner() {
                 </Link>
               </div>
             ) : isAuthenticated && savedAddresses.length === 0 ? (
-              /* Logged-in but no addresses */
               <div style={{ padding: '20px', background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: '10px', marginBottom: '28px', textAlign: 'center' }}>
                 <p style={{ color: 'var(--text-muted)', marginBottom: '12px', fontSize: '0.9rem' }}>No saved addresses yet.</p>
                 <Link href="/dashboard"><button type="button" className="btn" style={{ padding: '8px 20px', fontSize: '0.85rem' }}>Add Address</button></Link>
               </div>
             ) : (
-              /* Guest: Full address form */
               <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '28px' }}>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '4px' }}>
                   <Link href="/my-account" style={{ color: 'var(--accent-color)', textDecoration: 'underline' }}>Sign in</Link> to use saved addresses, or fill in below as guest.
@@ -359,14 +374,14 @@ function CheckoutInner() {
               </label>
             </div>
 
-            {/* UTM attribution indicator (debug info hidden in production) */}
+            {/* UTM attribution indicator */}
             {(utm.source || utm.medium || utm.campaign) && (
               <div style={{ marginBottom: '20px', padding: '10px 14px', background: 'rgba(74,222,128,0.05)', border: '1px solid rgba(74,222,128,0.15)', borderRadius: '8px', fontSize: '0.78rem', color: 'rgba(74,222,128,0.7)' }}>
                 📊 Attribution tracked: {[utm.source, utm.medium, utm.campaign].filter(Boolean).join(' / ')}
               </div>
             )}
 
-            {status === 'error' && (
+            {errorMessage && (
               <div style={{ padding: '12px 16px', background: 'rgba(248,113,113,0.1)', color: '#f87171', borderRadius: '8px', marginBottom: '20px', border: '1px solid rgba(248,113,113,0.25)', fontSize: '0.9rem' }}>
                 ✕ {errorMessage}
               </div>
@@ -377,8 +392,12 @@ function CheckoutInner() {
               disabled={status === 'loading'}
               style={{ width: '100%', padding: '16px', fontSize: '1.05rem', letterSpacing: '0.02em' }}
             >
-              {status === 'loading' ? 'Processing...' : '🔒 Place Order'}
+              {status === 'loading' ? 'Redirecting to payment...' : '🔒 Proceed to Payment'}
             </button>
+
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '12px', textAlign: 'center' }}>
+              You will be redirected to Stripe's secure checkout to complete your payment.
+            </p>
           </form>
         </div>
 
@@ -410,7 +429,7 @@ function CheckoutInner() {
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
               <span>Shipping</span>
-              <span style={{ color: '#4ade80' }}>Free</span>
+              <span>${FLAT_SHIPPING_FEE.toFixed(2)}</span>
             </div>
             {isB2B && (
               <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
@@ -420,7 +439,7 @@ function CheckoutInner() {
             )}
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.15rem', fontWeight: 700, marginTop: '8px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
               <span>Total</span>
-              <span style={{ color: 'var(--accent-color)' }}>{formatCurrency(getCartTotal())}</span>
+              <span style={{ color: 'var(--accent-color)' }}>{formatCurrency(getCartTotal() + FLAT_SHIPPING_FEE * 100)}</span>
             </div>
           </div>
 

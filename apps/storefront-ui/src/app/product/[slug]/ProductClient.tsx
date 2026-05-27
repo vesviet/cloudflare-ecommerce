@@ -3,6 +3,8 @@
 import React, { useState } from 'react';
 import { useCartStore } from '../../../store/cartStore';
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
+
 export default function ProductClient({ product }: { product: any }) {
   const [selectedVariationId, setSelectedVariationId] = useState<string>('');
   const { addItem, toggleCart } = useCartStore();
@@ -52,7 +54,7 @@ export default function ProductClient({ product }: { product: any }) {
       <div className="glass" style={{ padding: '20px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '500px' }}>
         {product.attributes?.find((a: any) => a.image)?.image ? (
           <img 
-            src={`http://localhost:8788${product.attributes.find((a: any) => a.image).image}`} 
+            src={`${API_BASE}${product.attributes.find((a: any) => a.image).image}`} 
             alt={product.name} 
             style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '8px' }} 
           />

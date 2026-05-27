@@ -101,16 +101,10 @@ checkout.post('/store/orders', async (c) => {
         .get();
 
       if (customer) {
-        let stripeCustomerId = customer.stripe_customer_id;
-        
-        if (!stripeCustomerId) {
-          stripeCustomerId = `cus_mock_${crypto.randomUUID()}`;
-          batchQueries.push(
-            db.update(schema.customers)
-              .set({ stripe_customer_id: stripeCustomerId })
-              .where(eq(schema.customers.id, customer_id))
-          );
-        }
+        // NOTE: stripe_customer_id will be null until customer completes their
+        // first checkout via the public-api (which calls Stripe and stores the
+        // real cus_xxx ID via the webhook). Do NOT generate a mock/fake value
+        // here as it will permanently corrupt the field.
 
         const shouldUpdateAttribution = !customer.signup_utm_source && !customer.signup_utm_medium && !customer.signup_utm_campaign && !customer.signup_affiliate_id;
         if (shouldUpdateAttribution && (utm_source || utm_medium || utm_campaign || affiliate_id)) {

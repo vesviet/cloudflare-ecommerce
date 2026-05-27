@@ -36,8 +36,10 @@ export default function Header() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
+
   useEffect(() => {
-    fetch('http://localhost:8787/api/categories')
+    fetch(`${apiBase}/api/categories`)
       .then(res => res.json())
       .then(data => {
         if (data.success) {

@@ -5,6 +5,8 @@ import { X, Trash2, Plus, Minus, ShoppingBag } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import Link from 'next/link';
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
+
 export default function CartDrawer() {
   const { items, isCartOpen, toggleCart, removeItem, updateQuantity, getCartTotal } = useCartStore();
 
@@ -86,7 +88,7 @@ export default function CartDrawer() {
             items.map((item) => (
               <div key={item.id} style={{ display: 'flex', gap: '16px', background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
                 <div style={{ width: '80px', height: '80px', background: 'linear-gradient(110deg, #161b22, #21262d)', borderRadius: '6px', flexShrink: 0, overflow: 'hidden' }}>
-                  {item.image && <img src={`http://localhost:8788${item.image}`} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                  {item.image && <img src={`${API_BASE}${item.image}`} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
                 </div>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>

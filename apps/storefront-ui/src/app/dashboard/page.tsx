@@ -53,7 +53,7 @@ const EMPTY_ADDRESS: Omit<Address, 'id' | 'is_default_shipping' | 'is_default_bi
   delivery_instructions: '',
 };
 
-const API_BASE = 'http://localhost:8787/api';
+const API_BASE = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787'}/api`;
 
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '11px 14px', borderRadius: '8px',

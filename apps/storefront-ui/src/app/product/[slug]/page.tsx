@@ -3,11 +3,14 @@ import { notFound } from 'next/navigation';
 import ProductClient from './ProductClient';
 import Link from 'next/link';
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
+
 async function getProductBySlug(slug: string) {
   try {
-    const res = await fetch('http://localhost:8788/store/products', { cache: 'no-store' });
+    const res = await fetch(`${API_BASE}/api/products`, { cache: 'no-store' });
     if (!res.ok) return null;
-    const products = await res.json();
+    const data = await res.json();
+    const products = Array.isArray(data) ? data : (data.data || []);
     return products.find((p: any) => p.slug === slug);
   } catch (err) {
     console.error('Failed to fetch product', err);

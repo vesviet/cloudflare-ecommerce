@@ -54,7 +54,8 @@ export default function MyAccount() {
             acceptsMarketing
           };
 
-      const res = await fetch(`http://localhost:8787/api${endpoint}`, {
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
+      const res = await fetch(`${apiBase}/api${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

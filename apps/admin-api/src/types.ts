@@ -3,4 +3,5 @@ export type Bindings = {
   MEDIA_R2: R2Bucket;
   ENVIRONMENT: string;
   CACHE_KV: KVNamespace;
+  EVENT_QUEUE: Queue;
 };

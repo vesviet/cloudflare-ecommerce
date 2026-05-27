@@ -10,7 +10,8 @@
     "@ecommerce/database": "workspace:*",
     "drizzle-orm": "^0.30.10",
     "hono": "^4.3.7",
-    "jose": "^6.2.3"
+    "jose": "^6.2.3",
+    "stripe": "^16"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240512.0",

@@ -4,34 +4,41 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useCartStore } from '../store/cartStore';
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
+
 export default function Home() {
   const [products, setProducts] = useState<any[]>([]);
   const { addItem, toggleCart } = useCartStore();
 
   useEffect(() => {
-    fetch('http://localhost:8788/store/products')
+    fetch(`${API_BASE}/api/products`)
       .then(res => res.json())
-      .then(data => setProducts(data))
+      .then(data => {
+        // catalog returns { success, data } shape
+        setProducts(Array.isArray(data) ? data : (data.data || []))
+      })
       .catch(err => console.error('Failed to fetch products', err));
   }, []);
 
-  const formatCurrency = (minorAmountStr: string) => {
-    const amount = parseInt(minorAmountStr, 10) / 100;
+  const formatCurrency = (minorAmountStr: string | number | null | undefined) => {
+    if (minorAmountStr == null) return '—';
+    const amount = parseInt(String(minorAmountStr), 10) / 100;
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
   };
 
   const handleAddToCart = (product: any) => {
     // For simple products, add the first variation to cart
-    const variation = product.variations[0];
+    const variation = product.variations?.[0];
+    if (!variation) return;
     addItem({
       id: variation.id,
       product_id: product.id,
-      name: product.name,
-      price: parseInt(variation.sale_price || variation.regular_price, 10),
+      name: product.name ?? product.title,
+      price: parseInt(String(variation.sale_price ?? variation.regular_price), 10),
       quantity: 1,
       image: product.attributes?.find((a: any) => a.image)?.image || '',
     });
-    toggleCart(); // Open cart drawer to show user it was added
+    toggleCart();
   };
 
   return (
@@ -45,21 +52,23 @@ export default function Home() {
 
       <div className="product-grid">
         {products.map((product: any) => {
-          const prices = product.prices;
+          // prices is computed by the API; guard defensively in case of stale cache or error
+          const prices = product.prices ?? {};
           const isVariable = product.type === 'variable';
           const isOnSale = prices.sale_price && prices.sale_price !== prices.regular_price;
+          const displayName = product.name ?? product.title;
 
           return (
             <div key={product.id} className="glass glass-card" style={{ display: 'flex', flexDirection: 'column' }}>
               <div className="product-image">
                 {product.attributes?.find((a: any) => a.image)?.image && (
-                  <img src={`http://localhost:8788${product.attributes.find((a: any) => a.image).image}`} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <img src={`${API_BASE}${product.attributes.find((a: any) => a.image).image}`} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 )}
               </div>
               <div style={{ fontSize: '0.8rem', color: 'var(--accent-color)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '8px' }}>
                 {isVariable ? 'Variable Product' : 'Simple Product'}
               </div>
-              <h3 style={{ margin: '0 0 10px 0', fontSize: '1.2rem' }}>{product.name}</h3>
+              <h3 style={{ margin: '0 0 10px 0', fontSize: '1.2rem' }}>{displayName}</h3>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', paddingTop: '20px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   {isVariable && prices.price_range ? (

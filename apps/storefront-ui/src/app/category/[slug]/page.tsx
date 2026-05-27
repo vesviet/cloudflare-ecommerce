@@ -4,6 +4,8 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useCartStore } from '../../../store/cartStore';
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
+
 export default function CategoryPage({ params }: { params: { slug: string } }) {
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -11,7 +13,7 @@ export default function CategoryPage({ params }: { params: { slug: string } }) {
 
   useEffect(() => {
     // Fetch products filtered by category
-    fetch(`http://localhost:8788/store/products?category=${params.slug}`)
+    fetch(`${API_BASE}/api/products?category=${params.slug}`)
       .then(res => res.json())
       .then(data => {
         setProducts(data);
@@ -65,7 +67,7 @@ export default function CategoryPage({ params }: { params: { slug: string } }) {
               <div key={product.id} className="glass glass-card" style={{ display: 'flex', flexDirection: 'column' }}>
                 <div className="product-image">
                   {product.attributes?.find((a: any) => a.image)?.image && (
-                    <img src={`http://localhost:8788${product.attributes.find((a: any) => a.image).image}`} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <img src={`${API_BASE}${product.attributes.find((a: any) => a.image).image}`} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   )}
                 </div>
                 <div style={{ fontSize: '0.8rem', color: 'var(--accent-color)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '8px' }}>

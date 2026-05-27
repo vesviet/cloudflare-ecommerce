@@ -102,8 +102,12 @@ export const orders = sqliteTable('orders', {
   shipping_fee: real('shipping_fee').default(0),
   affiliate_id: text('affiliate_id'),
   utm_source: text('utm_source'),
+  utm_medium: text('utm_medium'),
+  utm_campaign: text('utm_campaign'),
   shipping_address_json: text('shipping_address_json'),
   billing_address_json: text('billing_address_json'),
+  tracking_number: text('tracking_number'),
+  carrier_name: text('carrier_name'),
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
   updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
 });

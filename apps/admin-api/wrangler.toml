@@ -18,3 +18,6 @@ binding = "CACHE_KV"
 id = "xxxx-xxxx-xxxx-xxxx"
 preview_id = "local-cache-kv"
 
+[[queues.producers]]
+binding = "EVENT_QUEUE"
+queue = "ecommerce-events-prod"
