@@ -1,4 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
+import useSWR from 'swr';
+import { GlassCard } from '../components/ui/GlassCard';
+import { SkeletonLoader } from '../components/ui/SkeletonLoader';
+import { DollarSign, ShoppingBag, RefreshCcw, AlertTriangle } from 'lucide-react';
 import type { OrderData } from '../types';
 
 interface OverviewTabProps {
@@ -13,43 +17,16 @@ interface Metrics {
   lowStockCount: number;
 }
 
-export const OverviewTab: React.FC<OverviewTabProps> = ({ API_BASE_URL, addToast }) => {
-  const [metrics, setMetrics] = useState<Metrics | null>(null);
-  const [recentOrders, setRecentOrders] = useState<OrderData[]>([]);
-  const [loading, setLoading] = useState(true);
+export const OverviewTab: React.FC<OverviewTabProps> = ({ addToast }) => {
+  const { data: metricsResult, error: metricsError, isLoading: metricsLoading } = useSWR<{ success: boolean, data: Metrics }>('/metrics');
+  const { data: ordersResult, error: ordersError, isLoading: ordersLoading } = useSWR<{ success: boolean, data: OrderData[] }>('/orders');
 
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        const [metricsRes, ordersRes] = await Promise.all([
-          fetch(`${API_BASE_URL}/metrics`),
-          fetch(`${API_BASE_URL}/orders`)
-        ]);
+  const metrics = metricsResult?.data;
+  const recentOrders = ordersResult?.data?.slice(0, 5) || [];
+  const loading = metricsLoading || ordersLoading;
 
-        if (!metricsRes.ok || !ordersRes.ok) {
-          throw new Error('Failed to fetch dashboard data');
-        }
-
-        const metricsData = await metricsRes.json();
-        const ordersData = await ordersRes.json();
-
-        if (metricsData.success) {
-          setMetrics(metricsData.data);
-        }
-        
-        if (ordersData.success) {
-          // Take top 5 recent orders
-          setRecentOrders(ordersData.data.slice(0, 5));
-        }
-      } catch (err: any) {
-        addToast(err.message || 'Error loading dashboard data', 'error');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchDashboardData();
-  }, [API_BASE_URL, addToast]);
+  if (metricsError) addToast(metricsError.message || 'Error loading metrics', 'error');
+  if (ordersError) addToast(ordersError.message || 'Error loading orders', 'error');
 
   const formatCurrency = (minorAmount: number | string) => {
     const amount = typeof minorAmount === 'string' ? parseFloat(minorAmount) : minorAmount;
@@ -58,116 +35,129 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ API_BASE_URL, addToast
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'completed': return '#2ea043';
-      case 'processing': return '#58a6ff';
-      case 'refunded': return '#f85149';
-      case 'cancelled': return '#8b949e';
-      default: return '#d2a8ff';
+      case 'completed': return 'text-success-accent bg-success-accent/15 border-success-accent/30';
+      case 'processing': return 'text-primary-accent bg-primary-accent/15 border-primary-accent/30';
+      case 'refunded': return 'text-danger-accent bg-danger-accent/15 border-danger-accent/30';
+      case 'cancelled': return 'text-text-muted bg-white/10 border-white/20';
+      default: return 'text-warning-accent bg-warning-accent/15 border-warning-accent/30';
     }
   };
 
-  if (loading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: 'var(--text-muted)' }}>
-        <div className="spinner"></div> Loading Dashboard...
-      </div>
-    );
-  }
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2 style={{ margin: 0, fontSize: '2rem', fontWeight: 700, background: 'linear-gradient(to right, #fff, #58a6ff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-          Dashboard Overview
-        </h2>
-        <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-          Welcome back to Aura Admin.
+    <div className="w-full flex flex-col gap-8">
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="m-0 text-3xl font-bold bg-gradient-to-r from-white to-primary-accent bg-clip-text text-transparent">
+            Dashboard Overview
+          </h2>
+          <div className="text-text-muted text-sm mt-1">
+            Welcome back to Aura Admin.
+          </div>
         </div>
       </div>
 
       {/* KPI Cards Grid */}
-      <div className="stats-grid">
-        <div className="stat-card" style={{ borderTop: '4px solid #58a6ff' }}>
-          <div className="stat-label">Total Sales</div>
-          <div className="stat-value">
-            {metrics ? formatCurrency(metrics.totalSales) : '—'}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <GlassCard className="p-6 border-t-4 border-t-primary-accent flex flex-col justify-between">
+          <div className="flex justify-between items-start mb-4">
+            <div className="text-text-muted font-medium text-sm tracking-wide uppercase">Total Sales</div>
+            <div className="p-2 rounded-lg bg-primary-accent/20 text-primary-accent"><DollarSign className="w-5 h-5" /></div>
           </div>
-        </div>
+          {loading ? <SkeletonLoader height="36px" /> : (
+            <div className="text-3xl font-bold text-text-main">
+              {metrics ? formatCurrency(metrics.totalSales) : '—'}
+            </div>
+          )}
+        </GlassCard>
 
-        <div className="stat-card" style={{ borderTop: '4px solid #3fb950' }}>
-          <div className="stat-label">Total Orders</div>
-          <div className="stat-value">
-            {metrics ? metrics.totalOrders : '—'}
+        <GlassCard className="p-6 border-t-4 border-t-success-accent flex flex-col justify-between">
+          <div className="flex justify-between items-start mb-4">
+            <div className="text-text-muted font-medium text-sm tracking-wide uppercase">Total Orders</div>
+            <div className="p-2 rounded-lg bg-success-accent/20 text-success-accent"><ShoppingBag className="w-5 h-5" /></div>
           </div>
-        </div>
+          {loading ? <SkeletonLoader height="36px" /> : (
+            <div className="text-3xl font-bold text-text-main">
+              {metrics ? metrics.totalOrders : '—'}
+            </div>
+          )}
+        </GlassCard>
 
-        <div className="stat-card" style={{ borderTop: '4px solid #d2a8ff' }}>
-          <div className="stat-label">Refund Rate</div>
-          <div className="stat-value">
-            {metrics ? `${metrics.refundRate}%` : '—'}
+        <GlassCard className="p-6 border-t-4 border-t-warning-accent flex flex-col justify-between">
+          <div className="flex justify-between items-start mb-4">
+            <div className="text-text-muted font-medium text-sm tracking-wide uppercase">Refund Rate</div>
+            <div className="p-2 rounded-lg bg-warning-accent/20 text-warning-accent"><RefreshCcw className="w-5 h-5" /></div>
           </div>
-        </div>
+          {loading ? <SkeletonLoader height="36px" /> : (
+            <div className="text-3xl font-bold text-text-main">
+              {metrics ? `${metrics.refundRate}%` : '—'}
+            </div>
+          )}
+        </GlassCard>
 
-        <div className="stat-card" style={{ borderTop: '4px solid #f85149' }}>
-          <div className="stat-label">Low Stock Alerts</div>
-          <div className="stat-value" style={{ color: metrics && metrics.lowStockCount > 0 ? '#f85149' : '#fff' }}>
-            {metrics ? metrics.lowStockCount : '—'}
+        <GlassCard className="p-6 border-t-4 border-t-danger-accent flex flex-col justify-between">
+          <div className="flex justify-between items-start mb-4">
+            <div className="text-text-muted font-medium text-sm tracking-wide uppercase">Low Stock Alerts</div>
+            <div className="p-2 rounded-lg bg-danger-accent/20 text-danger-accent"><AlertTriangle className="w-5 h-5" /></div>
           </div>
-        </div>
+          {loading ? <SkeletonLoader height="36px" /> : (
+            <div className={`text-3xl font-bold ${metrics && metrics.lowStockCount > 0 ? 'text-danger-accent' : 'text-text-main'}`}>
+              {metrics ? metrics.lowStockCount : '—'}
+            </div>
+          )}
+        </GlassCard>
       </div>
 
       {/* Recent Orders Section */}
-      <div className="table-container">
-        <div style={{ padding: '20px', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 600 }}>Recent Orders</h3>
+      <GlassCard className="overflow-hidden">
+        <div className="p-6 border-b border-white/10 flex justify-between items-center bg-white/5">
+          <h3 className="m-0 text-lg font-semibold text-text-main">Recent Orders</h3>
         </div>
-        <div style={{ overflowX: 'auto' }}>
-          <table className="glass-table">
-            <thead>
-              <tr>
-                <th>Order ID</th>
-                <th>Customer / Email</th>
-                <th>Status</th>
-                <th>Total</th>
-                <th>Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentOrders.length > 0 ? (
-                recentOrders.map(order => (
-                  <tr key={order.id}>
-                    <td style={{ fontFamily: 'monospace', color: 'var(--text-muted)' }}>{order.id.slice(0, 8)}...</td>
-                    <td>{order.customer_id ? `Customer ${order.customer_id.slice(0,8)}` : order.guest_email || 'Guest'}</td>
-                    <td>
-                      <span style={{
-                        display: 'inline-block',
-                        padding: '4px 10px',
-                        borderRadius: '20px',
-                        fontSize: '0.8rem',
-                        fontWeight: 600,
-                        backgroundColor: `${getStatusColor(order.status)}20`,
-                        color: getStatusColor(order.status),
-                        textTransform: 'capitalize'
-                      }}>
-                        {order.status.replace('_', ' ')}
-                      </span>
-                    </td>
-                    <td style={{ fontWeight: 600 }}>{formatCurrency(order.total_amount)}</td>
-                    <td style={{ color: 'var(--text-muted)' }}>{new Date(order.created_at).toLocaleString()}</td>
-                  </tr>
-                ))
-              ) : (
+        
+        {loading ? (
+          <div className="p-6 space-y-4">
+            <SkeletonLoader height="64px" />
+            <SkeletonLoader height="64px" />
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="text-xs uppercase text-text-muted bg-white/5 border-b border-white/10">
                 <tr>
-                  <td colSpan={5} style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
-                    No recent orders found.
-                  </td>
+                  <th className="px-6 py-4 font-medium tracking-wider">Order ID</th>
+                  <th className="px-6 py-4 font-medium tracking-wider">Customer / Email</th>
+                  <th className="px-6 py-4 font-medium tracking-wider">Status</th>
+                  <th className="px-6 py-4 font-medium tracking-wider">Total</th>
+                  <th className="px-6 py-4 font-medium tracking-wider">Date</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {recentOrders.length > 0 ? (
+                  recentOrders.map(order => (
+                    <tr key={order.id} className="hover:bg-white/5 transition-colors">
+                      <td className="px-6 py-4 font-mono text-text-muted">{order.id.slice(0, 8)}...</td>
+                      <td className="px-6 py-4 text-text-main font-medium">{order.customer_id ? `Customer ${order.customer_id.slice(0,8)}` : order.guest_email || 'Guest'}</td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${getStatusColor(order.status)}`}>
+                          {order.status.replace('_', ' ')}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 font-semibold text-text-main">{formatCurrency(order.total_amount)}</td>
+                      <td className="px-6 py-4 text-text-muted">{new Date(order.created_at).toLocaleString()}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="text-center p-12 text-text-muted">
+                      <ShoppingBag className="w-12 h-12 text-text-muted mb-4 opacity-50 mx-auto" />
+                      <p>No recent orders found.</p>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </GlassCard>
     </div>
   );
 };

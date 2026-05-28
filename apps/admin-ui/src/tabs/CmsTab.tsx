@@ -1,4 +1,6 @@
-import { useState, useEffect } from 'react';
+
+import useSWR from 'swr';
+import { useSearchParams } from 'react-router-dom';
 import type { CmsEntry } from '../types';
 import { CmsList } from '../components/cms/CmsList';
 import { CmsForm } from '../components/cms/CmsForm';
@@ -9,103 +11,39 @@ interface CmsTabProps {
 }
 
 export function CmsTab({ API_BASE_URL, addToast }: CmsTabProps) {
-  const [entries, setEntries] = useState<CmsEntry[]>([]);
-  const [loading, setLoading] = useState(false);
-  
-  // View routing state
-  const [currentView, setCurrentView] = useState<'list' | 'form'>('list');
-  const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
+  const { data: result, error, isLoading, mutate } = useSWR<{ success: boolean, data: CmsEntry[] }>('/cms');
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const fetchEntries = async () => {
-    try {
-      setLoading(true);
-      const res = await fetch(`${API_BASE_URL}/cms`);
-      const data = await res.json();
-      if (data.success) setEntries(data.data);
-      else addToast(data.error || 'Failed to load CMS entries', 'error');
-    } catch {
-      addToast('Error fetching CMS entries', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const action = searchParams.get('action');
+  const id = searchParams.get('id');
 
-  useEffect(() => {
-    fetchEntries();
-    
-    // Read URL params for initial state
-    const params = new URLSearchParams(window.location.search);
-    const action = params.get('action');
-    const id = params.get('id');
-    
-    if (action === 'new') {
-      setCurrentView('form');
-      setEditingEntryId(null);
-    } else if (id) {
-      setCurrentView('form');
-      setEditingEntryId(id);
-    } else {
-      setCurrentView('list');
-    }
-    
-    const handlePopState = () => {
-      const currentParams = new URLSearchParams(window.location.search);
-      const currentAction = currentParams.get('action');
-      const currentId = currentParams.get('id');
-      
-      if (currentAction === 'new') {
-        setCurrentView('form');
-        setEditingEntryId(null);
-      } else if (currentId) {
-        setCurrentView('form');
-        setEditingEntryId(currentId);
-      } else {
-        setCurrentView('list');
-      }
-    };
-    
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+  let currentView: 'list' | 'form' = 'list';
+  if (action === 'new' || id) {
+    currentView = 'form';
+  }
+
+  const entries = result?.data || [];
 
   const navigateToList = () => {
-    setCurrentView('list');
-    setEditingEntryId(null);
-    
-    const url = new URL(window.location.href);
-    url.searchParams.delete('action');
-    url.searchParams.delete('id');
-    window.history.pushState({}, '', url.toString());
+    setSearchParams(new URLSearchParams());
   };
 
   const navigateToNew = () => {
-    setCurrentView('form');
-    setEditingEntryId(null);
-    
-    const url = new URL(window.location.href);
-    url.searchParams.set('action', 'new');
-    url.searchParams.delete('id');
-    window.history.pushState({}, '', url.toString());
+    setSearchParams({ action: 'new' });
   };
 
   const navigateToEdit = (entry: CmsEntry) => {
-    setCurrentView('form');
-    setEditingEntryId(entry.id);
-    
-    const url = new URL(window.location.href);
-    url.searchParams.delete('action');
-    url.searchParams.set('id', entry.id);
-    window.history.pushState({}, '', url.toString());
+    setSearchParams({ id: entry.id });
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Delete this entry? This action cannot be undone.')) return;
+  const handleDelete = async (entryId: string) => {
+    if (!window.confirm('Delete this entry? This action cannot be undone.')) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/cms/${id}`, { method: 'DELETE' });
+      const res = await fetch(`${API_BASE_URL}/cms/${entryId}`, { method: 'DELETE' });
       const data = await res.json();
       if (data.success) { 
         addToast('Entry deleted', 'success'); 
-        await fetchEntries(); 
+        mutate();
       } else {
         addToast(data.error || 'Failed to delete', 'error');
       }
@@ -125,7 +63,7 @@ export function CmsTab({ API_BASE_URL, addToast }: CmsTabProps) {
       const data = await res.json();
       if (data.success) { 
         addToast(`Entry ${nextStatus}`, 'success'); 
-        await fetchEntries(); 
+        mutate();
       }
     } catch {
       addToast('Failed to update status', 'error');
@@ -133,40 +71,39 @@ export function CmsTab({ API_BASE_URL, addToast }: CmsTabProps) {
   };
 
   const handleSaveSuccess = () => {
-    fetchEntries();
+    mutate();
     navigateToList();
   };
 
-  const editingEntryData = editingEntryId ? entries.find(e => e.id === editingEntryId) || null : null;
+  const editingEntryData = id ? entries.find(e => e.id === id) || null : null;
+
+  if (error) {
+    addToast(error.message || 'Failed to load CMS entries', 'error');
+  }
 
   return (
-    <div>
-      {loading && entries.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>Loading entries...</div>
-      ) : (
-        <>
-          {currentView === 'list' && (
-            <CmsList
-              entries={entries}
-              loading={loading}
-              onCreateNew={navigateToNew}
-              onEdit={navigateToEdit}
-              onDelete={handleDelete}
-              onQuickPublish={handleQuickPublish}
-            />
-          )}
-          
-          {currentView === 'form' && (
-            <CmsForm
-              initialData={editingEntryData}
-              API_BASE_URL={API_BASE_URL}
-              onSaveSuccess={handleSaveSuccess}
-              onCancel={navigateToList}
-              addToast={addToast}
-            />
-          )}
-        </>
+    <div className="w-full">
+      {currentView === 'list' && (
+        <CmsList
+          entries={entries}
+          loading={isLoading}
+          onCreateNew={navigateToNew}
+          onEdit={navigateToEdit}
+          onDelete={handleDelete}
+          onQuickPublish={handleQuickPublish}
+        />
+      )}
+      
+      {currentView === 'form' && (
+        <CmsForm
+          initialData={editingEntryData}
+          API_BASE_URL={API_BASE_URL}
+          onSaveSuccess={handleSaveSuccess}
+          onCancel={navigateToList}
+          addToast={addToast}
+        />
       )}
     </div>
   );
 }
+

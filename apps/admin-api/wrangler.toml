@@ -2,6 +2,10 @@ name = "admin-api-worker"
 main = "src/index.ts"
 compatibility_date = "2024-05-12"
 
+[vars]
+TEAM_DOMAIN = "https://aura-store.cloudflareaccess.com"
+AUDIENCE_TAG = "your_audience_tag_here"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "ecommerce-db-prod"

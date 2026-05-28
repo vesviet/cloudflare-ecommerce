@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import './App.css';
 import type { Toast } from './types';
 import { Sidebar } from './components/Sidebar';
@@ -11,17 +13,19 @@ import { CustomersTab } from './tabs/CustomersTab';
 import { CmsTab } from './tabs/CmsTab';
 import { TeamTab } from './tabs/TeamTab';
 import { LoginScreen } from './components/LoginScreen';
+import { GlassCard } from './components/ui/GlassCard';
 
-const API_BASE_URL = 'http://localhost:8788';
+// Use environment variable if available, fallback to localhost for dev
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8788';
+
+// Global SWR configuration could be moved here later
 
 function App() {
   const [localEmail, setLocalEmail] = useState<string | null>(localStorage.getItem('admin_email'));
   const [user, setUser] = useState<{ id: string, name: string, email: string, role: string } | null>(null);
   const [authStatus, setAuthStatus] = useState<'loading' | 'authorized' | 'forbidden' | 'login'>('loading');
-  const [tab, setTab] = useState<string>(() => {
-    const params = new URLSearchParams(window.location.search);
-    return params.get('tab') || 'overview';
-  });
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const [toasts, setToasts] = useState<Toast[]>([]);
 
@@ -33,42 +37,45 @@ function App() {
     }, 4000);
   }, []);
 
-  const handleTabChange = (newTab: string) => {
-    setTab(newTab);
-    const url = new URL(window.location.href);
-    url.searchParams.set('tab', newTab);
-    window.history.pushState({}, '', url.toString());
-  };
-
   useEffect(() => {
     const fetchUser = async () => {
-      // If no local email is set and we're in local dev, show login screen
-      if (!localEmail) {
+      // In a real Zero Trust environment, Cloudflare handles the login screen.
+      // This local logic is strictly for Local Development fallback.
+      const isLocalDev = import.meta.env.DEV; // Vite exposes this
+
+      if (isLocalDev && !localEmail) {
         setAuthStatus('login');
         return;
       }
 
       setAuthStatus('loading');
       try {
-        const res = await fetch(`${API_BASE_URL}/me`, {
-          headers: {
-            'X-Local-Admin-Email': localEmail
-          }
-        });
+        const headers: Record<string, string> = {};
+        if (isLocalDev && localEmail) {
+          headers['X-Local-Admin-Email'] = localEmail;
+        }
+
+        // On production, Cloudflare Access handles the JWT automatically in cookies/headers
+        const res = await fetch(`${API_BASE_URL}/me`, { headers });
+        
         if (res.status === 403 || res.status === 401) {
           setAuthStatus('forbidden');
           return;
         }
+        
         const data = await res.json();
         if (data.success) {
           setUser(data.data);
           setAuthStatus('authorized');
-          // If default tab is not allowed, redirect to allowed tab
+          
+          // RBAC Route Protection
           const role = data.data.role;
-          if (role === 'editor' && !['cms', 'categories'].includes(tab)) {
-             handleTabChange('cms');
-          } else if (role === 'support' && !['orders', 'customers'].includes(tab)) {
-             handleTabChange('orders');
+          const currentPath = location.pathname;
+          
+          if (role === 'editor' && !['/cms', '/categories'].includes(currentPath)) {
+             navigate('/cms', { replace: true });
+          } else if (role === 'support' && !['/orders', '/customers'].includes(currentPath)) {
+             navigate('/orders', { replace: true });
           }
         } else {
           setAuthStatus('forbidden');
@@ -79,7 +86,7 @@ function App() {
       }
     };
     fetchUser();
-  }, [localEmail]);
+  }, [localEmail, navigate, location.pathname]);
 
   const handleLogin = (email: string) => {
     localStorage.setItem('admin_email', email);
@@ -93,35 +100,85 @@ function App() {
     setAuthStatus('login');
   };
 
-  useEffect(() => {
-    const handlePopState = () => {
-      const params = new URLSearchParams(window.location.search);
-      setTab(params.get('tab') || 'overview');
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
-
   if (authStatus === 'loading') {
-    return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>Loading...</div>;
+    return (
+      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <GlassCard className="p-8">
+          <div style={{ color: 'var(--text-muted)' }}>Authenticating...</div>
+        </GlassCard>
+      </div>
+    );
   }
 
+  // Only show Mock Login screen in Dev mode. On production, if we get here, they bypassed CF Access but failed RBAC.
   if (authStatus === 'login' || authStatus === 'forbidden') {
-    return <LoginScreen onLogin={handleLogin} status={authStatus} />;
+    if (import.meta.env.DEV) {
+      return <LoginScreen onLogin={handleLogin} status={authStatus} />;
+    } else {
+      return (
+        <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <GlassCard className="p-8" glowColor="danger">
+            <h2 style={{ color: 'var(--danger-accent)' }}>Access Denied</h2>
+            <p style={{ color: 'var(--text-muted)', marginTop: '8px' }}>
+              You do not have the required permissions to access the Admin Panel.
+            </p>
+          </GlassCard>
+        </div>
+      );
+    }
   }
 
   return (
     <div className="admin-layout">
-      <Sidebar tab={tab} onTabChange={handleTabChange} userRole={user?.role} onLogout={handleLogout} />
+      {/* We no longer need to pass tab state to Sidebar, it uses NavLink now */}
+      <Sidebar userRole={user?.role} onLogout={handleLogout} />
 
       <main className="main-content">
-        {tab === 'overview' && <OverviewTab API_BASE_URL={API_BASE_URL} addToast={addToast} />}
-        {tab === 'orders' && <OrdersTab API_BASE_URL={API_BASE_URL} addToast={addToast} />}
-        {tab === 'products' && <ProductsTab API_BASE_URL={API_BASE_URL} addToast={addToast} />}
-        {tab === 'categories' && <CategoriesTab API_BASE_URL={API_BASE_URL} addToast={addToast} />}
-        {tab === 'customers' && <CustomersTab API_BASE_URL={API_BASE_URL} addToast={addToast} />}
-        {tab === 'cms' && <CmsTab API_BASE_URL={API_BASE_URL} addToast={addToast} />}
-        {tab === 'team' && <TeamTab API_BASE_URL={API_BASE_URL} addToast={addToast} />}
+        <AnimatePresence mode="wait">
+          <Routes location={location} key={location.pathname}>
+            <Route path="/" element={<Navigate to="/overview" replace />} />
+            <Route path="/overview" element={
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+                <OverviewTab API_BASE_URL={API_BASE_URL} addToast={addToast} />
+              </motion.div>
+            } />
+            <Route path="/orders" element={
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+                <OrdersTab API_BASE_URL={API_BASE_URL} addToast={addToast} />
+              </motion.div>
+            } />
+            <Route path="/products" element={
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+                <ProductsTab API_BASE_URL={API_BASE_URL} addToast={addToast} />
+              </motion.div>
+            } />
+            <Route path="/categories" element={
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+                <CategoriesTab API_BASE_URL={API_BASE_URL} addToast={addToast} />
+              </motion.div>
+            } />
+            <Route path="/customers" element={
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+                <CustomersTab API_BASE_URL={API_BASE_URL} addToast={addToast} />
+              </motion.div>
+            } />
+            <Route path="/cms" element={
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+                <CmsTab API_BASE_URL={API_BASE_URL} addToast={addToast} />
+              </motion.div>
+            } />
+            <Route path="/team" element={
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+                <TeamTab API_BASE_URL={API_BASE_URL} addToast={addToast} />
+              </motion.div>
+            } />
+            <Route path="*" element={
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+                <div style={{ padding: '40px', color: 'var(--text-muted)', textAlign: 'center' }}>Page not found</div>
+              </motion.div>
+            } />
+          </Routes>
+        </AnimatePresence>
       </main>
 
       <ToastContainer toasts={toasts} />

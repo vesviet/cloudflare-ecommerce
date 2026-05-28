@@ -1,6 +1,7 @@
 import { createMiddleware } from 'hono/factory';
 import { eq } from 'drizzle-orm';
 import { createDb, schema } from '@ecommerce/database';
+import { createRemoteJWKSet, jwtVerify } from 'jose';
 import type { Bindings } from '../types';
 
 export type AdminUser = {
@@ -26,26 +27,35 @@ export const adminAuth = createMiddleware<Env>(async (c, next) => {
     return next();
   }
 
-  const isLocalDev = c.env.ENVIRONMENT === 'development';
+  const isLocalDev = c.env.LOCAL_DEV === 'true';
   let email = '';
 
   if (isLocalDev) {
     // In local dev, use custom header or default to admin@local.dev
     email = c.req.header('X-Local-Admin-Email') || 'admin@local.dev';
   } else {
-    // In production, parse Cloudflare Zero Trust JWT
+    // In production, parse and verify Cloudflare Zero Trust JWT
     const cfAccessJwt = c.req.header('CF-Access-JWT-Assertion');
     if (!cfAccessJwt) {
       return c.json({ success: false, error: 'Access Denied: Cloudflare Zero Trust Authentication Required' }, 403);
     }
     
     try {
-      // Decode JWT payload (part 2)
-      const payloadBase64 = cfAccessJwt.split('.')[1];
-      const payloadString = atob(payloadBase64.replace(/-/g, '+').replace(/_/g, '/'));
-      const payload = JSON.parse(payloadString);
-      email = payload.email;
+      const { TEAM_DOMAIN, AUDIENCE_TAG } = c.env;
+      if (!TEAM_DOMAIN || !AUDIENCE_TAG) {
+        throw new Error('Missing Cloudflare Access environment variables');
+      }
+
+      const jwksURL = new URL('/cdn-cgi/access/certs', TEAM_DOMAIN);
+      const JWKS = createRemoteJWKSet(jwksURL);
+
+      const { payload } = await jwtVerify(cfAccessJwt, JWKS, {
+        audience: AUDIENCE_TAG
+      });
+      
+      email = payload.email as string;
     } catch (e) {
+      console.error('JWT Verification failed:', e);
       return c.json({ success: false, error: 'Access Denied: Invalid JWT Token' }, 403);
     }
   }

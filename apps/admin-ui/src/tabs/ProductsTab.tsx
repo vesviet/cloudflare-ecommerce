@@ -1,7 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
+import useSWR from 'swr';
+import { useSearchParams } from 'react-router-dom';
 import type { ProductData } from '../types';
 import { ProductList } from '../components/products/ProductList';
 import { ProductForm } from '../components/products/ProductForm';
+import { GlassCard } from '../components/ui/GlassCard';
+import { SkeletonLoader } from '../components/ui/SkeletonLoader';
 
 interface ProductsTabProps {
   API_BASE_URL: string;
@@ -9,112 +13,54 @@ interface ProductsTabProps {
 }
 
 export const ProductsTab: React.FC<ProductsTabProps> = ({ API_BASE_URL, addToast }) => {
-  const [products, setProducts] = useState<ProductData[]>([]);
-  const [loading, setLoading] = useState(false);
-  
-  // View routing state
-  const [currentView, setCurrentView] = useState<'list' | 'form'>('list');
-  const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const { data: result, error, isLoading, mutate } = useSWR<{ success: boolean, data: ProductData[] }>('/products');
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const fetchProducts = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`${API_BASE_URL}/products`);
-      const result = await res.json();
-      if (result.success) setProducts(result.data || []);
-    } catch (err: any) {
-      addToast(err.message, 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const action = searchParams.get('action');
+  const id = searchParams.get('id');
 
-  useEffect(() => {
-    fetchProducts();
-    
-    // Read URL params for initial state
-    const params = new URLSearchParams(window.location.search);
-    const action = params.get('action');
-    const id = params.get('id');
-    
-    if (action === 'new') {
-      setCurrentView('form');
-      setEditingProductId(null);
-    } else if (id) {
-      setCurrentView('form');
-      setEditingProductId(id);
-    } else {
-      setCurrentView('list');
-    }
-    
-    // Listen to popstate to handle browser back/forward buttons
-    const handlePopState = () => {
-      const currentParams = new URLSearchParams(window.location.search);
-      const currentAction = currentParams.get('action');
-      const currentId = currentParams.get('id');
-      
-      if (currentAction === 'new') {
-        setCurrentView('form');
-        setEditingProductId(null);
-      } else if (currentId) {
-        setCurrentView('form');
-        setEditingProductId(currentId);
-      } else {
-        setCurrentView('list');
-      }
-    };
-    
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+  const products = result?.data || [];
 
   const navigateToList = () => {
-    setCurrentView('list');
-    setEditingProductId(null);
-    
-    // Update URL
-    const url = new URL(window.location.href);
-    url.searchParams.delete('action');
-    url.searchParams.delete('id');
-    window.history.pushState({}, '', url.toString());
+    setSearchParams({});
   };
 
   const navigateToNew = () => {
-    setCurrentView('form');
-    setEditingProductId(null);
-    
-    // Update URL
-    const url = new URL(window.location.href);
-    url.searchParams.set('action', 'new');
-    url.searchParams.delete('id');
-    window.history.pushState({}, '', url.toString());
+    setSearchParams({ action: 'new' });
   };
 
   const navigateToEdit = (product: ProductData) => {
-    setCurrentView('form');
-    setEditingProductId(product.id);
-    
-    // Update URL
-    const url = new URL(window.location.href);
-    url.searchParams.delete('action');
-    url.searchParams.set('id', product.id);
-    window.history.pushState({}, '', url.toString());
+    setSearchParams({ id: product.id });
   };
 
   const handleSaveSuccess = () => {
-    fetchProducts(); // Refresh list
+    mutate(); // Refresh SWR cache
     navigateToList();
   };
 
-  const editingProductData = editingProductId ? products.find(p => p.id === editingProductId) || null : null;
+  const editingProductData = id ? products.find(p => p.id === id) || null : null;
+
+  if (error) {
+    addToast(error.message || 'Failed to fetch products', 'error');
+  }
 
   return (
-    <div>
-      {loading && products.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>Loading products...</div>
+    <div className="w-full">
+      {isLoading ? (
+        <GlassCard className="p-6">
+          <div className="flex justify-between mb-6">
+            <SkeletonLoader width="200px" height="32px" />
+            <SkeletonLoader width="120px" height="40px" />
+          </div>
+          <div className="space-y-4">
+            <SkeletonLoader height="64px" />
+            <SkeletonLoader height="64px" />
+            <SkeletonLoader height="64px" />
+          </div>
+        </GlassCard>
       ) : (
         <>
-          {currentView === 'list' && (
+          {(!action && !id) && (
             <ProductList
               products={products}
               API_BASE_URL={API_BASE_URL}
@@ -123,7 +69,7 @@ export const ProductsTab: React.FC<ProductsTabProps> = ({ API_BASE_URL, addToast
             />
           )}
           
-          {currentView === 'form' && (
+          {(action === 'new' || id) && (
             <ProductForm
               initialData={editingProductData}
               API_BASE_URL={API_BASE_URL}

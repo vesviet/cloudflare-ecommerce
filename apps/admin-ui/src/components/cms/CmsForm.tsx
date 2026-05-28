@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import type { CmsEntry } from '../../types';
 import MDEditor from '@uiw/react-md-editor';
+import { GlassCard } from '../ui/GlassCard';
+import { ArrowLeft, UploadCloud, Link as LinkIcon, X } from 'lucide-react';
 
 // ── Media Manager Component ──────────────────────────────────────────────────
 function MediaManager({
@@ -21,7 +23,6 @@ function MediaManager({
     if (!file.type.startsWith('image/')) {
       return;
     }
-    // In production this would upload to R2. For now create an object URL for preview.
     const reader = new FileReader();
     reader.onload = (e) => {
       const dataUrl = e.target?.result as string;
@@ -39,65 +40,75 @@ function MediaManager({
   };
 
   return (
-    <div className="media-manager">
-      <div className="media-tabs">
-        <button type="button" className={`media-tab ${activeTab === 'url' ? 'active' : ''}`} onClick={() => setActiveTab('url')}>
-          URL
+    <div className="rounded-lg border border-white/10 bg-white/5 overflow-hidden">
+      <div className="flex border-b border-white/10 bg-white/5">
+        <button 
+          type="button" 
+          className={`flex-1 py-2 text-sm font-medium transition-colors flex justify-center items-center gap-2 ${activeTab === 'url' ? 'bg-primary-accent/20 text-primary-accent border-b-2 border-primary-accent' : 'text-text-muted hover:bg-white/5'}`} 
+          onClick={() => setActiveTab('url')}
+        >
+          <LinkIcon className="w-4 h-4" /> URL
         </button>
-        <button type="button" className={`media-tab ${activeTab === 'upload' ? 'active' : ''}`} onClick={() => setActiveTab('upload')}>
-          Upload
+        <button 
+          type="button" 
+          className={`flex-1 py-2 text-sm font-medium transition-colors flex justify-center items-center gap-2 ${activeTab === 'upload' ? 'bg-primary-accent/20 text-primary-accent border-b-2 border-primary-accent' : 'text-text-muted hover:bg-white/5'}`} 
+          onClick={() => setActiveTab('upload')}
+        >
+          <UploadCloud className="w-4 h-4" /> Upload
         </button>
       </div>
 
-      {activeTab === 'url' && (
-        <div className="media-url-row">
-          <input
-            className="field-input"
-            type="text"
-            placeholder="https://example.com/image.jpg"
-            value={urlInput}
-            onChange={(e) => setUrlInput(e.target.value)}
-            onBlur={handleUrlApply}
-            onKeyDown={(e) => e.key === 'Enter' && handleUrlApply()}
-          />
-          <button type="button" className="btn-ghost" style={{ whiteSpace: 'nowrap' }} onClick={handleUrlApply}>
-            Apply
-          </button>
-        </div>
-      )}
-
-      {activeTab === 'upload' && (
-        <div
-          className={`media-dropzone ${dragging ? 'drag-over' : ''}`}
-          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={handleDrop}
-          onClick={() => fileRef.current?.click()}
-        >
-          <div className="media-dropzone-icon">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
-            </svg>
+      <div className="p-4">
+        {activeTab === 'url' && (
+          <div className="flex gap-2">
+            <input
+              className="flex-1 px-4 py-2 rounded-lg bg-[var(--glass-bg)] border border-white/10 text-sm focus:border-primary-accent focus:ring-1 focus:ring-primary-accent transition-all text-text-main"
+              type="text"
+              placeholder="https://example.com/image.jpg"
+              value={urlInput}
+              onChange={(e) => setUrlInput(e.target.value)}
+              onBlur={handleUrlApply}
+              onKeyDown={(e) => e.key === 'Enter' && handleUrlApply()}
+            />
+            <button 
+              type="button" 
+              className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors text-sm font-medium" 
+              onClick={handleUrlApply}
+            >
+              Apply
+            </button>
           </div>
-          <p>Drop image here or click to browse</p>
-          <small>PNG, JPG, GIF, WebP — max 5MB</small>
-          <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
-        </div>
-      )}
+        )}
 
-      {value && (
-        <div className="media-preview">
-          <img src={value} alt="Featured" />
-          <button
-            type="button"
-            className="media-preview-remove"
-            title="Remove image"
-            onClick={() => { onChange(''); setUrlInput(''); }}
+        {activeTab === 'upload' && (
+          <div
+            className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors flex flex-col items-center justify-center gap-2 ${dragging ? 'border-primary-accent bg-primary-accent/10' : 'border-white/20 hover:border-white/40 hover:bg-white/5'}`}
+            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={handleDrop}
+            onClick={() => fileRef.current?.click()}
           >
-            ✕
-          </button>
-        </div>
-      )}
+            <UploadCloud className="w-8 h-8 text-text-muted mb-2" />
+            <p className="text-sm font-medium">Drop image here or click to browse</p>
+            <small className="text-xs text-text-muted">PNG, JPG, GIF, WebP — max 5MB</small>
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
+          </div>
+        )}
+
+        {value && (
+          <div className="mt-4 relative group rounded-lg overflow-hidden border border-white/10">
+            <img src={value} alt="Featured preview" className="w-full h-auto max-h-[300px] object-cover" />
+            <button
+              type="button"
+              className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-danger-accent"
+              title="Remove image"
+              onClick={() => { onChange(''); setUrlInput(''); }}
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -176,22 +187,27 @@ export function CmsForm({ initialData, API_BASE_URL, onSaveSuccess, onCancel, ad
   const isEditing = !!editingEntry.id;
 
   return (
-    <div>
-      <div className="page-header" style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '24px' }}>
-        <button onClick={onCancel} className="btn-secondary" style={{ padding: '6px 12px' }}>← Back</button>
+    <div className="w-full">
+      <div className="flex items-center gap-4 mb-8">
+        <button 
+          onClick={onCancel} 
+          className="p-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors text-text-muted hover:text-text-main"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
         <div>
-          <h1 style={{ margin: 0 }}>{isEditing ? 'Edit Entry' : 'Create New Entry'}</h1>
-          <p style={{ color: 'var(--text-muted)', margin: '8px 0 0 0' }}>{isEditing ? `Updating ${editingEntry.title}` : 'Add new content to your site'}</p>
+          <h1 className="text-3xl font-bold text-text-main m-0">{isEditing ? 'Edit Entry' : 'Create New Entry'}</h1>
+          <p className="text-text-muted mt-1">{isEditing ? `Updating ${editingEntry.title}` : 'Add new content to your site'}</p>
         </div>
       </div>
 
-      <div className="form-card" style={{ maxWidth: '1000px', margin: '0 auto' }}>
-        <form onSubmit={handleSave} className="form-inputs">
+      <GlassCard className="max-w-4xl mx-auto p-8">
+        <form onSubmit={handleSave} className="space-y-6">
           
-          <div className="form-group">
-            <label>Title *</label>
+          <div>
+            <label className="block text-sm text-text-muted mb-1">Title <span className="text-danger-accent">*</span></label>
             <input
-              className="input-control"
+              className="w-full px-4 py-2.5 rounded-lg bg-[var(--glass-bg)] border border-white/10 text-lg focus:border-primary-accent focus:ring-1 focus:ring-primary-accent transition-all text-text-main"
               type="text"
               required
               placeholder="Entry title"
@@ -201,21 +217,21 @@ export function CmsForm({ initialData, API_BASE_URL, onSaveSuccess, onCancel, ad
             />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '24px' }}>
-            <div className="form-group">
-              <label>Slug (auto)</label>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div>
+              <label className="block text-sm text-text-muted mb-1">Slug (auto)</label>
               <input
-                className="input-control"
+                className="w-full px-4 py-2 rounded-lg bg-[var(--glass-bg)] border border-white/10 text-sm focus:border-primary-accent focus:ring-1 focus:ring-primary-accent transition-all text-text-main"
                 type="text"
                 placeholder="auto-generated"
                 value={editingEntry.slug || ''}
                 onChange={(e) => setField('slug', e.target.value)}
               />
             </div>
-            <div className="form-group">
-              <label>Type</label>
+            <div>
+              <label className="block text-sm text-text-muted mb-1">Type</label>
               <select
-                className="input-control"
+                className="w-full px-4 py-2 rounded-lg bg-[var(--glass-bg)] border border-white/10 text-sm focus:border-primary-accent focus:ring-1 focus:ring-primary-accent transition-all text-text-main appearance-none"
                 value={editingEntry.type || 'post'}
                 onChange={(e) => setField('type', e.target.value)}
               >
@@ -224,10 +240,10 @@ export function CmsForm({ initialData, API_BASE_URL, onSaveSuccess, onCancel, ad
                 <option value="event">📅 Event</option>
               </select>
             </div>
-            <div className="form-group">
-              <label>Status</label>
+            <div>
+              <label className="block text-sm text-text-muted mb-1">Status</label>
               <select
-                className="input-control"
+                className="w-full px-4 py-2 rounded-lg bg-[var(--glass-bg)] border border-white/10 text-sm focus:border-primary-accent focus:ring-1 focus:ring-primary-accent transition-all text-text-main appearance-none"
                 value={editingEntry.status || 'draft'}
                 onChange={(e) => setField('status', e.target.value)}
               >
@@ -238,38 +254,38 @@ export function CmsForm({ initialData, API_BASE_URL, onSaveSuccess, onCancel, ad
             </div>
           </div>
 
-          <div className="form-group">
-            <label>Excerpt</label>
+          <div>
+            <label className="block text-sm text-text-muted mb-1">Excerpt</label>
             <textarea
-              className="input-control"
-              rows={2}
-              style={{ resize: 'vertical' }}
+              className="w-full px-4 py-2 rounded-lg bg-[var(--glass-bg)] border border-white/10 text-sm focus:border-primary-accent focus:ring-1 focus:ring-primary-accent transition-all text-text-main min-h-[80px] resize-y"
               placeholder="Short description shown in listings..."
               value={editingEntry.excerpt || ''}
               onChange={(e) => setField('excerpt', e.target.value)}
             />
           </div>
 
-          <div className="form-group" style={{ marginBottom: '24px' }}>
-            <label>Content</label>
-            <div data-color-mode="dark">
+          <div>
+            <label className="block text-sm text-text-muted mb-1">Content</label>
+            <div data-color-mode="dark" className="rounded-lg overflow-hidden border border-white/10">
               <MDEditor
                 value={editingEntry.content || ''}
                 onChange={(v) => setField('content', v || '')}
                 height={500}
-                style={{ backgroundColor: 'var(--glass-bg)', borderColor: 'var(--glass-border)' }}
+                style={{ backgroundColor: 'var(--glass-bg)' }}
               />
             </div>
           </div>
 
           {/* Author (Posts & Articles only) */}
           {(editingEntry.type === 'post' || editingEntry.type === 'article') && (
-            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '20px', borderRadius: '8px', border: '1px solid var(--glass-border)', marginBottom: '24px' }}>
-              <div style={{ marginBottom: '16px', fontWeight: 600 }}>Author Details</div>
-              <div className="form-group" style={{ margin: 0 }}>
-                <label>Author Name</label>
+            <div className="p-5 rounded-lg bg-white/5 border border-white/10">
+              <div className="font-semibold mb-4 flex items-center gap-2">
+                <span className="text-lg">✍️</span> Author Details
+              </div>
+              <div>
+                <label className="block text-sm text-text-muted mb-1">Author Name</label>
                 <input
-                  className="input-control"
+                  className="w-full px-4 py-2 rounded-lg bg-[var(--glass-bg)] border border-white/10 text-sm focus:border-primary-accent focus:ring-1 focus:ring-primary-accent transition-all text-text-main"
                   type="text"
                   placeholder="e.g. John Doe"
                   value={meta.author_name || ''}
@@ -281,22 +297,24 @@ export function CmsForm({ initialData, API_BASE_URL, onSaveSuccess, onCancel, ad
 
           {/* Event-specific fields */}
           {editingEntry.type === 'event' && (
-            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '20px', borderRadius: '8px', border: '1px solid var(--glass-border)', marginBottom: '24px' }}>
-              <div style={{ marginBottom: '16px', fontWeight: 600 }}>📅 Event Details</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label>Event Date</label>
+            <div className="p-5 rounded-lg bg-white/5 border border-white/10">
+              <div className="font-semibold mb-4 flex items-center gap-2">
+                <span className="text-lg">📅</span> Event Details
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm text-text-muted mb-1">Event Date</label>
                   <input
-                    className="input-control"
+                    className="w-full px-4 py-2 rounded-lg bg-[var(--glass-bg)] border border-white/10 text-sm focus:border-primary-accent focus:ring-1 focus:ring-primary-accent transition-all text-text-main"
                     type="date"
                     value={meta.event_date || ''}
                     onChange={(e) => setEditingEntry(setMeta(editingEntry, 'event_date', e.target.value))}
                   />
                 </div>
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label>Location</label>
+                <div>
+                  <label className="block text-sm text-text-muted mb-1">Location</label>
                   <input
-                    className="input-control"
+                    className="w-full px-4 py-2 rounded-lg bg-[var(--glass-bg)] border border-white/10 text-sm focus:border-primary-accent focus:ring-1 focus:ring-primary-accent transition-all text-text-main"
                     type="text"
                     placeholder="City or online"
                     value={meta.location || ''}
@@ -307,24 +325,24 @@ export function CmsForm({ initialData, API_BASE_URL, onSaveSuccess, onCancel, ad
             </div>
           )}
 
-          <div className="form-group">
-            <label>Featured Image</label>
+          <div>
+            <label className="block text-sm text-text-muted mb-1">Featured Image</label>
             <MediaManager
               value={editingEntry.featured_image_url || ''}
               onChange={(url) => setField('featured_image_url', url)}
             />
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '16px', marginTop: '24px', paddingTop: '24px', borderTop: '1px solid var(--glass-border)' }}>
-            <button type="button" className="btn-secondary" onClick={onCancel} disabled={isSubmitting}>
+          <div className="flex justify-end gap-3 pt-6 border-t border-white/10">
+            <button type="button" className="px-6 py-2.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors font-medium" onClick={onCancel} disabled={isSubmitting}>
               Cancel
             </button>
-            <button type="submit" className="btn-submit" style={{ margin: 0 }} disabled={isSubmitting}>
+            <button type="submit" className="px-6 py-2.5 rounded-lg bg-primary-accent hover:bg-primary-accent/80 text-white font-medium transition-colors shadow-[0_0_15px_var(--primary-glow)] disabled:opacity-50" disabled={isSubmitting}>
               {isSubmitting ? 'Saving...' : (isEditing ? 'Save Changes' : 'Create Entry')}
             </button>
           </div>
         </form>
-      </div>
+      </GlassCard>
     </div>
   );
 }

@@ -48,5 +48,4 @@ pnpm-debug.log*
 # ==========================
 *.tsbuildinfo
 .turbo/
-.agents/
 AGENTS.md

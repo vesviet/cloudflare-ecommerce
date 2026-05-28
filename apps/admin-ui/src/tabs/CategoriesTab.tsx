@@ -1,5 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import useSWR from 'swr';
 import type { CategoryData } from '../types';
+import { GlassCard } from '../components/ui/GlassCard';
+import { SkeletonLoader } from '../components/ui/SkeletonLoader';
+import { FolderTree, Edit2, Trash2 } from 'lucide-react';
 
 interface CategoriesTabProps {
   API_BASE_URL: string;
@@ -7,7 +11,7 @@ interface CategoriesTabProps {
 }
 
 export const CategoriesTab: React.FC<CategoriesTabProps> = ({ API_BASE_URL, addToast }) => {
-  const [categories, setCategories] = useState<CategoryData[]>([]);
+  const { data: result, error, isLoading, mutate } = useSWR<{ success: boolean, data: CategoryData[] }>('/categories');
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [categoryName, setCategoryName] = useState('');
   const [categorySlug, setCategorySlug] = useState('');
@@ -15,19 +19,7 @@ export const CategoriesTab: React.FC<CategoriesTabProps> = ({ API_BASE_URL, addT
   const [categoryDesc, setCategoryDesc] = useState('');
   const [isSubmittingCategory, setIsSubmittingCategory] = useState(false);
 
-  const fetchCategories = async () => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/categories`);
-      const result = await res.json();
-      if (result.success) setCategories(result.data || []);
-    } catch (err: any) {
-      addToast(err.message, 'error');
-    }
-  };
-
-  useEffect(() => {
-    fetchCategories();
-  }, []);
+  const categories = result?.data || [];
 
   const resetCategoryForm = () => {
     setEditingCategoryId(null);
@@ -50,12 +42,12 @@ export const CategoriesTab: React.FC<CategoriesTabProps> = ({ API_BASE_URL, addT
     if (!window.confirm('Are you sure you want to delete this category? Subcategories will be moved to root.')) return;
     try {
       const res = await fetch(`${API_BASE_URL}/categories/${id}`, { method: 'DELETE' });
-      const result = await res.json();
-      if (result.success) {
+      const data = await res.json();
+      if (data.success) {
         addToast('Category deleted', 'success');
-        fetchCategories();
+        mutate();
       } else {
-        addToast(result.error || 'Failed to delete category', 'error');
+        addToast(data.error || 'Failed to delete category', 'error');
       }
     } catch (err: any) {
       addToast(err.message, 'error');
@@ -79,13 +71,13 @@ export const CategoriesTab: React.FC<CategoriesTabProps> = ({ API_BASE_URL, addT
           description: categoryDesc || null
         })
       });
-      const result = await res.json();
-      if (result.success) {
+      const data = await res.json();
+      if (data.success) {
         addToast(editingCategoryId ? 'Category updated' : 'Category created', 'success');
         resetCategoryForm();
-        fetchCategories();
+        mutate();
       } else {
-        addToast(result.error || 'Failed to save category', 'error');
+        addToast(data.error || 'Failed to save category', 'error');
       }
     } catch (err: any) {
       addToast(err.message, 'error');
@@ -94,87 +86,132 @@ export const CategoriesTab: React.FC<CategoriesTabProps> = ({ API_BASE_URL, addT
     }
   };
 
+  if (error) {
+    addToast(error.message || 'Failed to fetch categories', 'error');
+  }
+
   return (
-    <div>
-      <div className="page-header">
-        <h1>Category Manager</h1>
+    <div className="w-full">
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold text-text-main m-0">Category Manager</h1>
       </div>
 
-      <div className="product-form-layout" style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '30px' }}>
-        <div className="form-card">
-          <form onSubmit={handleSubmitCategory} className="form-inputs">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-              <h3 style={{ fontSize: '18px', fontWeight: 600 }}>{editingCategoryId ? 'Edit Category' : 'Create New Category'}</h3>
-              {editingCategoryId && (
-                <button type="button" onClick={resetCategoryForm} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '12px' }}>
-                  Cancel Edit
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+        <div className="lg:col-span-2">
+          <GlassCard className="p-6">
+            <form onSubmit={handleSubmitCategory} className="space-y-4">
+              <div className="flex justify-between items-center mb-6 border-b border-white/5 pb-4">
+                <h3 className="text-xl font-bold flex items-center gap-2">
+                  <FolderTree className="w-5 h-5 text-primary-accent" />
+                  {editingCategoryId ? 'Edit Category' : 'New Category'}
+                </h3>
+                {editingCategoryId && (
+                  <button 
+                    type="button" 
+                    onClick={resetCategoryForm} 
+                    className="text-xs text-text-muted hover:text-text-main transition-colors"
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
+              
+              <div>
+                <label className="block text-sm text-text-muted mb-1">Category Name <span className="text-danger-accent">*</span></label>
+                <input type="text" className="w-full" value={categoryName} onChange={e => setCategoryName(e.target.value)} required />
+              </div>
+
+              <div>
+                <label className="block text-sm text-text-muted mb-1">Slug</label>
+                <input type="text" className="w-full" placeholder="Leave blank to auto-generate" value={categorySlug} onChange={e => setCategorySlug(e.target.value)} />
+              </div>
+
+              <div>
+                <label className="block text-sm text-text-muted mb-1">Parent Category</label>
+                <select className="w-full" value={categoryParentId} onChange={e => setCategoryParentId(e.target.value)}>
+                  <option value="">None (Top Level)</option>
+                  {categories.filter((c: CategoryData) => c.id !== editingCategoryId).map((c: CategoryData) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm text-text-muted mb-1">Description</label>
+                <textarea className="w-full min-h-[80px] resize-y" value={categoryDesc} onChange={e => setCategoryDesc(e.target.value)} />
+              </div>
+
+              <div className="pt-4 border-t border-white/5">
+                <button type="submit" className="w-full px-4 py-2.5 rounded-lg bg-primary-accent hover:bg-primary-accent/80 text-white font-medium transition-colors disabled:opacity-50 shadow-[0_0_15px_var(--primary-glow)]" disabled={isSubmittingCategory}>
+                  {isSubmittingCategory ? 'Saving...' : (editingCategoryId ? 'Update Category' : 'Create Category')}
                 </button>
-              )}
-            </div>
-            
-            <div className="form-group">
-              <label>Category Name *</label>
-              <input type="text" className="input-control" value={categoryName} onChange={e => setCategoryName(e.target.value)} required />
-            </div>
-
-            <div className="form-group">
-              <label>Slug</label>
-              <input type="text" className="input-control" placeholder="Leave blank to auto-generate" value={categorySlug} onChange={e => setCategorySlug(e.target.value)} />
-            </div>
-
-            <div className="form-group">
-              <label>Parent Category</label>
-              <select className="input-control" value={categoryParentId} onChange={e => setCategoryParentId(e.target.value)}>
-                <option value="">None (Top Level)</option>
-                {categories.filter(c => c.id !== editingCategoryId).map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label>Description</label>
-              <textarea className="input-control" style={{ height: '80px', resize: 'vertical' }} value={categoryDesc} onChange={e => setCategoryDesc(e.target.value)} />
-            </div>
-
-            <button type="submit" className="btn-submit" disabled={isSubmittingCategory}>
-              {isSubmittingCategory ? 'Saving...' : (editingCategoryId ? 'Update Category' : 'Create Category')}
-            </button>
-          </form>
+              </div>
+            </form>
+          </GlassCard>
         </div>
 
-        <div className="table-container" style={{ alignSelf: 'start' }}>
-          <h3 style={{ padding: '20px 24px 10px', fontSize: '16px', fontWeight: 600 }}>Category List</h3>
-          <table className="glass-table" style={{ fontSize: '13px' }}>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Slug</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {categories.map((c) => {
-                const isSubcategory = !!c.parent_id;
-                return (
-                  <tr key={c.id}>
-                    <td>
-                      <div style={{ fontWeight: 600, color: 'var(--text-main)', paddingLeft: isSubcategory ? '20px' : '0' }}>
-                        {isSubcategory && '↳ '} {c.name}
-                      </div>
-                    </td>
-                    <td style={{ color: 'var(--text-muted)' }}>{c.slug}</td>
-                    <td>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <button className="btn-secondary" style={{ padding: '4px 12px', fontSize: '11px' }} onClick={() => handleEditCategory(c)}>Edit</button>
-                        <button className="btn-secondary" style={{ padding: '4px 12px', fontSize: '11px', color: '#ff6b6b', borderColor: 'rgba(255,100,100,0.3)' }} onClick={() => handleDeleteCategory(c.id)}>Delete</button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="lg:col-span-3">
+          <GlassCard className="p-6">
+            <h3 className="text-xl font-bold mb-6">Category List</h3>
+            
+            {isLoading ? (
+              <div className="space-y-4">
+                <SkeletonLoader height="48px" />
+                <SkeletonLoader height="48px" />
+                <SkeletonLoader height="48px" />
+              </div>
+            ) : categories.length === 0 ? (
+              <div className="text-center py-12 text-text-muted border border-white/5 rounded-lg bg-white/5">
+                No categories found. Create one to get started.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead className="text-xs uppercase text-text-muted bg-white/5 border-b border-white/10">
+                    <tr>
+                      <th className="px-4 py-3 font-medium">Name</th>
+                      <th className="px-4 py-3 font-medium">Slug</th>
+                      <th className="px-4 py-3 font-medium text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {categories.map((c: CategoryData) => {
+                      const isSubcategory = !!c.parent_id;
+                      return (
+                        <tr key={c.id} className="hover:bg-white/5 transition-colors">
+                          <td className="px-4 py-3">
+                            <div className="flex items-center" style={{ paddingLeft: isSubcategory ? '1.5rem' : '0' }}>
+                              {isSubcategory && <span className="text-text-muted mr-2">↳</span>} 
+                              <span className="font-medium text-text-main">{c.name}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-text-muted font-mono text-xs">{c.slug}</td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <button 
+                                className="p-1.5 rounded-md text-text-muted hover:text-text-main hover:bg-white/10 transition-colors" 
+                                onClick={() => handleEditCategory(c)}
+                                title="Edit"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                              <button 
+                                className="p-1.5 rounded-md text-danger-accent/70 hover:text-danger-accent hover:bg-danger-accent/10 transition-colors" 
+                                onClick={() => handleDeleteCategory(c.id)}
+                                title="Delete"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </GlassCard>
         </div>
       </div>
     </div>

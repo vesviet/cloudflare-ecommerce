@@ -1,7 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import useSWR from 'swr';
 import type { OrderData } from '../types';
 import { OrderDetailModal } from '../components/OrderDetailModal';
 import { RefundModal } from '../components/RefundModal';
+import { GlassCard } from '../components/ui/GlassCard';
+import { SkeletonLoader } from '../components/ui/SkeletonLoader';
+import { RefreshCw, Package, RotateCcw } from 'lucide-react';
 
 interface OrdersTabProps {
   API_BASE_URL: string;
@@ -9,8 +13,7 @@ interface OrdersTabProps {
 }
 
 export const OrdersTab: React.FC<OrdersTabProps> = ({ API_BASE_URL, addToast }) => {
-  const [orders, setOrders] = useState<OrderData[]>([]);
-  const [loadingOrders, setLoadingOrders] = useState(false);
+  const { data: result, error, isLoading, mutate } = useSWR<{ success: boolean, data: OrderData[] }>('/orders');
 
   // Fulfill States
   const [showFulfillModal, setShowFulfillModal] = useState(false);
@@ -25,22 +28,7 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({ API_BASE_URL, addToast }) 
   // Refund State
   const [refundOrderId, setRefundOrderId] = useState<string | null>(null);
 
-  const fetchOrders = async () => {
-    setLoadingOrders(true);
-    try {
-      const res = await fetch(`${API_BASE_URL}/orders`);
-      const result = await res.json();
-      if (result.success) setOrders(result.data || []);
-    } catch (err: any) {
-      addToast(err.message, 'error');
-    } finally {
-      setLoadingOrders(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchOrders();
-  }, []);
+  const orders = result?.data || [];
 
   const handleOpenFulfillModal = (orderId: string) => {
     setFulfillOrderId(orderId);
@@ -66,13 +54,13 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({ API_BASE_URL, addToast }) 
           carrier_name: fulfillCarrierName
         })
       });
-      const result = await res.json();
-      if (result.success) {
+      const data = await res.json();
+      if (data.success) {
         addToast('Order fulfilled successfully', 'success');
         setShowFulfillModal(false);
-        fetchOrders();
+        mutate();
       } else {
-        addToast(result.error || 'Failed to fulfill order', 'error');
+        addToast(data.error || 'Failed to fulfill order', 'error');
       }
     } catch (err: any) {
       addToast(err.message, 'error');
@@ -83,124 +71,143 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({ API_BASE_URL, addToast }) 
 
   const formatCurrency = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
 
+  if (error) {
+    addToast(error.message || 'Failed to fetch orders', 'error');
+  }
+
   return (
-    <div>
-      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
-        <h1 style={{ margin: 0 }}>Orders</h1>
-        <button className="btn-secondary" onClick={fetchOrders} disabled={loadingOrders}>
-          {loadingOrders ? 'Refreshing...' : '↻ Refresh'}
+    <div className="w-full">
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold text-text-main m-0">Orders</h1>
+        <button 
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+          onClick={() => mutate()} 
+          disabled={isLoading}
+        >
+          <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+          <span>Refresh</span>
         </button>
       </div>
 
-      {loadingOrders ? (
-        <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>Loading orders...</div>
+      {isLoading ? (
+        <GlassCard className="p-6">
+          <div className="space-y-4">
+            <SkeletonLoader height="64px" />
+            <SkeletonLoader height="64px" />
+            <SkeletonLoader height="64px" />
+          </div>
+        </GlassCard>
       ) : orders.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>
-          <p style={{ fontSize: '1.1rem' }}>No orders yet.</p>
-          <p style={{ fontSize: '0.9rem', marginTop: '8px' }}>Orders will appear here once customers complete checkout.</p>
-        </div>
+        <GlassCard className="p-12 text-center flex flex-col items-center">
+          <Package className="w-12 h-12 text-text-muted mb-4 opacity-50" />
+          <h3 className="text-lg font-medium text-text-main mb-2">No orders yet</h3>
+          <p className="text-sm text-text-muted">Orders will appear here once customers complete checkout.</p>
+        </GlassCard>
       ) : (
-        <div className="table-container">
-          <table className="glass-table" style={{ fontSize: '0.9rem' }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)' }}>
-                <th style={{ padding: '14px 20px', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '0.05em' }}>Order ID</th>
-                <th style={{ padding: '14px 20px', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '0.05em' }}>Customer</th>
-                <th style={{ padding: '14px 20px', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '0.05em' }}>Date</th>
-                <th style={{ padding: '14px 20px', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '0.05em' }}>Status</th>
-                <th style={{ padding: '14px 20px', textAlign: 'right', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '0.05em' }}>Total</th>
-                <th style={{ padding: '14px 20px', textAlign: 'center', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '0.05em' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orders.map((order: OrderData, i: number) => {
-                const statusColors: Record<string, { bg: string; color: string; border: string }> = {
-                  pending_payment: { bg: 'rgba(255,204,0,0.12)', color: '#ffcc00', border: 'rgba(255,204,0,0.3)' },
-                  processing:      { bg: 'rgba(88,166,255,0.12)', color: '#58a6ff', border: 'rgba(88,166,255,0.3)' },
-                  completed:       { bg: 'rgba(75,210,143,0.12)', color: '#4bd28f', border: 'rgba(75,210,143,0.3)' },
-                  cancelled:       { bg: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)', border: 'rgba(255,255,255,0.1)' },
-                  refunded:        { bg: 'rgba(255,88,88,0.12)', color: '#ff5858', border: 'rgba(255,88,88,0.3)' },
-                  failed:          { bg: 'rgba(255,88,88,0.08)', color: '#ff8888', border: 'rgba(255,88,88,0.2)' },
-                };
-                const sc = statusColors[order.status] ?? statusColors['pending_payment'];
-                const totalDisplay = order.total_amount != null
-                  ? formatCurrency(Number(order.total_amount) / 100)
-                  : '—';
-                const customer = order.guest_email || order.customer_id || 'Guest';
-                const date = order.created_at
-                  ? new Date(order.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-                  : '—';
+        <GlassCard className="overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="text-xs uppercase text-text-muted bg-white/5 border-b border-white/10">
+                <tr>
+                  <th className="px-6 py-4 font-medium tracking-wider">Order ID</th>
+                  <th className="px-6 py-4 font-medium tracking-wider">Customer</th>
+                  <th className="px-6 py-4 font-medium tracking-wider">Date</th>
+                  <th className="px-6 py-4 font-medium tracking-wider">Status</th>
+                  <th className="px-6 py-4 font-medium tracking-wider text-right">Total</th>
+                  <th className="px-6 py-4 font-medium tracking-wider text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {orders.map((order: OrderData) => {
+                  const statusColors: Record<string, { bg: string; color: string; border: string }> = {
+                    pending_payment: { bg: 'rgba(255,204,0,0.12)', color: '#ffcc00', border: 'rgba(255,204,0,0.3)' },
+                    processing:      { bg: 'rgba(59,130,246,0.12)', color: '#3b82f6', border: 'rgba(59,130,246,0.3)' },
+                    completed:       { bg: 'rgba(16,185,129,0.12)', color: '#10b981', border: 'rgba(16,185,129,0.3)' },
+                    cancelled:       { bg: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)', border: 'rgba(255,255,255,0.1)' },
+                    refunded:        { bg: 'rgba(239,68,68,0.12)', color: '#ef4444', border: 'rgba(239,68,68,0.3)' },
+                    failed:          { bg: 'rgba(239,68,68,0.08)', color: '#fca5a5', border: 'rgba(239,68,68,0.2)' },
+                  };
+                  const sc = statusColors[order.status] ?? statusColors['pending_payment'];
+                  const totalDisplay = order.total_amount != null
+                    ? formatCurrency(Number(order.total_amount) / 100)
+                    : '—';
+                  const customer = order.guest_email || order.customer_id || 'Guest';
+                  const date = order.created_at
+                    ? new Date(order.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+                    : '—';
 
-                return (
-                  <tr key={order.id} style={{ borderBottom: i < orders.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none', cursor: 'pointer' }} onClick={() => setSelectedOrderId(order.id)} className="hoverable-row">
-                    <td style={{ padding: '14px 20px' }}>
-                      <span style={{ fontFamily: 'monospace', fontSize: '0.85rem', color: 'var(--accent-color)' }}>
-                        #{order.id.slice(0, 8).toUpperCase()}
-                      </span>
-                    </td>
-                    <td style={{ padding: '14px 20px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>{customer}</td>
-                    <td style={{ padding: '14px 20px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>{date}</td>
-                    <td style={{ padding: '14px 20px' }}>
-                      <span style={{
-                        display: 'inline-block',
-                        padding: '3px 10px',
-                        borderRadius: '12px',
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                        textTransform: 'capitalize',
-                        background: sc.bg,
-                        color: sc.color,
-                        border: `1px solid ${sc.border}`,
-                      }}>
-                        {order.status?.replace('_', ' ')}
-                      </span>
-                    </td>
-                    <td style={{ padding: '14px 20px', textAlign: 'right', fontWeight: 700 }}>{totalDisplay}</td>
-                    <td style={{ padding: '14px 20px', textAlign: 'center' }}>
-                      {order.status === 'processing' || order.status === 'completed' ? (
-                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                          {order.status === 'processing' && (
+                  return (
+                    <tr 
+                      key={order.id} 
+                      className="hover:bg-white/5 cursor-pointer transition-colors"
+                      onClick={() => setSelectedOrderId(order.id)}
+                    >
+                      <td className="px-6 py-4">
+                        <span className="font-mono text-primary-accent">
+                          #{order.id.slice(0, 8).toUpperCase()}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-text-muted">{customer}</td>
+                      <td className="px-6 py-4 text-text-muted">{date}</td>
+                      <td className="px-6 py-4">
+                        <span 
+                          className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold capitalize"
+                          style={{ background: sc.bg, color: sc.color, border: `1px solid ${sc.border}` }}
+                        >
+                          {order.status?.replace('_', ' ')}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right font-medium">{totalDisplay}</td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center justify-center gap-2">
+                          {order.status === 'processing' ? (
                             <button
-                              className="btn-secondary"
-                              style={{ fontSize: '0.75rem', padding: '5px 12px', borderColor: 'rgba(75, 210, 143, 0.3)', color: '#4bd28f' }}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-success-accent border border-success-accent/30 hover:bg-success-glow/10 transition-colors"
                               onClick={(e) => { e.stopPropagation(); handleOpenFulfillModal(order.id); }}
                             >
+                              <Package className="w-3.5 h-3.5" />
                               Fulfill
                             </button>
+                          ) : null}
+                          
+                          {(order.status === 'processing' || order.status === 'completed') ? (
+                            <button
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-danger-accent border border-danger-accent/30 hover:bg-danger-glow/10 transition-colors"
+                              onClick={(e) => { e.stopPropagation(); setRefundOrderId(order.id); }}
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                              Refund
+                            </button>
+                          ) : (
+                            <span className="text-text-muted">—</span>
                           )}
-                          <button
-                            className="btn-secondary"
-                            style={{ fontSize: '0.75rem', padding: '5px 12px', borderColor: 'rgba(255,88,88,0.3)', color: '#ff5858' }}
-                            onClick={(e) => { e.stopPropagation(); setRefundOrderId(order.id); }}
-                          >Refund</button>
                         </div>
-                      ) : (
-                        <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>—</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </GlassCard>
       )}
 
       {/* Fulfill Modal */}
       {showFulfillModal && (
-        <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setShowFulfillModal(false); }}>
-          <div className="modal-content" style={{ maxWidth: '440px' }}>
-            <h2 style={{ marginBottom: '6px' }}>📦 Fulfill Order</h2>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '24px' }}>
-              Fulfilling order <strong style={{ color: 'var(--text-main)' }}>#{fulfillOrderId?.slice(0, 8).toUpperCase()}</strong>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) setShowFulfillModal(false); }}>
+          <GlassCard className="w-full max-w-md p-6">
+            <h2 className="text-xl font-bold mb-1">📦 Fulfill Order</h2>
+            <p className="text-sm text-text-muted mb-6">
+              Fulfilling order <strong className="text-text-main">#{fulfillOrderId?.slice(0, 8).toUpperCase()}</strong>
             </p>
-            <form onSubmit={handleFulfillSubmit}>
-              <div className="form-group">
-                <label htmlFor="carrier-name">Carrier Name <span style={{ color: '#ff6b6b' }}>*</span></label>
+            <form onSubmit={handleFulfillSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-text-muted mb-1">
+                  Carrier Name <span className="text-danger-accent">*</span>
+                </label>
                 <input
-                  id="carrier-name"
                   type="text"
-                  className="form-input"
+                  className="w-full"
                   placeholder="e.g. FedEx, USPS, GHTK"
                   value={fulfillCarrierName}
                   onChange={(e) => setFulfillCarrierName(e.target.value)}
@@ -208,23 +215,23 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({ API_BASE_URL, addToast }) 
                   autoFocus
                 />
               </div>
-              <div className="form-group" style={{ marginTop: '16px' }}>
-                <label htmlFor="tracking-number">Tracking Number <span style={{ color: '#ff6b6b' }}>*</span></label>
+              <div>
+                <label className="block text-sm font-medium text-text-muted mb-1">
+                  Tracking Number <span className="text-danger-accent">*</span>
+                </label>
                 <input
-                  id="tracking-number"
                   type="text"
-                  className="form-input"
+                  className="w-full"
                   placeholder="Enter tracking number"
                   value={fulfillTrackingNumber}
                   onChange={(e) => setFulfillTrackingNumber(e.target.value)}
                   required
                 />
               </div>
-              <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
+              <div className="flex gap-3 mt-8">
                 <button
                   type="button"
-                  className="btn-secondary"
-                  style={{ flex: 1 }}
+                  className="flex-1 px-4 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
                   onClick={() => setShowFulfillModal(false)}
                   disabled={isFulfilling}
                 >
@@ -232,15 +239,14 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({ API_BASE_URL, addToast }) 
                 </button>
                 <button
                   type="submit"
-                  className="btn-primary"
-                  style={{ flex: 1, background: 'linear-gradient(135deg, #4bd28f, #20bf55)', borderColor: 'rgba(75,210,143,0.3)' }}
+                  className="flex-1 px-4 py-2 rounded-lg bg-success-accent hover:bg-success-accent/80 text-white font-medium transition-colors disabled:opacity-50 shadow-[0_0_15px_var(--success-glow)]"
                   disabled={isFulfilling || !fulfillTrackingNumber || !fulfillCarrierName}
                 >
                   {isFulfilling ? 'Fulfilling…' : 'Fulfill Order'}
                 </button>
               </div>
             </form>
-          </div>
+          </GlassCard>
         </div>
       )}
 
@@ -258,10 +264,11 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({ API_BASE_URL, addToast }) 
           orderId={refundOrderId}
           API_BASE_URL={API_BASE_URL}
           onClose={() => setRefundOrderId(null)}
-          onSuccess={fetchOrders}
+          onSuccess={() => mutate()}
           addToast={addToast}
         />
       )}
     </div>
   );
 };
+
