@@ -1,0 +1,18 @@
+# aura_api_sdk.model.GuestCheckout
+
+## Load the model package
+```dart
+import 'package:aura_api_sdk/api.dart';
+```
+
+## Properties
+Name | Type | Description | Notes
+------------ | ------------- | ------------- | -------------
+**email** | **String** |  | 
+**shippingAddress** | [**GuestCheckoutShippingAddress**](GuestCheckoutShippingAddress.md) |  | 
+**items** | [**List<GuestCheckoutItemsInner>**](GuestCheckoutItemsInner.md) |  | [default to const []]
+**affiliateId** | **String** |  | [optional] 
+
+[[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
+
+
