@@ -55,7 +55,7 @@ jobs:
             -i ./packages/contract/openapi.json \
             -g dart \
             -o ./sdks/dart \
-            '--additional-properties=pubName=aura_api_sdk,pubVersion=1.0.0,pubDescription=Aura Store API SDK for Dart'
+            --additional-properties=pubName=aura_api_sdk,pubVersion=1.0.0
 
       - name: Generate Swift SDK (iOS)
         run: |
