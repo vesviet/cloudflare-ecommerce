@@ -1,19 +1,23 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, use } from 'react';
 import Link from 'next/link';
 import { useCartStore } from '../../../store/cartStore';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
 
-export default function CategoryPage({ params }: { params: { slug: string } }) {
+export default function CategoryPage({ params }: { params: Promise<{ slug: string }> }) {
+  const unwrappedParams = use(params);
+  const slug = unwrappedParams.slug;
+  
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const { addItem, toggleCart } = useCartStore();
 
   useEffect(() => {
+    if (!slug) return;
     // Fetch products filtered by category
-    fetch(`${API_BASE}/api/products?category=${params.slug}`)
+    fetch(`${API_BASE}/api/products?category=${slug}`)
       .then(res => res.json())
       .then(data => {
         setProducts(data);
@@ -23,7 +27,7 @@ export default function CategoryPage({ params }: { params: { slug: string } }) {
         console.error('Failed to fetch category products', err);
         setLoading(false);
       });
-  }, [params.slug]);
+  }, [slug]);
 
   const formatCurrency = (minorAmountStr: string) => {
     const amount = parseInt(minorAmountStr, 10) / 100;
@@ -31,15 +35,31 @@ export default function CategoryPage({ params }: { params: { slug: string } }) {
   };
 
   const handleAddToCart = (product: any) => {
-    const variation = product.variations[0];
-    addItem({
-      id: variation.id,
-      product_id: product.id,
-      name: product.name,
-      price: parseInt(variation.sale_price || variation.regular_price, 10),
-      quantity: 1,
-      image: product.attributes?.find((a: any) => a.image)?.image || '',
-    });
+    if (product.type === 'variable') {
+      const variation = product.variations?.[0];
+      if (!variation) return;
+      addItem({
+        id: variation.id,
+        product_id: product.id,
+        name: product.name,
+        price: parseInt(variation.sale_price || variation.regular_price, 10),
+        quantity: 1,
+        image: product.images?.[0] || '',
+      });
+    } else {
+      // Simple product
+      const variation = product.variations?.[0];
+      if (!variation) return;
+
+      addItem({
+        id: variation.id,
+        product_id: product.id,
+        name: product.name,
+        price: parseInt(String(product.prices?.sale_price || product.prices?.regular_price), 10),
+        quantity: 1,
+        image: product.images?.[0] || '',
+      });
+    }
     toggleCart();
   };
 
@@ -47,7 +67,7 @@ export default function CategoryPage({ params }: { params: { slug: string } }) {
     <main>
       <section style={{ textAlign: 'center', marginBottom: '60px' }}>
         <h1 style={{ fontSize: '3rem', fontWeight: 800, background: 'linear-gradient(to right, #fff, #58a6ff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', marginBottom: '16px', textTransform: 'capitalize' }}>
-          {params.slug.replace(/-/g, ' ')}
+          {slug.replace(/-/g, ' ')}
         </h1>
         <p style={{ maxWidth: '600px', margin: '0 auto', fontSize: '1.2rem', color: 'var(--text-muted)' }}>
           Explore products in this category.
@@ -66,8 +86,8 @@ export default function CategoryPage({ params }: { params: { slug: string } }) {
             return (
               <div key={product.id} className="glass glass-card" style={{ display: 'flex', flexDirection: 'column' }}>
                 <div className="product-image">
-                  {product.attributes?.find((a: any) => a.image)?.image && (
-                    <img src={`${API_BASE}${product.attributes.find((a: any) => a.image).image}`} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  {product.images && product.images.length > 0 && (
+                    <img src={product.images[0].startsWith('http') ? product.images[0] : `${API_BASE}${product.images[0]}`} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   )}
                 </div>
                 <div style={{ fontSize: '0.8rem', color: 'var(--accent-color)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '8px' }}>

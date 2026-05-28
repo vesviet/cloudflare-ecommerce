@@ -1,0 +1,30 @@
+{
+  "components": [
+    {
+      "name": "ProductList",
+      "props": {
+        "products": "ProductData[]",
+        "onCreateNew": "() => void",
+        "onEdit": "(product: ProductData) => void"
+      },
+      "state": [],
+      "description": "Renders the glass-table of products."
+    },
+    {
+      "name": "ProductForm",
+      "props": {
+        "productId": "string | null",
+        "API_BASE_URL": "string",
+        "onSaveSuccess": "() => void",
+        "onCancel": "() => void",
+        "addToast": "(msg: string, type: 'success'|'error') => void"
+      },
+      "state": [
+        "productName", "productType", "productRegularPrice", "productSalePrice", "productStock",
+        "productPrimaryCategory", "productSecondaryCategories", "productVariations",
+        "newImageFiles", "existingImages", "previewUrls", "isSubmittingProduct"
+      ],
+      "description": "Renders the creation or edit form for a product, handling image uploads and variations."
+    }
+  ]
+}

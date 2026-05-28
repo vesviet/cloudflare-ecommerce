@@ -18,6 +18,41 @@ orders.get('/orders', async (c) => {
   }
 });
 
+orders.get('/orders/:id', async (c) => {
+  try {
+    const db = createDb(c.env.DB);
+    const orderId = c.req.param('id');
+    
+    const order = await db.select()
+      .from(schema.orders)
+      .where(eq(schema.orders.id, orderId))
+      .get();
+      
+    if (!order) {
+      return c.json({ success: false, error: 'Order not found' }, 404);
+    }
+    
+    const items = await db.select({
+      id: schema.orderItems.id,
+      order_id: schema.orderItems.order_id,
+      variation_id: schema.orderItems.variation_id,
+      quantity: schema.orderItems.quantity,
+      price_at_purchase: schema.orderItems.price_at_purchase,
+      sku: schema.productVariations.sku,
+      product_title: schema.products.title,
+    })
+      .from(schema.orderItems)
+      .leftJoin(schema.productVariations, eq(schema.orderItems.variation_id, schema.productVariations.id))
+      .leftJoin(schema.products, eq(schema.productVariations.product_id, schema.products.id))
+      .where(eq(schema.orderItems.order_id, orderId))
+      .all();
+
+    return c.json({ success: true, data: { ...order, items } });
+  } catch (err: any) {
+    return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
 orders.post('/orders/:id/refund', async (c) => {
   const orderId = c.req.param('id');
   try {

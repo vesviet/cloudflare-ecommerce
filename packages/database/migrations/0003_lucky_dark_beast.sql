@@ -1,0 +1,1 @@
+ALTER TABLE products ADD `images_json` text DEFAULT '[]';

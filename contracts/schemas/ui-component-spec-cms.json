@@ -1,0 +1,34 @@
+{
+  "components": [
+    {
+      "name": "CmsList",
+      "props": {
+        "entries": "CmsEntry[]",
+        "loading": "boolean",
+        "API_BASE_URL": "string",
+        "onCreateNew": "() => void",
+        "onEdit": "(entry: CmsEntry) => void",
+        "onDelete": "(id: string) => Promise<void>",
+        "onQuickPublish": "(entry: CmsEntry) => Promise<void>"
+      },
+      "state": [
+        "filter", "search", "openMenuId"
+      ],
+      "description": "Renders the filter toolbar and glass-table of CMS entries."
+    },
+    {
+      "name": "CmsForm",
+      "props": {
+        "initialData": "Partial<CmsEntry> | null",
+        "API_BASE_URL": "string",
+        "onSaveSuccess": "() => void",
+        "onCancel": "() => void",
+        "addToast": "(msg: string, type: 'success'|'error') => void"
+      },
+      "state": [
+        "editingEntry"
+      ],
+      "description": "Renders the full-screen creation or edit form for a CMS entry, integrating MDEditor and MediaManager."
+    }
+  ]
+}

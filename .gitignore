@@ -47,3 +47,6 @@ pnpm-debug.log*
 # TypeScript
 # ==========================
 *.tsbuildinfo
+.turbo/
+.agents/
+AGENTS.md

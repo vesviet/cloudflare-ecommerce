@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useCartStore } from '../../../store/cartStore';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
@@ -8,6 +8,14 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
 export default function ProductClient({ product }: { product: any }) {
   const [selectedVariationId, setSelectedVariationId] = useState<string>('');
   const { addItem, toggleCart } = useCartStore();
+  const galleryRef = useRef<HTMLDivElement>(null);
+
+  const scrollGallery = (dir: 'left' | 'right') => {
+    if (galleryRef.current) {
+      const scrollAmount = galleryRef.current.clientWidth;
+      galleryRef.current.scrollBy({ left: dir === 'left' ? -scrollAmount : scrollAmount, behavior: 'smooth' });
+    }
+  };
 
   const isVariable = product.type === 'variable';
   const variations = product.variations || [];
@@ -33,7 +41,7 @@ export default function ProductClient({ product }: { product: any }) {
       name: product.name,
       price: parseInt(selectedVar.sale_price || selectedVar.regular_price, 10),
       quantity: 1,
-      image: product.attributes?.find((a: any) => a.image)?.image || '',
+      image: product.images?.[0] || '',
       attributes: selectedVar.attributes || {}
     });
     
@@ -50,24 +58,57 @@ export default function ProductClient({ product }: { product: any }) {
   return (
     <div className="product-detail-container" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px', marginTop: '40px' }}>
       
-      {/* Left: Image */}
-      <div className="glass" style={{ padding: '20px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '500px' }}>
-        {product.attributes?.find((a: any) => a.image)?.image ? (
-          <img 
-            src={`${API_BASE}${product.attributes.find((a: any) => a.image).image}`} 
-            alt={product.name} 
-            style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '8px' }} 
-          />
+      {/* Left: Image Gallery */}
+      <div className="product-gallery" style={{ width: '100%', overflow: 'hidden' }}>
+        {product.images && product.images.length > 0 ? (
+          <div style={{ position: 'relative' }}>
+            <div ref={galleryRef} style={{ display: 'flex', overflowX: 'auto', scrollSnapType: 'x mandatory', gap: '20px', paddingBottom: '10px', scrollbarWidth: 'none' }}>
+              {product.images.map((img: string, idx: number) => (
+                <div key={idx} className="glass" style={{ flex: '0 0 100%', scrollSnapAlign: 'start', padding: '20px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '500px', boxSizing: 'border-box' }}>
+                  <img 
+                    src={img.startsWith('http') ? img : `${API_BASE}${img}`} 
+                    alt={`${product.name} ${idx + 1}`} 
+                    style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '8px' }} 
+                  />
+                </div>
+              ))}
+            </div>
+            {product.images.length > 1 && (
+              <>
+                <button onClick={() => scrollGallery('left')} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.5)', border: 'none', color: 'white', borderRadius: '50%', width: '40px', height: '40px', cursor: 'pointer', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                </button>
+                <button onClick={() => scrollGallery('right')} style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.5)', border: 'none', color: 'white', borderRadius: '50%', width: '40px', height: '40px', cursor: 'pointer', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </button>
+              </>
+            )}
+          </div>
         ) : (
-          <div style={{ color: 'var(--text-muted)' }}>No image available</div>
+          <div className="glass" style={{ padding: '20px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '500px' }}>
+            <div style={{ color: 'var(--text-muted)' }}>No image available</div>
+          </div>
         )}
       </div>
 
       {/* Right: Details */}
       <div style={{ display: 'flex', flexDirection: 'column' }}>
         <h1 style={{ fontSize: '2.5rem', marginBottom: '10px' }}>{product.name}</h1>
-        <div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--accent-color)', marginBottom: '20px' }}>
-          {formatCurrency(displayPrice)}
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '15px', marginBottom: '20px' }}>
+          {(selectedVariation ? selectedVariation.sale_price : product.prices.sale_price) ? (
+            <>
+              <span style={{ fontSize: '1.2rem', textDecoration: 'line-through', color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>
+                {formatCurrency(selectedVariation ? selectedVariation.regular_price : product.prices.regular_price)}
+              </span>
+              <span style={{ fontSize: '2.5rem', fontWeight: 800, color: 'var(--accent-color)' }}>
+                {formatCurrency(displayPrice)}
+              </span>
+            </>
+          ) : (
+            <span style={{ fontSize: '2.5rem', fontWeight: 800, color: 'var(--accent-color)' }}>
+              {formatCurrency(displayPrice)}
+            </span>
+          )}
         </div>
         
         <p style={{ color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: '30px', fontSize: '1.1rem' }}>
@@ -99,7 +140,7 @@ export default function ProductClient({ product }: { product: any }) {
               <option value="" disabled style={{ background: 'var(--bg-color)' }}>-- Choose an option --</option>
               {variations.map((v: any) => (
                 <option key={v.id} value={v.id} disabled={v.stock <= 0} style={{ background: 'var(--bg-color)' }}>
-                  {v.attributes?.name || v.sku} - {formatCurrency(v.sale_price || v.regular_price)} {v.stock <= 0 ? '(Out of Stock)' : ''}
+                  {(v.attributes && Object.values(v.attributes).filter(Boolean).length > 0) ? Object.values(v.attributes).filter(Boolean).join(' - ') : v.sku} - {formatCurrency(v.sale_price || v.regular_price)} {v.stock <= 0 ? '(Out of Stock)' : ''}
                 </option>
               ))}
             </select>

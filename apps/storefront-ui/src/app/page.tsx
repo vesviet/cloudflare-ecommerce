@@ -27,17 +27,31 @@ export default function Home() {
   };
 
   const handleAddToCart = (product: any) => {
-    // For simple products, add the first variation to cart
-    const variation = product.variations?.[0];
-    if (!variation) return;
-    addItem({
-      id: variation.id,
-      product_id: product.id,
-      name: product.name ?? product.title,
-      price: parseInt(String(variation.sale_price ?? variation.regular_price), 10),
-      quantity: 1,
-      image: product.attributes?.find((a: any) => a.image)?.image || '',
-    });
+    if (product.type === 'variable') {
+      const variation = product.variations?.[0];
+      if (!variation) return;
+      addItem({
+        id: variation.id,
+        product_id: product.id,
+        name: product.name ?? product.title,
+        price: parseInt(String(variation.sale_price ?? variation.regular_price), 10),
+        quantity: 1,
+        image: product.images?.[0] || '',
+      });
+    } else {
+      // Simple product
+      const variation = product.variations?.[0];
+      if (!variation) return;
+
+      addItem({
+        id: variation.id,
+        product_id: product.id,
+        name: product.name ?? product.title,
+        price: parseInt(String(product.prices?.sale_price ?? product.prices?.regular_price), 10),
+        quantity: 1,
+        image: product.images?.[0] || '',
+      });
+    }
     toggleCart();
   };
 
@@ -61,8 +75,8 @@ export default function Home() {
           return (
             <div key={product.id} className="glass glass-card" style={{ display: 'flex', flexDirection: 'column' }}>
               <div className="product-image">
-                {product.attributes?.find((a: any) => a.image)?.image && (
-                  <img src={`${API_BASE}${product.attributes.find((a: any) => a.image).image}`} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                {product.images && product.images.length > 0 && (
+                  <img src={product.images[0].startsWith('http') ? product.images[0] : `${API_BASE}${product.images[0]}`} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 )}
               </div>
               <div style={{ fontSize: '0.8rem', color: 'var(--accent-color)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '8px' }}>

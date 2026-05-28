@@ -112,6 +112,8 @@ export default function Header() {
           </div>
 
           <Link href="/about" style={{ fontWeight: 500, color: 'var(--text-muted)' }}>Story</Link>
+          <Link href="/blog" style={{ fontWeight: 500, color: 'var(--text-muted)' }}>Blog</Link>
+          <Link href="/events" style={{ fontWeight: 500, color: 'var(--text-muted)' }}>Events</Link>
           
           <div style={{ display: 'flex', gap: '20px', alignItems: 'center', marginLeft: '20px' }}>
             <button style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>

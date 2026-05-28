@@ -2,9 +2,15 @@
   "name": "@ecommerce/contract",
   "version": "1.0.0",
   "main": "src/index.ts",
-  "types": "src/index.ts",
+  "scripts": {
+    "build:openapi": "tsx scripts/generate-openapi.ts"
+  },
   "dependencies": {
     "@hono/zod-openapi": "^0.14.0",
     "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@asteasolutions/zod-to-openapi": "^7.0.0",
+    "tsx": "^4.22.3"
   }
 }

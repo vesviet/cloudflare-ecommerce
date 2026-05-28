@@ -60,6 +60,7 @@ export const products = sqliteTable('products', {
   slug: text('slug').notNull().unique(),
   title: text('title').notNull(),
   description: text('description'),
+  images_json: text('images_json').default('[]'),
   type: text('type').notNull().default('simple'),
   regular_price: integer('regular_price'),
   sale_price: integer('sale_price'),
@@ -157,4 +158,28 @@ export const idempotencyKeys = sqliteTable('idempotency_keys', {
   id: text('id').primaryKey(), // Stripe event ID
   event_type: text('event_type').notNull(),
   processed_at: text('processed_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const cmsEntries = sqliteTable('cms_entries', {
+  id: text('id').primaryKey(),
+  slug: text('slug').notNull().unique(),
+  title: text('title').notNull(),
+  excerpt: text('excerpt'),
+  content: text('content'),
+  type: text('type').notNull().default('post'), // post, article, event
+  status: text('status').notNull().default('draft'), // draft, published, archived
+  featured_image_url: text('featured_image_url'),
+  published_at: integer('published_at'),
+  metadata_json: text('metadata_json').default('{}'),
+  created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+  updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const adminUsers = sqliteTable('admin_users', {
+  id: text('id').primaryKey(),
+  email: text('email').notNull().unique(),
+  name: text('name').notNull(),
+  role: text('role').notNull().default('editor'), // superadmin, manager, support, editor
+  status: text('status').notNull().default('active'), // active, inactive
+  created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
 });

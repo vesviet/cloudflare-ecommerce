@@ -1,0 +1,57 @@
+{
+  "flow_name": "CMS Catalog Redesign",
+  "screens": [
+    {
+      "id": "cms_list",
+      "name": "CMS List",
+      "description": "Full-width data table displaying all CMS entries.",
+      "actions": [
+        {
+          "name": "Create New Entry",
+          "trigger": "Button Click",
+          "target": "cms_form_new"
+        },
+        {
+          "name": "Edit Entry",
+          "trigger": "Row Click / Action Menu Click",
+          "target": "cms_form_edit",
+          "params": ["entryId"]
+        }
+      ]
+    },
+    {
+      "id": "cms_form_new",
+      "name": "Create Entry Form",
+      "description": "Full-width form for creating a new CMS entry with Markdown editor.",
+      "actions": [
+        {
+          "name": "Save",
+          "trigger": "Form Submit",
+          "target": "cms_list"
+        },
+        {
+          "name": "Cancel / Back",
+          "trigger": "Button Click",
+          "target": "cms_list"
+        }
+      ]
+    },
+    {
+      "id": "cms_form_edit",
+      "name": "Edit Entry Form",
+      "description": "Full-width form populated with existing CMS entry data.",
+      "actions": [
+        {
+          "name": "Save Changes",
+          "trigger": "Form Submit",
+          "target": "cms_list"
+        },
+        {
+          "name": "Cancel / Back",
+          "trigger": "Button Click",
+          "target": "cms_list"
+        }
+      ]
+    }
+  ]
+}

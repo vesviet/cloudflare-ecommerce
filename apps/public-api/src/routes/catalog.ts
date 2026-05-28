@@ -67,14 +67,18 @@ catalog.get('/', async (c) => {
   // Enrich each product with a computed `prices` object and its variations.
   // This allows the storefront to display prices without a separate API call per product.
   const enriched = await Promise.all(productRows.map(async (product) => {
-    const variations = await db.select()
+    const variations = (await db.select()
       .from(schema.productVariations)
       .where(eq(schema.productVariations.product_id, product.id))
-      .all()
+      .all()).map(v => ({
+        ...v,
+        attributes: v.attributes_json ? JSON.parse(v.attributes_json) : {}
+      }))
     return {
       ...product,
       // `name` alias — storefront uses `product.name`, schema column is `title`
       name: product.title,
+      images: product.images_json ? JSON.parse(product.images_json) : [],
       variations,
       prices: buildPrices(product, variations),
     }
@@ -110,16 +114,20 @@ catalog.get('/:slug', async (c) => {
 
   if (!product) return c.json({ success: false, error: 'Not found' }, 404);
 
-  const variations = await db.select()
+  const variations = (await db.select()
     .from(schema.productVariations)
     .where(eq(schema.productVariations.product_id, product.id))
-    .all();
+    .all()).map(v => ({
+      ...v,
+      attributes: v.attributes_json ? JSON.parse(v.attributes_json) : {}
+    }));
 
   return c.json({
     success: true,
     data: {
       ...product,
       name: product.title,
+      images: product.images_json ? JSON.parse(product.images_json) : [],
       variations,
       prices: buildPrices(product, variations),
     },

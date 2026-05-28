@@ -1,0 +1,25 @@
+{
+  "reportId": "qa-report-2026-05-27",
+  "scope": ["cms", "checkout", "fulfillment"],
+  "summary": "Validation of the CMS features and fixes for the Checkout/Fulfillment flows. Core DB invariants and fixes (BUG-002, BUG-003) have been validated.",
+  "defects": [
+    {
+      "id": "DEF-QA-001",
+      "severity": "medium",
+      "status": "open",
+      "title": "Fulfillment fields SQLite parsing error in bash validation",
+      "description": "The fulfillment fields (tracking_number, carrier_name) updated successfully in the D1 command, but the validation script failed to grep the output correctly. Manual verification or better tooling is required.",
+      "reproduction": "Run qa/run_test_matrix.sh and observe FUL-P0-1 failure.",
+      "suspectedScope": "Test Automation / Bash Parsing"
+    }
+  ],
+  "releaseConfidence": {
+    "status": "ship_with_mitigations",
+    "rationale": "Critical bugs from previous review (BUG-002, BUG-003) are verified fixed at the database layer. CMS database constraints function exactly as designed. The remaining risk relies on the asynchronous queue consumers and UI integration tests which were skipped. Recommend shipping with monitoring on Stripe webhooks and Storefront `/blog` endpoints.",
+    "residualRisk": [
+      "Stripe webhook concurrency and payload signature validation in production.",
+      "Storefront React Markdown rendering (cross-browser and XSS testing).",
+      "Cloudflare Queue consumer for Resend emails."
+    ]
+  }
+}

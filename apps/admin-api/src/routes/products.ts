@@ -29,6 +29,7 @@ products.get('/products', async (c) => {
     // Parse variations JSON strings
     const formattedData = results.map((row: any) => ({
       ...row,
+      images: row.images_json ? JSON.parse(row.images_json) : [],
       secondary_categories: row.secondary_categories ? JSON.parse(row.secondary_categories) : [],
       variations: row.variations ? JSON.parse(row.variations).filter((v: any) => v.id !== null) : [],
     }));
@@ -68,6 +69,7 @@ products.get('/store/products', async (c) => {
         slug: row.slug,
         type: row.type,
         description: row.description,
+        images: row.images_json ? JSON.parse(row.images_json) : [],
         is_purchasable: !!row.is_purchasable,
         in_stock: !!row.in_stock,
         prices: {
@@ -109,6 +111,7 @@ products.post('/products', async (c) => {
     const sale_price = body['sale_price'] ? parseInt(body['sale_price'] as string, 10) : null;
     const stock = parseInt((body['stock'] as string) || '0', 10);
     const image = body['image'];
+    const imageRaw = body['images'];
     const primary_category_id = (body['primary_category_id'] as string) || null;
     let secondary_categories: string[] = [];
     if (body['secondary_categories']) {
@@ -133,20 +136,22 @@ products.post('/products', async (c) => {
       return c.json({ success: false, error: 'Missing product name' }, 400);
     }
 
-    let imageUrl = '';
-    if (image && image instanceof File) {
-      if (image.size > 5 * 1024 * 1024) {
-        return c.json({ success: false, error: 'Image size exceeds 5MB limit' }, 400);
-      }
-      if (!image.type.startsWith('image/')) {
-        return c.json({ success: false, error: 'Only image files are allowed' }, 400);
-      }
-      
-      const filename = `${Date.now()}-${image.name}`;
-      await c.env.MEDIA_R2.put(`products/${filename}`, image.stream(), {
-        httpMetadata: { contentType: image.type },
+    const files: File[] = [];
+    if (imageRaw) {
+      if (Array.isArray(imageRaw)) files.push(...imageRaw.filter((i): i is File => i instanceof File));
+      else if (imageRaw instanceof File) files.push(imageRaw);
+    }
+    if (image instanceof File) files.push(image);
+
+    const imageUrls: string[] = [];
+    for (const file of files) {
+      if (file.size > 5 * 1024 * 1024) continue;
+      if (!file.type.startsWith('image/')) continue;
+      const filename = `${Date.now()}-${file.name}`;
+      await c.env.MEDIA_R2.put(`products/${filename}`, file.stream(), {
+        httpMetadata: { contentType: file.type },
       });
-      imageUrl = `/media/products/${filename}`;
+      imageUrls.push(`/media/products/${filename}`);
     }
 
     const productId = crypto.randomUUID();
@@ -157,7 +162,8 @@ products.post('/products', async (c) => {
       id: productId,
       slug,
       title: name,
-      description: imageUrl,
+      description: null,
+      images_json: JSON.stringify(imageUrls),
       status: 'published',
       type,
       regular_price,
@@ -178,7 +184,7 @@ products.post('/products', async (c) => {
           regular_price,
           sale_price,
           stock,
-          attributes_json: JSON.stringify({ image: imageUrl }),
+          attributes_json: JSON.stringify({}),
         })
       );
     } else {
@@ -229,6 +235,16 @@ products.put('/products/:id', async (c) => {
     const sale_price = body['sale_price'] ? parseInt(body['sale_price'] as string, 10) : null;
     const stock = parseInt((body['stock'] as string) || '0', 10);
     const primary_category_id = (body['primary_category_id'] as string) || null;
+    let existingImages: string[] = [];
+    if (body['existing_images']) {
+      try { existingImages = JSON.parse(body['existing_images'] as string); } catch(e){}
+    }
+    const imageRaw = body['images'];
+    const files: File[] = [];
+    if (imageRaw) {
+      if (Array.isArray(imageRaw)) files.push(...imageRaw.filter((i): i is File => i instanceof File));
+      else if (imageRaw instanceof File) files.push(imageRaw);
+    }
     let secondary_categories: string[] = [];
     if (body['secondary_categories']) {
       try {
@@ -247,6 +263,17 @@ products.put('/products/:id', async (c) => {
       }
     }
 
+    const imageUrls: string[] = [...existingImages];
+    for (const file of files) {
+      if (file.size > 5 * 1024 * 1024) continue;
+      if (!file.type.startsWith('image/')) continue;
+      const filename = `${Date.now()}-${file.name}`;
+      await c.env.MEDIA_R2.put(`products/${filename}`, file.stream(), {
+        httpMetadata: { contentType: file.type },
+      });
+      imageUrls.push(`/media/products/${filename}`);
+    }
+
     const existingProduct = await db.select({ id: schema.products.id })
       .from(schema.products)
       .where(eq(schema.products.id, productId))
@@ -255,9 +282,16 @@ products.put('/products/:id', async (c) => {
       return c.json({ success: false, error: 'Product not found' }, 404);
     }
 
+    const updateData: any = { title: name, type, regular_price, sale_price, primary_category_id, updated_at: sql`CURRENT_TIMESTAMP` };
+    // Only update images if the client actually sent image data
+    if (body['existing_images'] !== undefined || files.length > 0) {
+      updateData.images_json = JSON.stringify(imageUrls);
+      updateData.description = null;
+    }
+
     const batchQueries: any[] = [
       db.update(schema.products)
-        .set({ title: name, type, regular_price, sale_price, primary_category_id, updated_at: sql`CURRENT_TIMESTAMP` })
+        .set(updateData)
         .where(eq(schema.products.id, productId)),
     ];
 

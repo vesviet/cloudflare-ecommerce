@@ -8,6 +8,8 @@ import webhook from './routes/webhook'
 import customer from './routes/customer'
 import refund from './routes/refund'
 import categories from './routes/categories'
+import cms from './routes/cms'
+import media from './routes/media'
 
 type Bindings = {
   DB: D1Database
@@ -52,10 +54,12 @@ app.get('/', (c) => {
 // Route registration
 app.route('/api/products', catalog)
 app.route('/api/categories', categories)
+app.route('/api/cms', cms)
 app.route('/api/checkout', checkout)
 app.route('/api/webhooks', webhook)
 app.route('/api', customer)
 app.route('/api/refund', refund)
+app.route('/media', media)
 
 export default {
   // 1. HTTP Requests (Hono)

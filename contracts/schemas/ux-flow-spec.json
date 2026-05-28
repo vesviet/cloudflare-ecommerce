@@ -1,0 +1,57 @@
+{
+  "flow_name": "Products Catalog Redesign",
+  "screens": [
+    {
+      "id": "products_list",
+      "name": "Products List",
+      "description": "Full-width data table displaying all current products.",
+      "actions": [
+        {
+          "name": "Create New Product",
+          "trigger": "Button Click",
+          "target": "product_form_new"
+        },
+        {
+          "name": "Edit Product",
+          "trigger": "Row Edit Button Click",
+          "target": "product_form_edit",
+          "params": ["productId"]
+        }
+      ]
+    },
+    {
+      "id": "product_form_new",
+      "name": "Create Product Form",
+      "description": "Full-width form for creating a new product with variations and images.",
+      "actions": [
+        {
+          "name": "Save",
+          "trigger": "Form Submit",
+          "target": "products_list"
+        },
+        {
+          "name": "Cancel / Back",
+          "trigger": "Button Click",
+          "target": "products_list"
+        }
+      ]
+    },
+    {
+      "id": "product_form_edit",
+      "name": "Edit Product Form",
+      "description": "Full-width form populated with existing product data.",
+      "actions": [
+        {
+          "name": "Save Changes",
+          "trigger": "Form Submit",
+          "target": "products_list"
+        },
+        {
+          "name": "Cancel / Back",
+          "trigger": "Button Click",
+          "target": "products_list"
+        }
+      ]
+    }
+  ]
+}

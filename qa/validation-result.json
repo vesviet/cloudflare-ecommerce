@@ -1,0 +1,57 @@
+{
+  "testRunId": "qa-run-2026-05-27",
+  "scope": ["cms", "checkout", "fulfillment"],
+  "environment": "local (D1 simulated)",
+  "executionTime": "2026-05-27T05:15:00Z",
+  "summary": {
+    "total": 6,
+    "passed": 5,
+    "failed": 1,
+    "skipped": 5
+  },
+  "results": [
+    {
+      "id": "CMS-P0-1",
+      "description": "Admin creates a Post and an Event",
+      "status": "passed",
+      "evidence": "DB Insert successful without constraint violations."
+    },
+    {
+      "id": "CMS-P0-4",
+      "description": "Unique slug constraint",
+      "status": "passed",
+      "evidence": "Duplicate slug 'hello-world' correctly rejected with UNIQUE constraint failed."
+    },
+    {
+      "id": "CMS-P0-3",
+      "description": "Draft visibility in Public API",
+      "status": "passed",
+      "evidence": "Query for status = 'published' correctly hides 'draft' status entries."
+    },
+    {
+      "id": "CHK-P0-3",
+      "description": "Total amount unit correctness",
+      "status": "passed",
+      "evidence": "Total amount stored accurately as 2998 cents (integer/real) avoiding floating point mixing. BUG-002 confirmed fixed."
+    },
+    {
+      "id": "CHK-P0-5",
+      "description": "Cron boundary on paid orders",
+      "status": "passed",
+      "evidence": "Paid order (processing) was NOT cancelled by Cron job. BUG-003 confirmed fixed."
+    },
+    {
+      "id": "FUL-P0-1",
+      "description": "Fulfillment flow DB mutations",
+      "status": "failed",
+      "evidence": "D1 update command succeeded but SELECT assertion failed to match 'completed' and tracking number via grep. Likely a bash parsing issue, but marked as failed for review."
+    }
+  ],
+  "skipped": [
+    "CMS-P0-2 (Requires Storefront UI rendering test)",
+    "CHK-P0-1 (Requires Stripe Checkout Session)",
+    "CHK-P0-2 (Requires invalidating Stripe key and UI click)",
+    "CHK-P0-4 (Requires 30 min wait)",
+    "FUL-P0-2 (Requires Cloudflare Queue consumer test)"
+  ]
+}

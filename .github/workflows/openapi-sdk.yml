@@ -6,24 +6,76 @@ on:
       - main
     paths:
       - 'packages/contract/src/**'
+      - '.github/workflows/openapi-sdk.yml'
 
 jobs:
   generate-sdks:
+    name: Generate Dart & Swift SDKs
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+    
+    # Needs permissions to push commit
+    permissions:
+      contents: write
 
-      - name: Install OpenAPI Generator
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Install Dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Generate OpenAPI JSON Spec
+        run: |
+          pnpm --filter @ecommerce/contract build:openapi
+          echo "OpenAPI Spec generated at packages/contract/openapi.json"
+
+      - name: Set up OpenAPI Generator CLI
         run: npm install -g @openapitools/openapi-generator-cli
 
-      # Trong thực tế, bạn sẽ chạy một script để export từ Hono Zod sang file `openapi.json`
-      # Ở đây giả lập việc sinh SDK từ file đó
       - name: Generate Dart SDK (Flutter)
         run: |
-          # openapi-generator-cli generate -i ./packages/contract/openapi.json -g dart -o ./sdks/dart
-          echo "Simulating Dart SDK Generation..."
+          mkdir -p ./sdks/dart
+          openapi-generator-cli generate \
+            -i ./packages/contract/openapi.json \
+            -g dart \
+            -o ./sdks/dart \
+            --additional-properties=pubName=aura_api_sdk,pubVersion=1.0.0,pubDescription="Aura Store API SDK for Dart"
 
       - name: Generate Swift SDK (iOS)
         run: |
-          # openapi-generator-cli generate -i ./packages/contract/openapi.json -g swift5 -o ./sdks/swift
-          echo "Simulating Swift SDK Generation..."
+          mkdir -p ./sdks/swift
+          openapi-generator-cli generate \
+            -i ./packages/contract/openapi.json \
+            -g swift5 \
+            -o ./sdks/swift \
+            --additional-properties=projectName=AuraApiSDK
+
+      - name: Commit and Push SDKs
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add ./sdks/
+          # Only commit if there are changes
+          if git diff --staged --quiet; then
+            echo "No changes in SDKs to commit."
+          else
+            git commit -m "chore: auto-generate API SDKs from latest contracts"
+            git push
+            echo "SDKs generated and pushed successfully!"
+          fi

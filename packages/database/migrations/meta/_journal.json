@@ -15,6 +15,27 @@
       "when": 1779807266037,
       "tag": "0001_red_nico_minoru",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1779857825009,
+      "tag": "0002_motionless_cannonball",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1779868166093,
+      "tag": "0003_lucky_dark_beast",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1779941256308,
+      "tag": "0004_slippery_gorilla_man",
+      "breakpoints": true
     }
   ]
 }

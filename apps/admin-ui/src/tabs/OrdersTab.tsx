@@ -1,4 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import type { OrderData } from '../types';
+import { OrderDetailModal } from '../components/OrderDetailModal';
+import { RefundModal } from '../components/RefundModal';
 
 interface OrdersTabProps {
   API_BASE_URL: string;
@@ -6,7 +9,7 @@ interface OrdersTabProps {
 }
 
 export const OrdersTab: React.FC<OrdersTabProps> = ({ API_BASE_URL, addToast }) => {
-  const [orders, setOrders] = useState<any[]>([]);
+  const [orders, setOrders] = useState<OrderData[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
 
   // Fulfill States
@@ -15,6 +18,12 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({ API_BASE_URL, addToast }) 
   const [fulfillTrackingNumber, setFulfillTrackingNumber] = useState('');
   const [fulfillCarrierName, setFulfillCarrierName] = useState('');
   const [isFulfilling, setIsFulfilling] = useState(false);
+
+  // Detail State
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+
+  // Refund State
+  const [refundOrderId, setRefundOrderId] = useState<string | null>(null);
 
   const fetchOrders = async () => {
     setLoadingOrders(true);
@@ -91,8 +100,8 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({ API_BASE_URL, addToast }) 
           <p style={{ fontSize: '0.9rem', marginTop: '8px' }}>Orders will appear here once customers complete checkout.</p>
         </div>
       ) : (
-        <div className="form-card" style={{ padding: 0, overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+        <div className="table-container">
+          <table className="glass-table" style={{ fontSize: '0.9rem' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)' }}>
                 <th style={{ padding: '14px 20px', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '0.05em' }}>Order ID</th>
@@ -104,7 +113,7 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({ API_BASE_URL, addToast }) 
               </tr>
             </thead>
             <tbody>
-              {orders.map((order: any, i: number) => {
+              {orders.map((order: OrderData, i: number) => {
                 const statusColors: Record<string, { bg: string; color: string; border: string }> = {
                   pending_payment: { bg: 'rgba(255,204,0,0.12)', color: '#ffcc00', border: 'rgba(255,204,0,0.3)' },
                   processing:      { bg: 'rgba(88,166,255,0.12)', color: '#58a6ff', border: 'rgba(88,166,255,0.3)' },
@@ -123,7 +132,7 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({ API_BASE_URL, addToast }) 
                   : '—';
 
                 return (
-                  <tr key={order.id} style={{ borderBottom: i < orders.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
+                  <tr key={order.id} style={{ borderBottom: i < orders.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none', cursor: 'pointer' }} onClick={() => setSelectedOrderId(order.id)} className="hoverable-row">
                     <td style={{ padding: '14px 20px' }}>
                       <span style={{ fontFamily: 'monospace', fontSize: '0.85rem', color: 'var(--accent-color)' }}>
                         #{order.id.slice(0, 8).toUpperCase()}
@@ -154,7 +163,7 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({ API_BASE_URL, addToast }) 
                             <button
                               className="btn-secondary"
                               style={{ fontSize: '0.75rem', padding: '5px 12px', borderColor: 'rgba(75, 210, 143, 0.3)', color: '#4bd28f' }}
-                              onClick={() => handleOpenFulfillModal(order.id)}
+                              onClick={(e) => { e.stopPropagation(); handleOpenFulfillModal(order.id); }}
                             >
                               Fulfill
                             </button>
@@ -162,15 +171,7 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({ API_BASE_URL, addToast }) 
                           <button
                             className="btn-secondary"
                             style={{ fontSize: '0.75rem', padding: '5px 12px', borderColor: 'rgba(255,88,88,0.3)', color: '#ff5858' }}
-                            onClick={async () => {
-                              if (!window.confirm(`Refund order #${order.id.slice(0, 8).toUpperCase()}?`)) return;
-                              try {
-                                const res = await fetch(`${API_BASE_URL}/orders/${order.id}/refund`, { method: 'POST' });
-                                const result = await res.json();
-                                if (result.success) { addToast('Order refunded', 'success'); fetchOrders(); }
-                                else addToast(result.error || 'Refund failed', 'error');
-                              } catch (e: any) { addToast(e.message, 'error'); }
-                            }}
+                            onClick={(e) => { e.stopPropagation(); setRefundOrderId(order.id); }}
                           >Refund</button>
                         </div>
                       ) : (
@@ -241,6 +242,25 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({ API_BASE_URL, addToast }) 
             </form>
           </div>
         </div>
+      )}
+
+      {selectedOrderId && (
+        <OrderDetailModal
+          orderId={selectedOrderId}
+          API_BASE_URL={API_BASE_URL}
+          onClose={() => setSelectedOrderId(null)}
+          addToast={addToast}
+        />
+      )}
+
+      {refundOrderId && (
+        <RefundModal
+          orderId={refundOrderId}
+          API_BASE_URL={API_BASE_URL}
+          onClose={() => setRefundOrderId(null)}
+          onSuccess={fetchOrders}
+          addToast={addToast}
+        />
       )}
     </div>
   );
