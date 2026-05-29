@@ -44,6 +44,7 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy
           workingDirectory: apps/admin-api
+          packageManager: pnpm
 
       # -- DEPLOY PUBLIC API WORKER --
       - name: 🚀 Deploy Public API (Worker)
@@ -53,6 +54,7 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy
           workingDirectory: apps/public-api
+          packageManager: pnpm
 
   # (Optional) Deploy UI using Cloudflare Pages
   deploy-pages:
@@ -87,3 +89,4 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy dist --project-name ecommerce-admin-ui
           workingDirectory: apps/admin-ui
+          packageManager: pnpm
