@@ -95,4 +95,12 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: cd apps/storefront-ui && pnpm dlx wrangler@3 pages deploy .vercel/output/static --project-name ecommerce-storefront-ui
+        run: |
+          cd apps/storefront-ui
+          pnpm dlx wrangler@3 pages deploy .vercel/output/static --project-name ecommerce-storefront-ui
+          
+          echo "Configuring custom domain..."
+          curl -s -X POST "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/ecommerce-storefront-ui/domains" \
+               -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+               -H "Content-Type: application/json" \
+               -d '{"name": "aura-shop.tanhdev.com"}'

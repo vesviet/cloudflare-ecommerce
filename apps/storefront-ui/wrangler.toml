@@ -1,0 +1,5 @@
+name = "ecommerce-storefront-ui"
+pages_build_output_dir = ".vercel/output/static"
+
+[env.production]
+custom_domains = ["aura-shop.tanhdev.com"]
