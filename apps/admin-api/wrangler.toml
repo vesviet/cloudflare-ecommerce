@@ -4,7 +4,7 @@ compatibility_date = "2024-05-12"
 
 [vars]
 TEAM_DOMAIN = "https://aura-store.cloudflareaccess.com"
-AUDIENCE_TAG = "your_audience_tag_here"
+AUDIENCE_TAG = "876ed9bd951b8a57e6144a5d7344a0999cafbb7f1a2dee69d833778bf6b26f0e"
 
 [[d1_databases]]
 binding = "DB"
