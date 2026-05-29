@@ -8,24 +8,24 @@ AUDIENCE_TAG = "your_audience_tag_here"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "ecommerce-db-prod"
-database_id = "xxxx-xxxx-xxxx-xxxx"
+database_name = "e-commerce"
+database_id = "b41da4e0-7f8c-44db-8854-0499d5c2ced5"
 preview_database_id = "local" # Dùng SQLite local khi chạy wrangler dev
 migrations_dir = "../../packages/database/migrations"
 
 [[r2_buckets]]
 binding = "PRODUCTS_R2"
-bucket_name = "products-bucket"
+bucket_name = "e-commerce"
 preview_bucket_name = "products-bucket-preview"
 
 [[r2_buckets]]
 binding = "CMS_R2"
-bucket_name = "cms-bucket"
+bucket_name = "cms"
 preview_bucket_name = "cms-bucket-preview"
 
 [[kv_namespaces]]
 binding = "CACHE_KV"
-id = "xxxx-xxxx-xxxx-xxxx"
+id = "279b6209ce47468abc735e3f5c472be8"
 preview_id = "local-cache-kv"
 
 [[queues.producers]]

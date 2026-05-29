@@ -1,0 +1,89 @@
+name: Deploy E-Commerce to Cloudflare
+
+on:
+  push:
+    branches:
+      - main
+  # Optional: Allow manual trigger from the Actions tab
+  workflow_dispatch:
+
+# Optimization: Cancel in-progress builds if new commits are pushed
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy-workers:
+    name: Build & Deploy API Workers
+    # Use ubuntu-latest (1:1 billing ratio for GitHub Actions minutes)
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: ⬇️ Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: ⚙️ Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: 📥 Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      # -- DEPLOY ADMIN API WORKER --
+      - name: 🚀 Deploy Admin API (Worker)
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy
+          workingDirectory: apps/admin-api
+
+      # -- DEPLOY PUBLIC API WORKER --
+      - name: 🚀 Deploy Public API (Worker)
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy
+          workingDirectory: apps/public-api
+
+  # (Optional) Deploy UI using Cloudflare Pages
+  deploy-pages:
+    name: Build & Deploy UI Pages
+    runs-on: ubuntu-latest
+    needs: deploy-workers # Remove this if you want UI and APIs to deploy concurrently
+    steps:
+      - name: ⬇️ Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: ⚙️ Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: 📥 Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: 🏗️ Build Admin UI (Vite)
+        run: pnpm --filter admin-ui run build
+
+      - name: 🚀 Deploy Admin UI (Pages)
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name ecommerce-admin-ui
+          workingDirectory: apps/admin-ui
