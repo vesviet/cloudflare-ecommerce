@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { Bindings } from './types';
-import customerApp from './customer';
+import { customerRouter as customerApp } from '@ecommerce/shared-routes';
 import metricsRoutes from './routes/metrics';
 import ordersRoutes from './routes/orders';
 import customersRoutes from './routes/customers';
@@ -9,7 +9,7 @@ import productsRoutes from './routes/products';
 import checkoutRoutes from './routes/checkout';
 import categoriesRoutes from './routes/categories';
 import cmsRoutes from './routes/cms';
-import mediaRoutes from './routes/media';
+import { mediaRouter as mediaRoutes } from '@ecommerce/shared-routes';
 import adminUsersRoutes from './routes/adminUsers';
 
 import { adminAuth, type Env } from './middleware/auth';

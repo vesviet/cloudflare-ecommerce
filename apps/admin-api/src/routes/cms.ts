@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import { Bindings } from '../types';
-import { drizzle } from 'drizzle-orm/d1';
-import { cmsEntries } from '@ecommerce/database/src/schema';
+import { createDb, schema } from '@ecommerce/database';
 import { eq, sql, desc } from 'drizzle-orm';
+import { requireRole } from '../middleware/auth';
 
 const app = new Hono<{ Bindings: Bindings }>();
 
@@ -13,14 +13,14 @@ const invalidateCache = async (env: Bindings) => {
 
 // GET all CMS entries
 app.get('/', async (c) => {
-  const db = drizzle(c.env.DB);
+  const db = createDb(c.env.DB);
   const type = c.req.query('type');
   
-  let query = db.select().from(cmsEntries).orderBy(desc(cmsEntries.created_at)).limit(200);
+  let query = db.select().from(schema.cmsEntries).orderBy(desc(schema.cmsEntries.created_at)).limit(200);
   
   if (type) {
     // We can't easily chain .where() conditionally without building the query
-    const results = await db.select().from(cmsEntries).where(eq(cmsEntries.type, type)).orderBy(desc(cmsEntries.created_at)).limit(200).all();
+    const results = await db.select().from(schema.cmsEntries).where(eq(schema.cmsEntries.type, type)).orderBy(desc(schema.cmsEntries.created_at)).limit(200).all();
     return c.json({ success: true, data: results });
   }
 
@@ -31,8 +31,8 @@ app.get('/', async (c) => {
 // GET single CMS entry
 app.get('/:id', async (c) => {
   const id = c.req.param('id');
-  const db = drizzle(c.env.DB);
-  const entry = await db.select().from(cmsEntries).where(eq(cmsEntries.id, id)).get();
+  const db = createDb(c.env.DB);
+  const entry = await db.select().from(schema.cmsEntries).where(eq(schema.cmsEntries.id, id)).get();
   
   if (!entry) {
     return c.json({ success: false, error: 'Entry not found' }, 404);
@@ -42,15 +42,15 @@ app.get('/:id', async (c) => {
 });
 
 // CREATE new CMS entry
-app.post('/', async (c) => {
+app.post('/', requireRole(['superadmin', 'manager', 'editor']), async (c) => {
   const body = await c.req.json();
-  const db = drizzle(c.env.DB);
+  const db = createDb(c.env.DB);
   
   const id = crypto.randomUUID();
   const slug = body.slug || body.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
   
   try {
-    await db.insert(cmsEntries).values({
+    await db.insert(schema.cmsEntries).values({
       id,
       title: body.title,
       slug,
@@ -75,10 +75,10 @@ app.post('/', async (c) => {
 });
 
 // UPDATE CMS entry
-app.put('/:id', async (c) => {
+app.put('/:id', requireRole(['superadmin', 'manager', 'editor']), async (c) => {
   const id = c.req.param('id');
   const body = await c.req.json();
-  const db = drizzle(c.env.DB);
+  const db = createDb(c.env.DB);
 
   try {
     const updateData: any = {
@@ -94,9 +94,9 @@ app.put('/:id', async (c) => {
     if (body.published_at !== undefined) updateData.published_at = body.published_at;
     if (body.metadata_json !== undefined) updateData.metadata_json = body.metadata_json;
 
-    await db.update(cmsEntries)
+    await db.update(schema.cmsEntries)
       .set(updateData)
-      .where(eq(cmsEntries.id, id));
+      .where(eq(schema.cmsEntries.id, id));
       
     await invalidateCache(c.env);
     
@@ -110,11 +110,11 @@ app.put('/:id', async (c) => {
 });
 
 // DELETE CMS entry
-app.delete('/:id', async (c) => {
+app.delete('/:id', requireRole(['superadmin', 'manager', 'editor']), async (c) => {
   const id = c.req.param('id');
-  const db = drizzle(c.env.DB);
+  const db = createDb(c.env.DB);
   
-  await db.delete(cmsEntries).where(eq(cmsEntries.id, id));
+  await db.delete(schema.cmsEntries).where(eq(schema.cmsEntries.id, id));
   await invalidateCache(c.env);
   
   return c.json({ success: true });

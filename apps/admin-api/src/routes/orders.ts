@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { eq, sql } from 'drizzle-orm';
 import { createDb, schema } from '@ecommerce/database';
 import { Bindings } from '../types';
+import { requireRole } from '../middleware/auth';
 
 const orders = new Hono<{ Bindings: Bindings }>();
 
@@ -53,7 +54,7 @@ orders.get('/orders/:id', async (c) => {
   }
 });
 
-orders.post('/orders/:id/refund', async (c) => {
+orders.post('/orders/:id/refund', requireRole(['superadmin', 'manager', 'support']), async (c) => {
   const orderId = c.req.param('id');
   try {
     const db = createDb(c.env.DB);
@@ -96,7 +97,7 @@ orders.post('/orders/:id/refund', async (c) => {
   }
 });
 
-orders.post('/orders/:id/fulfill', async (c) => {
+orders.post('/orders/:id/fulfill', requireRole(['superadmin', 'manager', 'support']), async (c) => {
   const orderId = c.req.param('id');
   try {
     const { tracking_number, carrier_name } = await c.req.json();

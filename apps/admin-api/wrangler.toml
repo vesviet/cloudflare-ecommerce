@@ -14,8 +14,14 @@ preview_database_id = "local" # Dùng SQLite local khi chạy wrangler dev
 migrations_dir = "../../packages/database/migrations"
 
 [[r2_buckets]]
-binding = "MEDIA_R2"
-bucket_name = "ecommerce-media-prod"
+binding = "PRODUCTS_R2"
+bucket_name = "products-bucket"
+preview_bucket_name = "products-bucket-preview"
+
+[[r2_buckets]]
+binding = "CMS_R2"
+bucket_name = "cms-bucket"
+preview_bucket_name = "cms-bucket-preview"
 
 [[kv_namespaces]]
 binding = "CACHE_KV"

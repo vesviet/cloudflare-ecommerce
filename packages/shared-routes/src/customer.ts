@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { eq, and, sql } from 'drizzle-orm';
 import { createDb, schema } from '@ecommerce/database';
-import { hashPassword, verifyPassword, signJWT, verifyJWT } from '../auth';
+import { hashPassword, verifyPassword, signJWT, verifyJWT } from '@ecommerce/database';
 
 type Bindings = {
   DB: D1Database;
@@ -283,7 +283,7 @@ customerApp.patch('/customer/addresses/:id/set-default', async (c) => {
     const addressId = c.req.param('id');
     const db = createDb(c.env.DB);
     
-    // Atomic batch: clear old default then set new — matches D1 batch semantics
+    // Atomic batch: clear old default then set new
     await db.batch([
       db.update(schema.customerAddresses)
         .set({ is_default_shipping: 0 })
@@ -363,53 +363,6 @@ customerApp.put('/customer/me', async (c) => {
       .where(eq(schema.customers.id, customerId));
       
     return c.json({ success: true, message: 'Profile updated' });
-  } catch (err: any) {
-    return c.json({ success: false, error: err.message }, 500);
-  }
-});
-
-// Change Password Route
-customerApp.put('/customer/me/change-password', async (c) => {
-  try {
-    const payload = c.get('jwtPayload') as any;
-    const customerId = payload.customer_id;
-    const { current_password, new_password } = await c.req.json();
-
-    if (!current_password || !new_password) {
-      return c.json({ success: false, error: 'Mật khẩu hiện tại và mật khẩu mới là bắt buộc' }, 400);
-    }
-    if (new_password.length < 8) {
-      return c.json({ success: false, error: 'Mật khẩu mới phải từ 8 ký tự trở lên' }, 400);
-    }
-    if (current_password === new_password) {
-      return c.json({ success: false, error: 'Mật khẩu mới không được trùng với mật khẩu cũ' }, 400);
-    }
-
-    const db = createDb(c.env.DB);
-
-    // Get current customer record
-    const customer = await db.select({ password_hash: schema.customers.password_hash })
-      .from(schema.customers)
-      .where(eq(schema.customers.id, customerId))
-      .get();
-
-    if (!customer || !customer.password_hash) {
-      return c.json({ success: false, error: 'Không tìm thấy khách hàng' }, 404);
-    }
-
-    // Verify current password
-    const isCurrentValid = await verifyPassword(current_password, customer.password_hash);
-    if (!isCurrentValid) {
-      return c.json({ success: false, error: 'Mật khẩu hiện tại không đúng.' }, 401);
-    }
-
-    // Hash and update new password
-    const newHashed = await hashPassword(new_password);
-    await db.update(schema.customers)
-      .set({ password_hash: newHashed, updated_at: sql`CURRENT_TIMESTAMP` })
-      .where(eq(schema.customers.id, customerId));
-
-    return c.json({ success: true, message: 'Thay đổi mật khẩu thành công!' });
   } catch (err: any) {
     return c.json({ success: false, error: err.message }, 500);
   }

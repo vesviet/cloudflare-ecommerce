@@ -1,0 +1,21 @@
+{
+  "contract_type": "adr-spec.json",
+  "decision_id": "ADR-002",
+  "title": "Split Media R2 Bucket into Products and CMS Buckets",
+  "status": "Accepted",
+  "context": "Currently, all static assets (product images and CMS media) are stored in a single Cloudflare R2 bucket (MEDIA_R2). This complicates lifecycle rules (e.g., pruning old CMS images while keeping product images indefinitely), blurs cost tracking, and poses a theoretical security risk if IAM access is provisioned for third-party CMS tools.",
+  "decision": "We will separate the monolithic MEDIA_R2 bucket into two distinct buckets: PRODUCTS_R2 and CMS_R2. The application will route read requests dynamically based on URL prefixes, and write operations will target the respective bucket bindings.",
+  "consequences": {
+    "positive": [
+      "Strict separation of concerns (Domain-Driven Design).",
+      "Independent lifecycle rules (e.g. 30-day deletion for draft CMS images).",
+      "Granular cost accounting for Marketing vs. Inventory operations."
+    ],
+    "negative": [
+      "Increased configuration overhead in wrangler.toml.",
+      "Requires explicit routing logic in the shared media router."
+    ]
+  },
+  "author": "Technical Architect",
+  "date": "2026-05-29"
+}

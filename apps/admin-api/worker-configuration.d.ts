@@ -7,6 +7,7 @@ interface Env {
 	STRIPE_PUBLISHABLE_KEY: string;
 	CLOUDFLARE_ACCESS_AUD: string;
 	ENVIRONMENT: string;
-	MEDIA_R2: R2Bucket;
+	PRODUCTS_R2: R2Bucket;
+	CMS_R2: R2Bucket;
 	DB: D1Database;
 }

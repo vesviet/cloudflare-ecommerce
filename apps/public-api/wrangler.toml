@@ -1,6 +1,7 @@
 name = "public-api-worker"
 main = "src/index.ts"
-compatibility_date = "2024-05-12"
+compatibility_date = "2024-06-05"
+compatibility_flags = ["nodejs_compat"]
 
 [vars]
 # Non-secret runtime config — secrets (STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, RESEND_API_KEY, JWT_SECRET)
@@ -28,8 +29,14 @@ id = "xxxx-xxxx-xxxx-xxxx"
 preview_id = "local-cache-kv" # KV local
 
 [[r2_buckets]]
-binding = "MEDIA_R2"
-bucket_name = "ecommerce-media-prod"
+binding = "PRODUCTS_R2"
+bucket_name = "products-bucket"
+preview_bucket_name = "products-bucket-preview"
+
+[[r2_buckets]]
+binding = "CMS_R2"
+bucket_name = "cms-bucket"
+preview_bucket_name = "cms-bucket-preview"
 
 [[queues.producers]]
 binding = "EVENT_QUEUE"

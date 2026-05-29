@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@ecommerce/database": "workspace:*",
+    "@ecommerce/shared-routes": "workspace:*",
     "drizzle-orm": "^0.30.10",
     "hono": "^4.3.7",
     "jose": "^6.2.3",
@@ -16,7 +17,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240512.0",
     "typescript": "^5.0.4",
-    "vitest": "^1.6.0",
+    "vitest": "^4.1.7",
     "wrangler": "^3.57.1"
   }
 }

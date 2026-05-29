@@ -8,3 +8,6 @@ export { schema };
 export const createDb = (d1: any) => {
   return drizzle(d1, { schema });
 };
+
+// Export auth utilities
+export * from './auth';

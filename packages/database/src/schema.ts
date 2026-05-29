@@ -99,8 +99,8 @@ export const orders = sqliteTable('orders', {
   guest_email: text('guest_email'),
   status: text('status').default('pending_payment'),
   payment_intent_id: text('payment_intent_id'),
-  total_amount: real('total_amount').notNull(),
-  shipping_fee: real('shipping_fee').default(0),
+  total_amount: integer('total_amount').notNull(),
+  shipping_fee: integer('shipping_fee').default(0),
   affiliate_id: text('affiliate_id'),
   utm_source: text('utm_source'),
   utm_medium: text('utm_medium'),
@@ -118,7 +118,7 @@ export const orderItems = sqliteTable('order_items', {
   order_id: text('order_id').notNull().references(() => orders.id, { onDelete: 'cascade' }),
   variation_id: text('variation_id').notNull().references(() => productVariations.id),
   quantity: integer('quantity').notNull(),
-  price_at_purchase: real('price_at_purchase').notNull(),
+  price_at_purchase: integer('price_at_purchase').notNull(),
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
 });
 

@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import { eq, and, sql } from 'drizzle-orm';
-import { createDb, schema } from '@ecommerce/database';
-import { hashPassword } from '../auth';
+import { createDb, schema, hashPassword } from '@ecommerce/database';
 import { Bindings } from '../types';
+import { requireRole } from '../middleware/auth';
 
 const customers = new Hono<{ Bindings: Bindings }>();
 
@@ -77,7 +77,7 @@ customers.get('/customers/:id', async (c) => {
   }
 });
 
-customers.put('/customers/:id', async (c) => {
+customers.put('/customers/:id', requireRole(['superadmin', 'manager']), async (c) => {
   try {
     const customerId = c.req.param('id');
     const db = createDb(c.env.DB);
@@ -86,12 +86,17 @@ customers.put('/customers/:id', async (c) => {
       company_name, vat_tax_id, accepts_marketing, tags_json, note 
     } = await c.req.json();
     
+    let finalStatus = status || 'active';
+    if (!['active', 'suspended', 'verification_pending', 'invited'].includes(finalStatus)) {
+      return c.json({ success: false, error: 'Invalid status value' }, 400);
+    }
+    
     await db.update(schema.customers)
       .set({
         first_name: first_name || null,
         last_name: last_name || null,
         phone: phone || null,
-        status: status || 'active',
+        status: finalStatus,
         dob: dob || null,
         gender: gender || 'unspecified',
         company_name: company_name || null,
@@ -173,7 +178,7 @@ customers.post('/customers', async (c) => {
 });
 
 // Reset Password for a Customer (Admin Action)
-customers.post('/customers/:id/reset-password', async (c) => {
+customers.post('/customers/:id/reset-password', requireRole(['superadmin', 'manager']), async (c) => {
   const customerId = c.req.param('id');
   try {
     let body: { new_password?: string };

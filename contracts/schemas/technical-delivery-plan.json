@@ -1,0 +1,31 @@
+{
+  "contract_type": "technical-delivery-plan.json",
+  "work_id": "ecommerce-deduplication",
+  "goal": "Eliminate 100% of duplicated files between admin-api and public-api",
+  "slices": [
+    {
+      "id": "slice-1-auth",
+      "owner": "Backend Developer",
+      "depends_on": [],
+      "description": "Move auth.ts to @ecommerce/database and add jose dependency",
+      "output_schema_ref": "implementation-result.json"
+    },
+    {
+      "id": "slice-2-shared-routes",
+      "owner": "Backend Developer",
+      "depends_on": [],
+      "description": "Create @ecommerce/shared-routes package containing customer.ts and media.ts",
+      "output_schema_ref": "implementation-result.json"
+    },
+    {
+      "id": "slice-3-integration",
+      "owner": "Backend Developer",
+      "depends_on": ["slice-1-auth", "slice-2-shared-routes"],
+      "description": "Update APIs to consume shared routes and fix inconsistent database imports in public-api",
+      "output_schema_ref": "implementation-result.json"
+    }
+  ],
+  "impact_radius": ["auth", "customer profiles", "media delivery"],
+  "quality_gates": ["pnpm run build passes", "Monorepo topology validated"],
+  "readiness_status": "planned"
+}

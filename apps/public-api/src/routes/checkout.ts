@@ -1,13 +1,14 @@
 import { Hono } from 'hono'
 import Stripe from 'stripe'
 import { createDb, schema } from '@ecommerce/database'
-import { eq, sql } from 'drizzle-orm'
+import { eq, sql, inArray } from 'drizzle-orm'
 
 type Bindings = {
   DB: D1Database
   CACHE_KV: KVNamespace
   STRIPE_SECRET_KEY: string
   STOREFRONT_URL: string
+  ENVIRONMENT?: string
 }
 
 // BUG-002 FIX: Keep shipping fee in CENTS throughout to avoid mixed-unit arithmetic.
@@ -54,30 +55,50 @@ checkout.post('/', async (c) => {
     }
   }
 
-  // BƯỚC 2: Validate từng item — giá lấy từ DB server-side (chống price tampering)
+  // BƯỚC 2: Validate items using batched queries
   let subTotal = 0 // in cents
   const validItems: { variation_id: string; quantity: number; price: number; name: string }[] = []
 
+  const variationIds = items.map((i: any) => i.variation_id)
+  
+  // Fetch all variations in one query
+  const variations = await db
+    .select()
+    .from(schema.productVariations)
+    .where(inArray(schema.productVariations.id, variationIds))
+    .all()
+
+  // Fetch all active reservations for these variations in one query
+  const now = Math.floor(Date.now() / 1000)
+  const allReservations = await db
+    .select()
+    .from(schema.inventoryReservations)
+    .where(sql`variation_id IN (${sql.join(variationIds, sql`, `)}) AND expires_at > ${now}`)
+    .all()
+
+  // Group reservations by variation_id
+  const reservationMap = new Map<string, number>()
+  for (const res of allReservations) {
+    reservationMap.set(res.variation_id, (reservationMap.get(res.variation_id) || 0) + res.quantity)
+  }
+
+  // Fetch products for names in one query
+  const productIds = variations.map(v => v.product_id)
+  const products = await db
+    .select({ id: schema.products.id, title: schema.products.title })
+    .from(schema.products)
+    .where(inArray(schema.products.id, productIds))
+    .all()
+  const productMap = new Map(products.map(p => [p.id, p.title]))
+
   for (const item of items) {
-    const variation = await db
-      .select()
-      .from(schema.productVariations)
-      .where(eq(schema.productVariations.id, item.variation_id))
-      .get()
+    const variation = variations.find(v => v.id === item.variation_id)
 
     if (!variation || variation.is_purchasable === 0) {
       return c.json({ success: false, error: `Product variation ${item.variation_id} is invalid or unavailable` }, 400)
     }
 
-    // Kiểm tra available stock = physical stock − active soft-locks
-    const now = Math.floor(Date.now() / 1000)
-    const reservations = await db
-      .select()
-      .from(schema.inventoryReservations)
-      .where(sql`variation_id = ${item.variation_id} AND expires_at > ${now}`)
-      .all()
-
-    const reservedQuantity = reservations.reduce((sum, res) => sum + res.quantity, 0)
+    const reservedQuantity = reservationMap.get(item.variation_id) || 0
     const availableStock = variation.stock - reservedQuantity
 
     if (availableStock < item.quantity) {
@@ -87,22 +108,14 @@ checkout.post('/', async (c) => {
       }, 400)
     }
 
-    // Server-side price in cents — ignores any client-provided price
     const price = variation.sale_price ?? variation.regular_price
-    subTotal += price * item.quantity // cents × quantity = cents
-
-    // Get product name for Stripe line item display
-    const product = await db
-      .select({ title: schema.products.title })
-      .from(schema.products)
-      .where(eq(schema.products.id, variation.product_id))
-      .get()
+    subTotal += price * item.quantity
 
     validItems.push({
       variation_id: item.variation_id,
       quantity: item.quantity,
-      price, // in cents
-      name: product?.title ?? `Product ${item.variation_id.slice(0, 8)}`,
+      price,
+      name: productMap.get(variation.product_id) ?? `Product ${item.variation_id.slice(0, 8)}`,
     })
   }
 
@@ -296,7 +309,7 @@ checkout.post('/', async (c) => {
     return c.json({
       success: false,
       error: err?.message ?? 'Internal checkout error',
-      stack: err?.stack ?? null,
+      stack: c.env.ENVIRONMENT === 'production' ? undefined : (err?.stack ?? null),
     }, 500)
   }
 })

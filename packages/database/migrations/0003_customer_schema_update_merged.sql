@@ -39,3 +39,4 @@ ALTER TABLE customer_addresses ADD COLUMN longitude REAL;
 ALTER TABLE customer_addresses ADD COLUMN delivery_instructions TEXT;
 
 PRAGMA foreign_keys = ON;
+ALTER TABLE products ADD `images_json` text DEFAULT '[]';

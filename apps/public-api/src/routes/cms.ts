@@ -1,7 +1,8 @@
 import { Hono } from 'hono';
-import { Bindings } from '../types';
-import { drizzle } from 'drizzle-orm/d1';
-import { cmsEntries } from '@ecommerce/database/src/schema';
+type Bindings = {
+  DB: D1Database;
+};
+import { createDb, schema } from '@ecommerce/database';
 import { eq, and, desc, sql } from 'drizzle-orm';
 
 const app = new Hono<{ Bindings: Bindings }>();
@@ -10,7 +11,7 @@ const VALID_TYPES = ['post', 'article', 'event'] as const;
 
 // GET all published CMS entries
 app.get('/', async (c) => {
-  const db = drizzle(c.env.DB);
+  const db = createDb(c.env.DB);
   const type = c.req.query('type');
   
   if (type && !VALID_TYPES.includes(type as any)) {
@@ -22,31 +23,31 @@ app.get('/', async (c) => {
   const offset = (page - 1) * pageSize;
   
   try {
-    let condition = eq(cmsEntries.status, 'published');
+    let condition = eq(schema.cmsEntries.status, 'published');
     if (type) {
-      condition = and(condition, eq(cmsEntries.type, type)) as any;
+      condition = and(condition, eq(schema.cmsEntries.type, type)) as any;
     }
 
     const [entries, countResult] = await Promise.all([
       db.select({
-        slug: cmsEntries.slug,
-        title: cmsEntries.title,
-        excerpt: cmsEntries.excerpt,
-        type: cmsEntries.type,
-        featured_image_url: cmsEntries.featured_image_url,
-        published_at: cmsEntries.published_at,
-        metadata_json: cmsEntries.metadata_json,
-        created_at: cmsEntries.created_at,
+        slug: schema.cmsEntries.slug,
+        title: schema.cmsEntries.title,
+        excerpt: schema.cmsEntries.excerpt,
+        type: schema.cmsEntries.type,
+        featured_image_url: schema.cmsEntries.featured_image_url,
+        published_at: schema.cmsEntries.published_at,
+        metadata_json: schema.cmsEntries.metadata_json,
+        created_at: schema.cmsEntries.created_at,
       })
-      .from(cmsEntries)
+      .from(schema.cmsEntries)
       .where(condition)
-      .orderBy(desc(cmsEntries.created_at))
+      .orderBy(desc(schema.cmsEntries.created_at))
       .limit(pageSize)
       .offset(offset)
       .all(),
       
       db.select({ count: sql<number>`count(*)` })
-      .from(cmsEntries)
+      .from(schema.cmsEntries)
       .where(condition)
       .get()
     ]);
@@ -71,12 +72,12 @@ app.get('/', async (c) => {
 // GET single published CMS entry by slug
 app.get('/:slug', async (c) => {
   const slug = c.req.param('slug');
-  const db = drizzle(c.env.DB);
+  const db = createDb(c.env.DB);
   
   try {
     const entry = await db.select()
-      .from(cmsEntries)
-      .where(and(eq(cmsEntries.slug, slug), eq(cmsEntries.status, 'published')))
+      .from(schema.cmsEntries)
+      .where(and(eq(schema.cmsEntries.slug, slug), eq(schema.cmsEntries.status, 'published')))
       .get();
     
     if (!entry) {

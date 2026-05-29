@@ -5,16 +5,17 @@ import { eq, sql } from 'drizzle-orm'
 import catalog from './routes/catalog'
 import checkout from './routes/checkout'
 import webhook from './routes/webhook'
-import customer from './routes/customer'
+import { customerRouter as customer } from '@ecommerce/shared-routes';
 import refund from './routes/refund'
 import categories from './routes/categories'
 import cms from './routes/cms'
-import media from './routes/media'
+import { mediaRouter as media } from '@ecommerce/shared-routes';
 
 type Bindings = {
   DB: D1Database
   CACHE_KV: KVNamespace
-  MEDIA_R2: R2Bucket
+  PRODUCTS_R2: R2Bucket
+  CMS_R2: R2Bucket
   EVENT_QUEUE: Queue
   JWT_SECRET: string
   PARTNER_API_KEYS: string
@@ -219,13 +220,13 @@ export default {
         continue
       }
 
-      await db
-        .update(schema.orders)
-        .set({ status: 'cancelled' })
-        .where(eq(schema.orders.id, res.order_id))
-      await db
-        .delete(schema.inventoryReservations)
-        .where(eq(schema.inventoryReservations.id, res.id))
+      await db.batch([
+        db.update(schema.orders)
+          .set({ status: 'cancelled' })
+          .where(eq(schema.orders.id, res.order_id)),
+        db.delete(schema.inventoryReservations)
+          .where(eq(schema.inventoryReservations.id, res.id))
+      ])
       cancelledCount++
       console.log(`[Cron] Cancelled order ${res.order_id}, released soft-lock (Variation: ${res.variation_id}, Qty: ${res.quantity})`)
     }

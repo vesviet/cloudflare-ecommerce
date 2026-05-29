@@ -148,14 +148,14 @@ products.post('/products', async (c) => {
       if (file.size > 5 * 1024 * 1024) continue;
       if (!file.type.startsWith('image/')) continue;
       const filename = `${Date.now()}-${file.name}`;
-      await c.env.MEDIA_R2.put(`products/${filename}`, file.stream(), {
+      await c.env.PRODUCTS_R2.put(filename, file.stream(), {
         httpMetadata: { contentType: file.type },
       });
       imageUrls.push(`/media/products/${filename}`);
     }
 
     const productId = crypto.randomUUID();
-    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '') + '-' + Date.now().toString().slice(-4);
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '') + '-' + crypto.randomUUID().slice(0, 6);
 
     // Insert product
     await db.insert(schema.products).values({
@@ -268,7 +268,7 @@ products.put('/products/:id', async (c) => {
       if (file.size > 5 * 1024 * 1024) continue;
       if (!file.type.startsWith('image/')) continue;
       const filename = `${Date.now()}-${file.name}`;
-      await c.env.MEDIA_R2.put(`products/${filename}`, file.stream(), {
+      await c.env.PRODUCTS_R2.put(filename, file.stream(), {
         httpMetadata: { contentType: file.type },
       });
       imageUrls.push(`/media/products/${filename}`);

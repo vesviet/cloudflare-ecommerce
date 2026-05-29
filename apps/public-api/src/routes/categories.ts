@@ -1,6 +1,5 @@
 import { Hono } from 'hono';
-import { drizzle } from 'drizzle-orm/d1';
-import { categories } from '@ecommerce/database/src/schema';
+import { createDb, schema } from '@ecommerce/database';
 
 const app = new Hono<{ Bindings: { DB: D1Database, CACHE_KV: KVNamespace } }>();
 
@@ -16,8 +15,8 @@ app.get('/', async (c) => {
   }
 
   // 2. Cache Miss - Query DB
-  const db = drizzle(c.env.DB);
-  const allCategories = await db.select().from(categories).all();
+  const db = createDb(c.env.DB);
+  const allCategories = await db.select().from(schema.categories).all();
   
   // Build Tree
   const categoryMap = new Map();
