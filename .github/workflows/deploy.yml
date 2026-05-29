@@ -82,4 +82,4 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: cd apps/admin-ui && pnpm dlx wrangler pages deploy dist --project-name ecommerce-admin-ui
+        run: cd apps/admin-ui && pnpm dlx wrangler@3 pages deploy dist --project-name ecommerce-admin-ui
