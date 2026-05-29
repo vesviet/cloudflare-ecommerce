@@ -23,7 +23,7 @@ export type Env = {
 export const adminAuth = createMiddleware<Env>(async (c, next) => {
   const path = c.req.path;
   // Bỏ qua kiểm tra Zero Trust cho các API của Storefront và Media
-  if (path.startsWith('/store') || path.startsWith('/auth') || path.startsWith('/customer') || path.startsWith('/media')) {
+  if (path.startsWith('/store') || path.startsWith('/auth') || path.startsWith('/customer') || path.startsWith('/media') || path.startsWith('/api/media')) {
     return next();
   }
 

@@ -45,7 +45,7 @@ export const ProductList: React.FC<ProductListProps> = ({ products, API_BASE_URL
                   <td>
                     {p.images && p.images.length > 0 ? (
                       <div style={{ width: '48px', height: '48px', borderRadius: '6px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
-                        <img src={p.images[0].startsWith('http') ? p.images[0] : `${API_BASE_URL.replace('/api', '')}${p.images[0]}`} alt="Thumb" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <img src={p.images[0].startsWith('http') ? p.images[0] : `${API_BASE_URL}${p.images[0]}`} alt="Thumb" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       </div>
                     ) : (
                       <div style={{ width: '48px', height: '48px', borderRadius: '6px', backgroundColor: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>

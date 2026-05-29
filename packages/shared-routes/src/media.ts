@@ -4,8 +4,8 @@ const media = new Hono<{ Bindings: { PRODUCTS_R2: R2Bucket, CMS_R2: R2Bucket } }
 
 media.get('/*', async (c) => {
   const path = c.req.path; // e.g. /media/products/123.jpg or /media/cms/456.jpg
-  // Extract key by removing '/media/' prefix
-  const rawKey = path.replace(/^\/media\//, '');
+  // Extract key by removing '/media/' or '/api/media/' prefix
+  const rawKey = path.replace(/^\/?(api\/)?media\//, '');
   
   let object;
   if (rawKey.startsWith('products/')) {
