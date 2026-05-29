@@ -17,6 +17,7 @@ jobs:
     name: Build & Deploy API Workers
     # Use ubuntu-latest (1:1 billing ratio for GitHub Actions minutes)
     runs-on: ubuntu-latest
+    environment: CLOUDFLARE
     
     steps:
       - name: ⬇️ Checkout Repository
@@ -54,6 +55,7 @@ jobs:
   deploy-pages:
     name: Build & Deploy UI Pages
     runs-on: ubuntu-latest
+    environment: CLOUDFLARE
     needs: deploy-workers # Remove this if you want UI and APIs to deploy concurrently
     steps:
       - name: ⬇️ Checkout Repository
