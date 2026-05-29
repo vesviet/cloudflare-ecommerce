@@ -35,19 +35,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ userRole, onLogout }) => {
   const filteredItems = NAV_ITEMS.filter(item => !userRole || item.roles.includes(userRole));
 
   return (
-    <aside className={cn('glass-panel sidebar', collapsed ? 'w-20' : 'w-64')} style={{ transition: 'width 0.3s ease', display: 'flex', flexDirection: 'column', height: '100vh', position: 'sticky', top: 0 }}>
+    <aside className={cn('sidebar', collapsed ? 'collapsed' : '')}>
       {/* Brand + Toggle */}
-      <div className="flex items-center justify-between p-6 mb-4">
+      <div className="brand-row">
         {!collapsed && (
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-6 h-6 text-primary-accent" />
-            <h2 className="text-xl font-bold tracking-tight text-text-main m-0" style={{ fontFamily: 'var(--header-font)' }}>
+          <div className="brand">
+            <h2>
+              <Sparkles className="w-6 h-6 text-primary-accent" />
               Aura
             </h2>
           </div>
         )}
         <button
-          className={cn("p-2 rounded-lg text-text-muted hover:text-text-main hover:bg-white/5 transition-colors", collapsed && "mx-auto")}
+          className="sidebar-toggle"
           onClick={() => setCollapsed(!collapsed)}
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
@@ -56,7 +56,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ userRole, onLogout }) => {
       </div>
 
       {/* Navigation */}
-      <ul className="flex-1 px-4 space-y-2 overflow-y-auto" style={{ listStyle: 'none' }}>
+      <ul className="nav-links">
         {filteredItems.map((item) => {
           const Icon = item.icon;
           return (
@@ -65,15 +65,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ userRole, onLogout }) => {
                 to={item.path}
                 title={collapsed ? item.label : undefined}
                 className={({ isActive }) => cn(
-                  "flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200",
-                  "hover:bg-white/5",
-                  isActive ? "bg-primary-glow text-primary-accent shadow-[0_0_15px_var(--primary-glow)]" : "text-text-muted",
-                  collapsed && "justify-center"
+                  "nav-item",
+                  isActive ? "active" : ""
                 )}
                 style={{ textDecoration: 'none' }}
               >
-                <Icon className="w-5 h-5 flex-shrink-0" />
-                {!collapsed && <span className="font-medium text-sm">{item.label}</span>}
+                <Icon className="nav-item-icon" />
+                <span className="nav-label">{item.label}</span>
               </NavLink>
             </li>
           );
@@ -82,18 +80,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ userRole, onLogout }) => {
       
       {/* Logout Button */}
       {onLogout && (
-        <div className="p-4 mt-auto">
+        <div style={{ marginTop: 'auto', padding: '20px 0 0' }}>
           <button 
             onClick={onLogout}
-            className={cn(
-              "flex items-center gap-3 w-full p-3 rounded-xl transition-all duration-200",
-              "text-danger-accent bg-danger-glow/20 border border-danger-accent/20 hover:bg-danger-glow/40",
-              collapsed && "justify-center"
-            )}
+            className="btn-refund"
+            style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
             title={collapsed ? 'Logout' : undefined}
           >
             <LogOut className="w-5 h-5 flex-shrink-0" />
-            {!collapsed && <span className="font-medium text-sm">Logout</span>}
+            {!collapsed && <span>Logout</span>}
           </button>
         </div>
       )}

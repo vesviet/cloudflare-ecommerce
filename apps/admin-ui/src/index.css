@@ -1,16 +1,6 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700&display=swap');
-@import "tailwindcss";
-
-@theme {
-  --color-primary-accent: #3B82F6;
-  --color-primary-glow: rgba(59, 130, 246, 0.5);
-  --color-secondary-accent: #8B5CF6;
-  --color-danger-accent: #EF4444;
-  --color-danger-glow: rgba(239, 68, 68, 0.5);
-  --color-success-accent: #10B981;
-  --color-text-main: #F8FAFC;
-  --color-text-muted: #94A3B8;
-}
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 :root {
   --bg-color: #0A0A0A;
