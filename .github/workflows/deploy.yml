@@ -76,6 +76,8 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: 🏗️ Build Admin UI (Vite)
+        env:
+          VITE_API_URL: https://api.tanhdev.com
         run: pnpm --filter admin-ui run build
 
       - name: 🚀 Deploy Admin UI (Pages)
