@@ -56,7 +56,10 @@ function App() {
         }
 
         // On production, Cloudflare Access handles the JWT automatically in cookies/headers
-        const res = await fetch(`${API_BASE_URL}/me`, { headers });
+        const res = await fetch(`${API_BASE_URL}/me`, { 
+          headers,
+          credentials: 'include' // Must include credentials for cross-domain CF cookies
+        });
         
         if (res.status === 403 || res.status === 401) {
           setAuthStatus('forbidden');

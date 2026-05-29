@@ -20,7 +20,10 @@ const fetcher = async (url: string) => {
   // Handle absolute vs relative URLs
   const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
   
-  const res = await fetch(fullUrl, { headers });
+  const res = await fetch(fullUrl, { 
+    headers,
+    credentials: 'include'
+  });
   if (!res.ok) {
     const error = new Error('An error occurred while fetching the data.');
     (error as any).info = await res.json().catch(() => ({}));
