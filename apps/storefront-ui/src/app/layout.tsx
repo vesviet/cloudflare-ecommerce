@@ -3,7 +3,7 @@ import "./globals.css";
 import AffiliateTracker from '../components/AffiliateTracker';
 import Header from '../components/Header';
 
-export const runtime = 'edge';
+
 
 export const metadata: Metadata = {
   title: "Aura E-Commerce | Premium Store",

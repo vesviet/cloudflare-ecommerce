@@ -89,3 +89,4 @@ export default function BlogPostDetail() {
     </main>
   );
 }
+export const runtime = 'edge';

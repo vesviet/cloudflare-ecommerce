@@ -138,3 +138,4 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
     </main>
   );
 }
+export const runtime = 'edge';

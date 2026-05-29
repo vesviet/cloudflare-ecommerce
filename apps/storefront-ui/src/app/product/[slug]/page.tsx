@@ -84,3 +84,4 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     </main>
   );
 }
+export const runtime = 'edge';

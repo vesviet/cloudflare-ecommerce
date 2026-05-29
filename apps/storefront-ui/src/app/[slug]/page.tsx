@@ -69,3 +69,4 @@ export default async function DynamicCmsPage({ params }: { params: Promise<{ slu
     </main>
   );
 }
+export const runtime = 'edge';

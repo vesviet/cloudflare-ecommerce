@@ -95,3 +95,4 @@ export default function EventDetail() {
     </main>
   );
 }
+export const runtime = 'edge';
