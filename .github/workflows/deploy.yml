@@ -97,6 +97,11 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           cd apps/storefront-ui
+          
+          echo "Ensuring Pages project exists..."
+          pnpm dlx wrangler@3 pages project create ecommerce-storefront-ui --production-branch main || true
+          
+          echo "Deploying to Pages..."
           pnpm dlx wrangler@3 pages deploy .vercel/output/static --project-name ecommerce-storefront-ui
           
           echo "Configuring custom domain..."
