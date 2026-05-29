@@ -14,7 +14,7 @@ import adminUsersRoutes from './routes/adminUsers';
 
 import { adminAuth, type Env } from './middleware/auth';
 
-const app = new Hono<Env>();
+const app = new Hono<Env>().basePath('/api');
 
 // 1. Enable CORS for Frontend cross-origin requests
 app.use('*', cors({
