@@ -6,7 +6,7 @@ import catalog from './routes/catalog'
 import checkout from './routes/checkout'
 import webhook from './routes/webhook'
 import { customerRouter as customer } from '@ecommerce/shared-routes';
-import refund from './routes/refund'
+
 import categories from './routes/categories'
 import cms from './routes/cms'
 import { mediaRouter as media } from '@ecommerce/shared-routes';
@@ -59,7 +59,7 @@ app.route('/api/cms', cms)
 app.route('/api/checkout', checkout)
 app.route('/api/webhooks', webhook)
 app.route('/api', customer)
-app.route('/api/refund', refund)
+
 app.route('/media', media)
 
 export default {

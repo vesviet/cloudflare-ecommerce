@@ -5,4 +5,9 @@ export type Bindings = {
   ENVIRONMENT: string;
   CACHE_KV: KVNamespace;
   EVENT_QUEUE: Queue;
+  ALLOWED_ADMIN_ORIGINS?: string;
+  STRIPE_SECRET_KEY?: string;
+  TEAM_DOMAIN?: string;
+  AUDIENCE_TAG?: string;
+  LOCAL_DEV?: string;
 };

@@ -43,7 +43,7 @@ Mobile teams consume these SDKs directly via Git submodules or package managers 
 
 ## Internal RBAC & Security
 The system uses a strict Role-Based Access Control model managed in `packages/database`:
-- **Roles**: `superadmin`, `admin`, `support`, `marketing`.
+- **Roles**: `superadmin`, `manager`, `support`, `editor`.
 - **Enforcement**: Middleware in `admin-api` validates JWT/Session tokens against D1 to authorize endpoints.
 
 ## Development Setup

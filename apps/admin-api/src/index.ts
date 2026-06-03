@@ -18,7 +18,13 @@ const app = new Hono<Env>().basePath('/api');
 
 // 1. Enable CORS for Frontend cross-origin requests
 app.use('*', cors({
-  origin: '*',
+  origin: (origin, c) => {
+    const env = c.env as Bindings;
+    const allowedList = env.ALLOWED_ADMIN_ORIGINS
+      ? env.ALLOWED_ADMIN_ORIGINS.split(',')
+      : ['http://localhost:5173'];
+    return allowedList.includes(origin) ? origin : null;
+  },
   allowHeaders: ['Content-Type', 'Authorization', 'X-Local-Admin-Email', 'CF-Access-JWT-Assertion'],
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
 }));

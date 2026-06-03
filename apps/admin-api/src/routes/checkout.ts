@@ -5,21 +5,22 @@ import { Bindings } from '../types';
 
 const checkout = new Hono<{ Bindings: Bindings }>();
 
-// 6. Storefront Checkout API
-checkout.post('/store/orders', async (c) => {
+// 6. Storefront Checkout API (POS/Admin Checkout)
+import { requireRole } from '../middleware/auth';
+
+checkout.post('/store/orders', requireRole(['superadmin', 'manager', 'editor']), async (c) => {
   try {
     const db = createDb(c.env.DB);
     const body = await c.req.json();
     const { 
       email, items, customer_id, shipping_address_json, billing_address_json,
-      shipping_fee, utm_source, utm_medium, utm_campaign, affiliate_id 
+      utm_source, utm_medium, utm_campaign, affiliate_id 
     } = body as { 
       email: string, 
       items: { variation_id: string, quantity: number }[], 
       customer_id?: string, 
       shipping_address_json?: any,
       billing_address_json?: any,
-      shipping_fee?: number,
       utm_source?: string,
       utm_medium?: string,
       utm_campaign?: string,
@@ -45,9 +46,23 @@ checkout.post('/store/orders', async (c) => {
       ))
       .all();
 
+    // Fetch active reservations for soft-locks
+    const now = Math.floor(Date.now() / 1000);
+    const allReservations = await db
+      .select()
+      .from(schema.inventoryReservations)
+      .where(sql`variation_id IN (${sql.join(variationIds, sql`, `)}) AND expires_at > ${now}`)
+      .all();
+
+    const reservationMap = new Map<string, number>();
+    for (const res of allReservations) {
+      reservationMap.set(res.variation_id, (reservationMap.get(res.variation_id) || 0) + res.quantity);
+    }
+
     let totalAmount = 0;
     const batchQueries: any[] = [];
     const orderId = crypto.randomUUID();
+    const expiresAt = now + 30 * 60; // 30 minutes soft-lock
 
     for (const item of items) {
       if (item.quantity <= 0) {
@@ -59,21 +74,26 @@ checkout.post('/store/orders', async (c) => {
         return c.json({ success: false, error: `Variation ${item.variation_id} not found or not purchasable` }, 400);
       }
 
-      if (dbVar.stock < item.quantity) {
-        return c.json({ success: false, error: `Insufficient stock for variation ${item.variation_id}. Available: ${dbVar.stock}` }, 400);
+      const reservedQuantity = reservationMap.get(item.variation_id) || 0;
+      const availableStock = dbVar.stock - reservedQuantity;
+
+      if (availableStock < item.quantity) {
+        return c.json({ success: false, error: `Insufficient stock for variation ${item.variation_id}. Available: ${availableStock}` }, 400);
       }
 
       // Zero-Trust Pricing: Calculate total purely on Server Side
       const finalPrice = dbVar.sale_price !== null ? dbVar.sale_price : dbVar.regular_price;
       totalAmount += finalPrice * item.quantity;
 
+      // Soft-lock inventory instead of hard-decrementing, since this mimics the public flow for COD/POS
       batchQueries.push(
-        db.update(schema.productVariations)
-          .set({ stock: sql`stock - ${item.quantity}` })
-          .where(and(
-            eq(schema.productVariations.id, item.variation_id),
-            sql`stock >= ${item.quantity}`
-          ))
+        db.insert(schema.inventoryReservations).values({
+          id: crypto.randomUUID(),
+          order_id: orderId,
+          variation_id: item.variation_id,
+          quantity: item.quantity,
+          expires_at: expiresAt,
+        })
       );
       
       batchQueries.push(
@@ -86,6 +106,10 @@ checkout.post('/store/orders', async (c) => {
         })
       );
     }
+
+    // Flat shipping fee similar to public checkout
+    const shippingFeeCents = 999;
+    totalAmount += shippingFeeCents;
 
     // Stripe Customer ID & UTM/Affiliate Attribution for logged-in user
     if (customer_id) {
@@ -101,11 +125,6 @@ checkout.post('/store/orders', async (c) => {
         .get();
 
       if (customer) {
-        // NOTE: stripe_customer_id will be null until customer completes their
-        // first checkout via the public-api (which calls Stripe and stores the
-        // real cus_xxx ID via the webhook). Do NOT generate a mock/fake value
-        // here as it will permanently corrupt the field.
-
         const shouldUpdateAttribution = !customer.signup_utm_source && !customer.signup_utm_medium && !customer.signup_utm_campaign && !customer.signup_affiliate_id;
         if (shouldUpdateAttribution && (utm_source || utm_medium || utm_campaign || affiliate_id)) {
           batchQueries.push(
@@ -128,9 +147,9 @@ checkout.post('/store/orders', async (c) => {
         id: orderId,
         customer_id: customer_id || null,
         guest_email: customer_id ? null : email,
-        status: 'processing',
+        status: 'pending_payment',
         total_amount: totalAmount,
-        shipping_fee: shipping_fee || 0,
+        shipping_fee: shippingFeeCents,
         affiliate_id: affiliate_id || null,
         utm_source: utm_source || null,
         shipping_address_json: shipping_address_json ? JSON.stringify(shipping_address_json) : null,

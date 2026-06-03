@@ -184,6 +184,7 @@ products.post('/products', async (c) => {
           regular_price,
           sale_price,
           stock,
+          in_stock: stock > 0 ? 1 : 0,
           attributes_json: JSON.stringify({}),
         })
       );
@@ -199,6 +200,7 @@ products.post('/products', async (c) => {
             regular_price: v.regular_price || 0,
             sale_price: v.sale_price || null,
             stock: v.stock || 0,
+            in_stock: (v.stock || 0) > 0 ? 1 : 0,
             attributes_json: JSON.stringify(v.attributes || {}),
           })
         );
@@ -326,6 +328,7 @@ products.put('/products/:id', async (c) => {
                 regular_price: v.regular_price,
                 sale_price: v.sale_price,
                 stock: v.stock,
+                in_stock: (v.stock || 0) > 0 ? 1 : 0,
                 attributes_json: JSON.stringify(v.attributes || {}),
                 is_purchasable: 1,
               })
@@ -346,6 +349,7 @@ products.put('/products/:id', async (c) => {
               regular_price: v.regular_price || 0,
               sale_price: v.sale_price || null,
               stock: v.stock || 0,
+              in_stock: (v.stock || 0) > 0 ? 1 : 0,
               attributes_json: JSON.stringify(v.attributes || {}),
               is_purchasable: 1,
             })
@@ -356,7 +360,7 @@ products.put('/products/:id', async (c) => {
       // For simple products, update all variations of this product to match
       batchQueries.push(
         db.update(schema.productVariations)
-          .set({ regular_price, sale_price, stock })
+          .set({ regular_price, sale_price, stock, in_stock: stock > 0 ? 1 : 0 })
           .where(eq(schema.productVariations.product_id, productId))
       );
     }

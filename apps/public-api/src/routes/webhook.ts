@@ -96,7 +96,7 @@ webhook.post('/stripe', async (c) => {
         batchQueries.push(
           db
             .update(schema.productVariations)
-            .set({ stock: sql`stock - ${item.quantity}` })
+            .set({ stock: sql`stock - ${item.quantity}`, in_stock: sql`CASE WHEN stock - ${item.quantity} > 0 THEN 1 ELSE 0 END` })
             .where(
               and(
                 eq(schema.productVariations.id, item.variation_id),
