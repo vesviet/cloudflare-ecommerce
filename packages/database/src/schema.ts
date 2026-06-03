@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real, index } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 
 export const customers = sqliteTable('customers', {
@@ -71,6 +71,10 @@ export const products = sqliteTable('products', {
   primary_category_id: text('primary_category_id').references(() => categories.id, { onDelete: 'set null' }),
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
   updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+}, (table) => {
+  return {
+    statusIdx: index('idx_products_status').on(table.status),
+  };
 });
 
 export const productCategories = sqliteTable('product_categories', {
@@ -91,6 +95,10 @@ export const productVariations = sqliteTable('product_variations', {
   in_stock: integer('in_stock').notNull().default(1),
   attributes_json: text('attributes_json'),
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+}, (table) => {
+  return {
+    stockIdx: index('idx_product_variations_stock').on(table.stock),
+  };
 });
 
 export const orders = sqliteTable('orders', {
@@ -111,6 +119,11 @@ export const orders = sqliteTable('orders', {
   carrier_name: text('carrier_name'),
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
   updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+}, (table) => {
+  return {
+    statusIdx: index('idx_orders_status').on(table.status),
+    createdAtIdx: index('idx_orders_created_at').on(table.created_at),
+  };
 });
 
 export const orderItems = sqliteTable('order_items', {

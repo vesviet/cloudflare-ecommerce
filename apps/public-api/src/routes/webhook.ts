@@ -133,6 +133,17 @@ webhook.post('/stripe', async (c) => {
           emailEvent: 'order_confirmation',
         })
         console.log(`[Webhook] Enqueued ORDER_SUCCESS email for order ${order.id}`)
+
+        // Push commission event if affiliate_id is present
+        if (order.affiliate_id) {
+          await c.env.EVENT_QUEUE.send({
+            type: 'AFFILIATE_COMMISSION',
+            orderId: order.id,
+            affiliateId: order.affiliate_id,
+            totalAmount: order.total_amount,
+          })
+          console.log(`[Webhook] Enqueued AFFILIATE_COMMISSION for affiliate ${order.affiliate_id} on order ${order.id}`)
+        }
       }
     }
   } else {

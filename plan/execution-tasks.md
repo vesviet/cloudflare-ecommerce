@@ -5,7 +5,7 @@
   - `[x]` Cấu hình `wrangler.toml` để bind D1 (DB), KV (Cache), R2 (Storage), và Queues.
   - `[x]` Viết D1 Migrations (SQL): Tạo bảng `products`, `product_variations`, `orders`.
   - `[x]` Viết D1 Migrations (SQL) & Drizzle Schema: Tạo bảng `order_items` và cấu hình FTS5 cho `products`.
-  - `[ ]` Setup Cloudflare R2 bucket & cấu hình luồng upload/read hình ảnh sản phẩm.
+  - `[x]` Setup Cloudflare R2 bucket & cấu hình luồng upload/read hình ảnh sản phẩm.
 
 - `[/]` **Phase 2: API Contract & Security (Backend & DevOps)**
   - `[x]` Cài đặt `@hono/zod-openapi` và định nghĩa Schema chuẩn cho Catalog, Cart, Order, Webhook.
@@ -16,8 +16,8 @@
 - `[/]` **Phase 3: Core Logic & Integrations (Backend)**
   - `[x]` Code API Catalog: Đọc danh sách, chi tiết sản phẩm và chức năng tìm kiếm FTS5.
   - `[x]` Code API Cart & Shipping: Tích hợp Fetch API FedEx/USPS, cache biểu phí vào KV trong 10 phút.
-  - `[ ]` Code API Checkout (Stripe): Sinh Payment Intent, lưu tracking UTM/Affiliate ID vào metadata của Stripe.
-  - `[ ]` Code API Stripe Webhook: Viết cơ chế Idempotency chống lặp, cập nhật kho bằng D1 Transaction (`UPDATE stock WHERE stock >= ?`), đẩy thông báo hoa hồng/email vào Cloudflare Queues.
+  - `[x]` Code API Checkout (Stripe): Sinh Payment Intent, lưu tracking UTM/Affiliate ID vào metadata của Stripe.
+  - `[x]` Code API Stripe Webhook: Viết cơ chế Idempotency chống lặp, cập nhật kho bằng D1 Transaction (`UPDATE stock WHERE stock >= ?`), đẩy thông báo hoa hồng/email vào Cloudflare Queues.
   - `[x]` Code API Customer Portal: Xây dựng luồng Đăng ký/Đăng nhập sinh JWT, API CRUD Sổ địa chỉ (Address Book) và API truy xuất Lịch sử Đơn hàng (Order History).
 
 - `[/]` **Phase 4: Async Workers & Maintenance (Backend)**

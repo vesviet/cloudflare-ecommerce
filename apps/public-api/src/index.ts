@@ -178,6 +178,13 @@ export default {
         } catch (err) {
           console.error(`[Queue Email] Unexpected error for shipped order ${payload.orderId}:`, err)
         }
+      } else if (payload.type === 'AFFILIATE_COMMISSION') {
+        try {
+          console.log(`[Queue Affiliate] Processing commission for affiliate ${payload.affiliateId} from order ${payload.orderId} (Amount: ${payload.totalAmount})`)
+          // Tương lai: Gọi HTTP webhook tới Marketplace Partner hoặc lưu vào bảng Commission D1.
+        } catch (err) {
+          console.error(`[Queue Affiliate] Unexpected error processing commission for order ${payload.orderId}:`, err)
+        }
       }
 
       msg.ack()

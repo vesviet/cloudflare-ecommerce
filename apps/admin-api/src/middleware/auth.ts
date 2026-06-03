@@ -19,6 +19,9 @@ export type Env = {
   };
 };
 
+let cachedJWKS: any = null;
+let cachedJwksUrl: string = '';
+
 // Middleware to extract email from CF JWT and fetch user from DB
 export const adminAuth = createMiddleware<Env>(async (c, next) => {
   const path = c.req.path;
@@ -46,10 +49,13 @@ export const adminAuth = createMiddleware<Env>(async (c, next) => {
         throw new Error('Missing Cloudflare Access environment variables');
       }
 
-      const jwksURL = new URL('/cdn-cgi/access/certs', TEAM_DOMAIN);
-      const JWKS = createRemoteJWKSet(jwksURL);
+      const currentUrl = new URL('/cdn-cgi/access/certs', TEAM_DOMAIN).toString();
+      if (!cachedJWKS || cachedJwksUrl !== currentUrl) {
+        cachedJwksUrl = currentUrl;
+        cachedJWKS = createRemoteJWKSet(new URL(currentUrl));
+      }
 
-      const { payload } = await jwtVerify(cfAccessJwt, JWKS, {
+      const { payload } = await jwtVerify(cfAccessJwt, cachedJWKS, {
         audience: AUDIENCE_TAG
       });
       
