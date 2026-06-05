@@ -124,12 +124,18 @@ importers:
 
   apps/public-api:
     dependencies:
+      '@ecommerce/contract':
+        specifier: workspace:*
+        version: link:../../packages/contract
       '@ecommerce/database':
         specifier: workspace:*
         version: link:../../packages/database
       '@ecommerce/shared-routes':
         specifier: workspace:*
         version: link:../../packages/shared-routes
+      '@hono/zod-validator':
+        specifier: ^0.2.1
+        version: 0.2.2(hono@4.12.23)(zod@3.25.76)
       drizzle-orm:
         specifier: ^0.30.10
         version: 0.30.10(@cloudflare/workers-types@4.20260526.1)(@types/react@19.2.15)(react@19.2.6)
@@ -142,6 +148,9 @@ importers:
       stripe:
         specifier: ^16
         version: 16.12.0
+      zod:
+        specifier: ^3.22.4
+        version: 3.25.76
     devDependencies:
       '@cloudflare/workers-types':
         specifier: ^4.20240512.0

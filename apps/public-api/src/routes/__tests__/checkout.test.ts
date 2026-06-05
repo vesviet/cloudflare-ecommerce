@@ -34,7 +34,7 @@ vi.mock('@ecommerce/database', () => {
         from: vi.fn().mockReturnThis(),
         where: vi.fn().mockReturnThis(),
         all: vi.fn().mockResolvedValue([
-          { id: 'var_1', product_id: 'prod_1', stock: 5, is_purchasable: 1, regular_price: 1000 }
+          { id: '550e8400-e29b-41d4-a716-446655440000', product_id: 'prod_1', stock: 5, is_purchasable: 1, regular_price: 1000 }
         ]),
         get: vi.fn().mockResolvedValue({ id: 'cust_1' }),
         insert: vi.fn().mockReturnThis(),
@@ -72,7 +72,7 @@ describe('Checkout API Unit Tests', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         email: 'test@example.com',
-        items: [{ variation_id: 'var_1', quantity: 2 }]
+        items: [{ variation_id: '550e8400-e29b-41d4-a716-446655440000', quantity: 2 }]
       })
     }, mockEnv);
 
@@ -96,7 +96,7 @@ describe('Checkout API Unit Tests', () => {
     const res = await checkout.request('/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items: [{ variation_id: 'var_1', quantity: 1 }] })
+      body: JSON.stringify({ items: [{ variation_id: '550e8400-e29b-41d4-a716-446655440000', quantity: 1 }] })
     }, mockEnv);
     expect(res.status).toBe(400);
   });

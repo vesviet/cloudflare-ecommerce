@@ -2,6 +2,8 @@ import { Hono } from 'hono'
 import Stripe from 'stripe'
 import { createDb, schema } from '@ecommerce/database'
 import { eq, sql, inArray } from 'drizzle-orm'
+import { zValidator } from '@hono/zod-validator'
+import { CheckoutSchema } from '@ecommerce/contract'
 
 type Bindings = {
   DB: D1Database
@@ -18,9 +20,9 @@ const FLAT_SHIPPING_FEE_CENTS = 999 // 999 cents = $9.99
 
 const checkout = new Hono<{ Bindings: Bindings }>()
 
-checkout.post('/', async (c) => {
+checkout.post('/', zValidator('json', CheckoutSchema), async (c) => {
   try {
-  const body = await c.req.json()
+  const body = c.req.valid('json')
   const {
     items, affiliate_id, address, shipping_address_json, billing_address_json,
     customer_id, email, utm_source, utm_medium, utm_campaign,

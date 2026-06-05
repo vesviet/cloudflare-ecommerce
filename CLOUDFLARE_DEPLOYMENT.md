@@ -23,14 +23,14 @@ Thay thế cấu hình mẫu sau:
 ```toml
 [[d1_databases]]
 binding = "DB"
-database_name = "aura-db"
+database_name = "e-commerce"
 database_id = "<PASTE_DATABASE_ID_CUA_BAN_VAO_DAY>"
 ```
 
-**Chạy Migrations (Tạo bảng):**
-Để apply các cấu trúc bảng lên Database thật trên Cloudflare:
+**Chạy Migrations (Tạo bảng & Cập nhật Schema):**
+Để apply các cấu trúc bảng (hoặc các migration mới như thêm Index) lên Database thật trên Cloudflare, chạy lệnh sau từ thư mục gốc:
 ```bash
-pnpm --filter @ecommerce/database run db:migrate --remote
+pnpm --filter public-api exec wrangler d1 migrations apply DB --remote
 ```
 
 ---

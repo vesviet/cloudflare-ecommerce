@@ -1,7 +1,6 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { Bindings } from './types';
-import { customerRouter as customerApp } from '@ecommerce/shared-routes';
 import metricsRoutes from './routes/metrics';
 import ordersRoutes from './routes/orders';
 import customersRoutes from './routes/customers';
@@ -48,8 +47,5 @@ app.route('/categories', categoriesRoutes);
 app.route('/cms', cmsRoutes);
 app.route('/media', mediaRoutes);
 app.route('/admin-users', adminUsersRoutes);
-
-// Mount Customer routes
-app.route('/', customerApp);
 
 export default app;

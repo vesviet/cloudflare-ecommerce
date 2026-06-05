@@ -156,6 +156,10 @@ export const customerAddresses = sqliteTable('customer_addresses', {
   is_default_shipping: integer('is_default_shipping').default(0),
   is_default_billing: integer('is_default_billing').default(0),
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+}, (table) => {
+  return {
+    customerIdIdx: index('idx_customer_addresses_customer_id').on(table.customer_id),
+  };
 });
 
 export const inventoryReservations = sqliteTable('inventory_reservations', {
@@ -165,6 +169,11 @@ export const inventoryReservations = sqliteTable('inventory_reservations', {
   quantity: integer('quantity').notNull(),
   expires_at: integer('expires_at').notNull(), // Unix timestamp for soft-lock expiration
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+}, (table) => {
+  return {
+    variationIdIdx: index('idx_inventory_reservations_variation_id').on(table.variation_id),
+    expiresAtIdx: index('idx_inventory_reservations_expires_at').on(table.expires_at),
+  };
 });
 
 export const idempotencyKeys = sqliteTable('idempotency_keys', {

@@ -11,20 +11,28 @@ export const ProductSchema = z.object({
   updated_at: z.string().datetime(),
 }).openapi('Product')
 
-// Schema cho Khách vãng lai (Guest Checkout)
-export const GuestCheckoutSchema = z.object({
-  email: z.string().email().openapi({ example: 'guest@example.com' }),
-  shipping_address: z.object({
-    fullname: z.string(),
-    address: z.string(),
-    zipcode: z.string()
-  }),
+// Schema cho Checkout (Guest & Logged In)
+export const CheckoutSchema = z.object({
+  email: z.string().email().optional(),
+  customer_id: z.string().uuid().optional(),
+  address: z.object({
+    fullname: z.string().optional(),
+    address: z.string().optional(),
+    zipcode: z.string().optional()
+  }).passthrough().optional(),
+  shipping_address_json: z.record(z.any()).optional(),
+  billing_address_json: z.record(z.any()).optional(),
   items: z.array(z.object({
     variation_id: z.string().uuid(),
     quantity: z.number().int().positive()
   })),
-  affiliate_id: z.string().optional()
-}).openapi('GuestCheckout')
+  affiliate_id: z.string().optional(),
+  utm_source: z.string().optional(),
+  utm_medium: z.string().optional(),
+  utm_campaign: z.string().optional(),
+  accepts_marketing: z.boolean().optional(),
+}).openapi('Checkout')
+
 
 // Schema API Key Response
 export const ErrorResponseSchema = z.object({
