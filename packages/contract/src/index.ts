@@ -39,3 +39,5 @@ export const ErrorResponseSchema = z.object({
   success: z.boolean().default(false),
   error: z.string()
 }).openapi('ErrorResponse')
+
+export * from './admin';

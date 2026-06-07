@@ -4,22 +4,25 @@
   "scripts": {
     "dev": "wrangler dev --port 8787 --inspector-port 9229",
     "deploy": "wrangler deploy",
-    "test": "vitest"
+    "test": "vitest",
+    "lint": "eslint src/"
   },
   "dependencies": {
-    "@ecommerce/database": "workspace:*",
     "@ecommerce/contract": "workspace:*",
+    "@ecommerce/database": "workspace:*",
     "@ecommerce/shared-routes": "workspace:*",
     "@hono/zod-validator": "^0.2.1",
-    "zod": "^3.22.4",
     "drizzle-orm": "^0.30.10",
     "hono": "^4.3.7",
     "jose": "^6.2.3",
-    "stripe": "^16"
+    "stripe": "^16",
+    "zod": "^3.22.4"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240512.0",
+    "eslint": "^9.39.4",
     "typescript": "^5.0.4",
+    "typescript-eslint": "^8.59.2",
     "vitest": "^4.1.7",
     "wrangler": "^3.57.1"
   }

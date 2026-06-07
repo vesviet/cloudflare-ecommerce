@@ -2,6 +2,8 @@ import { Hono } from 'hono';
 import { eq } from 'drizzle-orm';
 import { createDb, schema } from '@ecommerce/database';
 import { requireRole, type Env } from '../middleware/auth';
+import { zValidator } from '@hono/zod-validator';
+import { adminUserSchema, adminUserStatusSchema as statusSchema } from '@ecommerce/contract';
 
 const adminUsers = new Hono<Env>();
 
@@ -20,15 +22,10 @@ adminUsers.get('/', async (c) => {
   }
 });
 
-adminUsers.post('/', async (c) => {
+adminUsers.post('/', zValidator('json', adminUserSchema), async (c) => {
   try {
     const db = createDb(c.env.DB);
-    const body = await c.req.json();
-    const { email, name, role } = body;
-    
-    if (!email || !name || !role) {
-      return c.json({ success: false, error: 'Email, name, and role are required' }, 400);
-    }
+    const { email, name, role } = c.req.valid('json');
 
     const id = crypto.randomUUID();
     await db.insert(schema.adminUsers).values({
@@ -48,15 +45,11 @@ adminUsers.post('/', async (c) => {
   }
 });
 
-adminUsers.put('/:id/status', async (c) => {
+adminUsers.put('/:id/status', zValidator('json', statusSchema), async (c) => {
   try {
     const db = createDb(c.env.DB);
     const id = c.req.param('id');
-    const { status } = await c.req.json();
-    
-    if (status !== 'active' && status !== 'inactive') {
-      return c.json({ success: false, error: 'Invalid status' }, 400);
-    }
+    const { status } = c.req.valid('json');
 
     await db.update(schema.adminUsers)
       .set({ status })

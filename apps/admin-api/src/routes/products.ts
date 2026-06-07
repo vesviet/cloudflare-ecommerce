@@ -2,6 +2,8 @@ import { Hono } from 'hono';
 import { eq, and, sql } from 'drizzle-orm';
 import { createDb, schema } from '@ecommerce/database';
 import { Bindings } from '../types';
+import { zValidator } from '@hono/zod-validator';
+import { productFormSchema } from '@ecommerce/contract';
 
 const products = new Hono<{ Bindings: Bindings }>();
 
@@ -101,10 +103,10 @@ products.get('/store/products', async (c) => {
   }
 });
 
-products.post('/products', async (c) => {
+products.post('/products', zValidator('form', productFormSchema), async (c) => {
   try {
     const db = createDb(c.env.DB);
-    const body = await c.req.parseBody();
+    const body = c.req.valid('form');
     const name = body['name'] as string;
     const type = (body['type'] as string) || 'simple';
     const regular_price = parseInt((body['regular_price'] as string) || '0', 10);
@@ -226,11 +228,11 @@ products.post('/products', async (c) => {
   }
 });
 
-products.put('/products/:id', async (c) => {
+products.put('/products/:id', zValidator('form', productFormSchema), async (c) => {
   const productId = c.req.param('id');
   try {
     const db = createDb(c.env.DB);
-    const body = await c.req.parseBody();
+    const body = c.req.valid('form');
     const name = body['name'] as string;
     const type = (body['type'] as string) || 'simple';
     const regular_price = parseInt((body['regular_price'] as string) || '0', 10);

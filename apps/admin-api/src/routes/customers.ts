@@ -3,6 +3,8 @@ import { eq, and, sql } from 'drizzle-orm';
 import { createDb, schema, hashPassword } from '@ecommerce/database';
 import { Bindings } from '../types';
 import { requireRole } from '../middleware/auth';
+import { zValidator } from '@hono/zod-validator';
+import { customerSchema, resetPasswordSchema } from '@ecommerce/contract';
 
 const customers = new Hono<{ Bindings: Bindings }>();
 
@@ -77,14 +79,14 @@ customers.get('/customers/:id', async (c) => {
   }
 });
 
-customers.put('/customers/:id', requireRole(['superadmin', 'manager']), async (c) => {
+customers.put('/customers/:id', requireRole(['superadmin', 'manager']), zValidator('json', customerSchema), async (c) => {
   try {
     const customerId = c.req.param('id');
     const db = createDb(c.env.DB);
     const { 
       first_name, last_name, phone, status, dob, gender, 
       company_name, vat_tax_id, accepts_marketing, tags_json, note 
-    } = await c.req.json();
+    } = c.req.valid('json');
     
     let finalStatus = status || 'active';
     if (!['active', 'suspended', 'verification_pending', 'invited'].includes(finalStatus)) {
@@ -114,22 +116,16 @@ customers.put('/customers/:id', requireRole(['superadmin', 'manager']), async (c
   }
 });
 
-customers.post('/customers', async (c) => {
+customers.post('/customers', zValidator('json', customerSchema), async (c) => {
   try {
     const db = createDb(c.env.DB);
     const { 
       email, password, first_name, last_name, phone, status, dob, gender, 
       company_name, vat_tax_id, accepts_marketing, tags_json, note 
-    } = await c.req.json();
+    } = c.req.valid('json');
 
     if (!email) {
       return c.json({ success: false, error: 'Email is required' }, 400);
-    }
-    if (!email.includes('@')) {
-      return c.json({ success: false, error: 'Invalid email format' }, 400);
-    }
-    if (password && password.length < 8) {
-      return c.json({ success: false, error: 'Password must be at least 8 characters' }, 400);
     }
 
     const existing = await db.select({ id: schema.customers.id })
@@ -178,22 +174,10 @@ customers.post('/customers', async (c) => {
 });
 
 // Reset Password for a Customer (Admin Action)
-customers.post('/customers/:id/reset-password', requireRole(['superadmin', 'manager']), async (c) => {
+customers.post('/customers/:id/reset-password', requireRole(['superadmin', 'manager']), zValidator('json', resetPasswordSchema), async (c) => {
   const customerId = c.req.param('id');
   try {
-    let body: { new_password?: string };
-    try {
-      body = await c.req.json();
-    } catch {
-      return c.json({ success: false, error: 'Request body is required' }, 400);
-    }
-
-    if (!body.new_password) {
-      return c.json({ success: false, error: 'new_password is required' }, 400);
-    }
-    if (body.new_password.length < 8) {
-      return c.json({ success: false, error: 'new_password must be at least 8 characters' }, 400);
-    }
+    const body = c.req.valid('json');
 
     const db = createDb(c.env.DB);
 

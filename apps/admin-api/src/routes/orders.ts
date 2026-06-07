@@ -4,6 +4,8 @@ import { createDb, schema } from '@ecommerce/database';
 import { Bindings } from '../types';
 import { requireRole } from '../middleware/auth';
 import Stripe from 'stripe';
+import { zValidator } from '@hono/zod-validator';
+import { fulfillSchema } from '@ecommerce/contract';
 
 const orders = new Hono<{ Bindings: Bindings }>();
 
@@ -110,13 +112,10 @@ orders.post('/orders/:id/refund', requireRole(['superadmin', 'manager', 'support
   }
 });
 
-orders.post('/orders/:id/fulfill', requireRole(['superadmin', 'manager', 'support']), async (c) => {
+orders.post('/orders/:id/fulfill', requireRole(['superadmin', 'manager', 'support']), zValidator('json', fulfillSchema), async (c) => {
   const orderId = c.req.param('id');
   try {
-    const { tracking_number, carrier_name } = await c.req.json();
-    if (!tracking_number || !carrier_name) {
-      return c.json({ success: false, error: 'Tracking number and carrier name are required' }, 400);
-    }
+    const { tracking_number, carrier_name } = c.req.valid('json');
 
     const db = createDb(c.env.DB);
     const order = await db.select({ status: schema.orders.status })

@@ -3,6 +3,8 @@ import { Bindings } from '../types';
 import { createDb, schema } from '@ecommerce/database';
 import { eq, sql, desc } from 'drizzle-orm';
 import { requireRole } from '../middleware/auth';
+import { zValidator } from '@hono/zod-validator';
+import { cmsSchema, updateCmsSchema } from '@ecommerce/contract';
 
 const app = new Hono<{ Bindings: Bindings }>();
 
@@ -42,8 +44,8 @@ app.get('/:id', async (c) => {
 });
 
 // CREATE new CMS entry
-app.post('/', requireRole(['superadmin', 'manager', 'editor']), async (c) => {
-  const body = await c.req.json();
+app.post('/', requireRole(['superadmin', 'manager', 'editor']), zValidator('json', cmsSchema), async (c) => {
+  const body = c.req.valid('json');
   const db = createDb(c.env.DB);
   
   const id = crypto.randomUUID();
@@ -75,9 +77,9 @@ app.post('/', requireRole(['superadmin', 'manager', 'editor']), async (c) => {
 });
 
 // UPDATE CMS entry
-app.put('/:id', requireRole(['superadmin', 'manager', 'editor']), async (c) => {
+app.put('/:id', requireRole(['superadmin', 'manager', 'editor']), zValidator('json', updateCmsSchema), async (c) => {
   const id = c.req.param('id');
-  const body = await c.req.json();
+  const body = c.req.valid('json');
   const db = createDb(c.env.DB);
 
   try {

@@ -2,34 +2,19 @@ import { Hono } from 'hono';
 import { eq, and, sql, inArray } from 'drizzle-orm';
 import { createDb, schema } from '@ecommerce/database';
 import { Bindings } from '../types';
+import { requireRole } from '../middleware/auth';
+import { zValidator } from '@hono/zod-validator';
+import { checkoutSchema } from '@ecommerce/contract';
 
 const checkout = new Hono<{ Bindings: Bindings }>();
 
-// 6. Storefront Checkout API (POS/Admin Checkout)
-import { requireRole } from '../middleware/auth';
-
-checkout.post('/store/orders', requireRole(['superadmin', 'manager', 'editor']), async (c) => {
+checkout.post('/store/orders', requireRole(['superadmin', 'manager', 'editor']), zValidator('json', checkoutSchema), async (c) => {
   try {
     const db = createDb(c.env.DB);
-    const body = await c.req.json();
     const { 
       email, items, customer_id, shipping_address_json, billing_address_json,
       utm_source, utm_medium, utm_campaign, affiliate_id 
-    } = body as { 
-      email: string, 
-      items: { variation_id: string, quantity: number }[], 
-      customer_id?: string, 
-      shipping_address_json?: any,
-      billing_address_json?: any,
-      utm_source?: string,
-      utm_medium?: string,
-      utm_campaign?: string,
-      affiliate_id?: string
-    };
-
-    if (!email || !items || !Array.isArray(items) || items.length === 0) {
-      return c.json({ success: false, error: 'Invalid payload: email and items are required' }, 400);
-    }
+    } = c.req.valid('json');
 
     // Two-Step Check 1: Select current variations from DB to prevent Price Tampering and check Stock
     const variationIds = items.map(i => i.variation_id);

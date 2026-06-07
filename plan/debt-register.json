@@ -1,0 +1,49 @@
+{
+  "version": "1.0",
+  "items": [
+    {
+      "id": "DEBT-001",
+      "type": "Architecture",
+      "severity": "P0",
+      "title": "Missing Zod Validation in Admin API",
+      "description": "The admin-api routes currently parse JSON bodies manually without validating them against strict schemas. This is a security and stability risk, particularly as AI-generated components consume the API.",
+      "status": "Resolved",
+      "identified_at": "2026-06-07T01:50:00Z",
+      "owner": "Technical Lead",
+      "repayment_plan": "Add zod and @hono/zod-validator to admin-api and refactor all POST/PUT routes to use zValidator."
+    },
+    {
+      "id": "DEBT-002",
+      "type": "Performance",
+      "severity": "P1",
+      "title": "N+1 Query in Public Catalog API",
+      "description": "The public-api catalog route executes a separate query to fetch variations for every product in the result set.",
+      "status": "Resolved",
+      "identified_at": "2026-06-07T01:50:00Z",
+      "owner": "Backend Developer",
+      "repayment_plan": "Refactor catalog.ts to extract product IDs and fetch variations in a single query using inArray(), then group them in memory."
+    },
+    {
+      "id": "DEBT-003",
+      "type": "Architecture",
+      "severity": "P2",
+      "title": "Inline Zod Schemas in Admin API",
+      "description": "Zod schemas are defined locally in route files, violating the Single Source of Truth principle. They should be shared with the frontend.",
+      "status": "Resolved",
+      "identified_at": "2026-06-07T08:58:00Z",
+      "owner": "Technical Architect",
+      "repayment_plan": "Abstract schemas to @ecommerce/contract."
+    },
+    {
+      "id": "DEBT-004",
+      "type": "Governance",
+      "severity": "P2",
+      "title": "Lack of ESLint Fitness Function for req.json()",
+      "description": "No automated CI/CD check prevents developers from reintroducing c.req.json() bypassing zValidator.",
+      "status": "Resolved",
+      "identified_at": "2026-06-07T08:58:00Z",
+      "owner": "Technical Lead",
+      "repayment_plan": "Add ESLint no-restricted-syntax rule to ban req.json() usage in api workspaces."
+    }
+  ]
+}

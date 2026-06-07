@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, sql, inArray } from 'drizzle-orm';
 import { createDb, schema } from '@ecommerce/database';
 
 const catalog = new Hono<{ Bindings: { DB: D1Database } }>();
@@ -32,48 +32,61 @@ function buildPrices(product: any, variations: any[]) {
 
 // GET: Danh sách sản phẩm (có hỗ trợ filter theo category slug bằng CTE đệ quy)
 catalog.get('/', async (c) => {
-  const db = createDb(c.env.DB);
-  const categorySlug = c.req.query('category');
+  try {
+    const db = createDb(c.env.DB);
+    const categorySlug = c.req.query('category');
 
-  let productRows: any[];
-  if (categorySlug) {
-    // Lọc theo primary_category hoặc các danh mục phụ (product_categories)
-    const query = sql`
-      WITH RECURSIVE category_tree AS (
-        SELECT id FROM categories WHERE slug = ${categorySlug}
-        UNION ALL
-        SELECT c.id FROM categories c
-        INNER JOIN category_tree ct ON c.parent_id = ct.id
-      )
-      SELECT DISTINCT p.* FROM products p
-      LEFT JOIN product_categories pc ON p.id = pc.product_id
-      WHERE p.status = 'published' AND (
-        p.primary_category_id IN (SELECT id FROM category_tree) OR
-        pc.category_id IN (SELECT id FROM category_tree)
-      )
-      ORDER BY p.created_at DESC
-      LIMIT 20
-    `;
-    productRows = await db.all<any>(query);
-  } else {
-    productRows = await db.select()
-      .from(schema.products)
-      .where(eq(schema.products.status, 'published'))
-      .orderBy(sql`${schema.products.created_at} DESC`)
-      .limit(20)
-      .all();
-  }
+    let productRows: any[];
+    if (categorySlug) {
+      // Lọc theo primary_category hoặc các danh mục phụ (product_categories)
+      const query = sql`
+        WITH RECURSIVE category_tree AS (
+          SELECT id FROM categories WHERE slug = ${categorySlug}
+          UNION ALL
+          SELECT c.id FROM categories c
+          INNER JOIN category_tree ct ON c.parent_id = ct.id
+        )
+        SELECT DISTINCT p.* FROM products p
+        LEFT JOIN product_categories pc ON p.id = pc.product_id
+        WHERE p.status = 'published' AND (
+          p.primary_category_id IN (SELECT id FROM category_tree) OR
+          pc.category_id IN (SELECT id FROM category_tree)
+        )
+        ORDER BY p.created_at DESC
+        LIMIT 20
+      `;
+      productRows = await db.all<any>(query);
+    } else {
+      productRows = await db.select()
+        .from(schema.products)
+        .where(eq(schema.products.status, 'published'))
+        .orderBy(sql`${schema.products.created_at} DESC`)
+        .limit(20)
+        .all();
+    }
 
   // Enrich each product with a computed `prices` object and its variations.
   // This allows the storefront to display prices without a separate API call per product.
-  const enriched = await Promise.all(productRows.map(async (product) => {
-    const variations = (await db.select()
+  const productIds = productRows.map(p => p.id);
+  let allVariations: any[] = [];
+  if (productIds.length > 0) {
+    allVariations = await db.select()
       .from(schema.productVariations)
-      .where(eq(schema.productVariations.product_id, product.id))
-      .all()).map(v => ({
-        ...v,
-        attributes: v.attributes_json ? JSON.parse(v.attributes_json) : {}
-      }))
+      .where(inArray(schema.productVariations.product_id, productIds))
+      .all();
+  }
+
+  const variationsByProductId = allVariations.reduce((acc: any, v: any) => {
+    if (!acc[v.product_id]) acc[v.product_id] = [];
+    acc[v.product_id].push({
+      ...v,
+      attributes: v.attributes_json ? JSON.parse(v.attributes_json) : {}
+    });
+    return acc;
+  }, {});
+
+  const enriched = productRows.map((product) => {
+    const variations = variationsByProductId[product.id] || [];
     return {
       ...product,
       // `name` alias — storefront uses `product.name`, schema column is `title`
@@ -82,56 +95,67 @@ catalog.get('/', async (c) => {
       variations,
       prices: buildPrices(product, variations),
     }
-  }))
+  });
 
-  return c.json({ success: true, data: enriched });
+    return c.json({ success: true, data: enriched });
+  } catch (err: any) {
+    return c.json({ success: false, error: err.message }, 500);
+  }
 });
 
 // GET: Tìm kiếm FTS5 (Full-Text Search)
 // NOTE: SQLite FTS5 virtual table queries are not natively expressible via Drizzle builder;
 // we use the Drizzle sql`` helper to keep type-safety while executing raw FTS5 syntax safely.
 catalog.get('/search', async (c) => {
-  const q = c.req.query('q');
-  if (!q) return c.json({ success: false, error: 'Missing query param' }, 400);
+  try {
+    const q = c.req.query('q');
+    if (!q) return c.json({ success: false, error: 'Missing query param' }, 400);
 
-  const db = createDb(c.env.DB);
-  const results = await db.all(
-    sql`SELECT * FROM products_search WHERE products_search MATCH ${'*' + q + '*'} ORDER BY rank`
-  );
+    const db = createDb(c.env.DB);
+    const results = await db.all(
+      sql`SELECT * FROM products_search WHERE products_search MATCH ${'*' + q + '*'} ORDER BY rank`
+    );
 
-  return c.json({ success: true, data: results });
+    return c.json({ success: true, data: results });
+  } catch (err: any) {
+    return c.json({ success: false, error: err.message }, 500);
+  }
 });
 
 // GET: Chi tiết sản phẩm kèm biến thể
 catalog.get('/:slug', async (c) => {
-  const slug = c.req.param('slug');
-  const db = createDb(c.env.DB);
+  try {
+    const slug = c.req.param('slug');
+    const db = createDb(c.env.DB);
 
-  const product = await db.select()
-    .from(schema.products)
-    .where(and(eq(schema.products.slug, slug), eq(schema.products.status, 'published')))
-    .get();
+    const product = await db.select()
+      .from(schema.products)
+      .where(and(eq(schema.products.slug, slug), eq(schema.products.status, 'published')))
+      .get();
 
-  if (!product) return c.json({ success: false, error: 'Not found' }, 404);
+    if (!product) return c.json({ success: false, error: 'Not found' }, 404);
 
-  const variations = (await db.select()
-    .from(schema.productVariations)
-    .where(eq(schema.productVariations.product_id, product.id))
-    .all()).map(v => ({
-      ...v,
-      attributes: v.attributes_json ? JSON.parse(v.attributes_json) : {}
-    }));
+    const variations = (await db.select()
+      .from(schema.productVariations)
+      .where(eq(schema.productVariations.product_id, product.id))
+      .all()).map(v => ({
+        ...v,
+        attributes: v.attributes_json ? JSON.parse(v.attributes_json) : {}
+      }));
 
-  return c.json({
-    success: true,
-    data: {
-      ...product,
-      name: product.title,
-      images: product.images_json ? JSON.parse(product.images_json) : [],
-      variations,
-      prices: buildPrices(product, variations),
-    },
-  });
+    return c.json({
+      success: true,
+      data: {
+        ...product,
+        name: product.title,
+        images: product.images_json ? JSON.parse(product.images_json) : [],
+        variations,
+        prices: buildPrices(product, variations),
+      },
+    });
+  } catch (err: any) {
+    return c.json({ success: false, error: err.message }, 500);
+  }
 });
 
 export default catalog;

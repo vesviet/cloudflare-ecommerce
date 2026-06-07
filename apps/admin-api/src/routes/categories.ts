@@ -3,6 +3,8 @@ import { Bindings } from '../types';
 import { drizzle } from 'drizzle-orm/d1';
 import { categories, products } from '@ecommerce/database/src/schema';
 import { eq, sql } from 'drizzle-orm';
+import { zValidator } from '@hono/zod-validator';
+import { categorySchema, updateCategorySchema } from '@ecommerce/contract';
 
 const app = new Hono<{ Bindings: Bindings }>();
 
@@ -32,8 +34,8 @@ app.get('/:id', async (c) => {
 });
 
 // Tạo mới
-app.post('/', async (c) => {
-  const body = await c.req.json();
+app.post('/', zValidator('json', categorySchema), async (c) => {
+  const body = c.req.valid('json');
   const db = drizzle(c.env.DB);
   
   const id = crypto.randomUUID();
@@ -58,9 +60,9 @@ app.post('/', async (c) => {
 });
 
 // Cập nhật
-app.put('/:id', async (c) => {
+app.put('/:id', zValidator('json', updateCategorySchema), async (c) => {
   const id = c.req.param('id');
-  const body = await c.req.json();
+  const body = c.req.valid('json');
   const db = drizzle(c.env.DB);
   
   // Kiểm tra cycle prevention nếu có parent_id
