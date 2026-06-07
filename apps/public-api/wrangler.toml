@@ -3,6 +3,10 @@ main = "src/index.ts"
 compatibility_date = "2024-06-05"
 compatibility_flags = ["nodejs_compat"]
 
+routes = [
+  { pattern = "api-shop.tanhdev.com", custom_domain = true }
+]
+
 [vars]
 # Non-secret runtime config — secrets (STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, RESEND_API_KEY, JWT_SECRET)
 # must be set via: wrangler secret put <KEY>
