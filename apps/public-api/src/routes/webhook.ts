@@ -29,10 +29,11 @@ webhook.post('/stripe', async (c) => {
   try {
     // constructEventAsync is the async variant required by Cloudflare Workers
     // (uses Web Crypto API instead of Node.js crypto)
+    const webhookSecret = c.env.STRIPE_WEBHOOK_SECRET || ((c.env as any).STRIPE_WEBHOOK_SECRET_PART1 + (c.env as any).STRIPE_WEBHOOK_SECRET_PART2);
     event = await stripe.webhooks.constructEventAsync(
       rawBody,
       signature,
-      c.env.STRIPE_WEBHOOK_SECRET,
+      webhookSecret,
     )
   } catch (err) {
     console.error('[Webhook] Stripe signature verification failed:', err)
