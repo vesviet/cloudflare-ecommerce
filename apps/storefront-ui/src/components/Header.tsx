@@ -24,8 +24,11 @@ export default function Header() {
   const { isAuthenticated } = useAuthStore();
   const router = useRouter();
   
-  // Calculate total items
-  const itemCount = items.reduce((total, item) => total + item.quantity, 0);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+  
+  // Calculate total items (only after hydration to prevent mismatch)
+  const itemCount = mounted ? items.reduce((total, item) => total + item.quantity, 0) : 0;
   
   // Handle scroll for sticky header styling
   useEffect(() => {

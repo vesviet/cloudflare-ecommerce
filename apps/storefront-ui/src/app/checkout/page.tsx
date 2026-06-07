@@ -75,6 +75,10 @@ function CheckoutInner() {
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
 
+  // --- Hydration state ---
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
   // Extract UTM params on mount
   useEffect(() => {
     setUtm({
@@ -206,6 +210,10 @@ function CheckoutInner() {
   };
 
   // --- Empty cart screen ---
+  if (!mounted) {
+    return <main style={{ maxWidth: '600px', margin: '100px auto', textAlign: 'center' }}><p style={{ color: 'var(--text-muted)' }}>Loading checkout...</p></main>;
+  }
+
   if (items.length === 0) {
     return (
       <main style={{ maxWidth: '600px', margin: '100px auto', textAlign: 'center', padding: '0 20px' }}>
