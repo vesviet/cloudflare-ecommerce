@@ -69,12 +69,13 @@ customerApp.post('/auth/register', async (c) => {
     // Auto-login: Create JWT and set cookie
     const token = await signJWT({ customer_id: customerId, email }, c.env.JWT_SECRET || 'dev_secret_key');
     
+    const isProd = c.env.ENVIRONMENT === 'production' || !c.req.url.includes('localhost');
     setCookie(c, 'aura_token', token, {
       path: '/',
-      secure: c.env.ENVIRONMENT === 'production',
+      secure: isProd,
       httpOnly: true,
       maxAge: 7 * 24 * 60 * 60,
-      sameSite: 'Lax',
+      sameSite: isProd ? 'None' : 'Lax',
     });
 
     return c.json({ success: true, message: 'Registered successfully', customer: { id: customerId, email } });
@@ -117,12 +118,13 @@ customerApp.post('/auth/login', async (c) => {
 
     const token = await signJWT({ customer_id: customer.id, email }, c.env.JWT_SECRET || 'dev_secret_key');
     
+    const isProd = c.env.ENVIRONMENT === 'production' || !c.req.url.includes('localhost');
     setCookie(c, 'aura_token', token, {
       path: '/',
-      secure: c.env.ENVIRONMENT === 'production',
+      secure: isProd,
       httpOnly: true,
       maxAge: 7 * 24 * 60 * 60,
-      sameSite: 'Lax',
+      sameSite: isProd ? 'None' : 'Lax',
     });
 
     return c.json({ success: true, message: 'Logged in successfully', customer: { id: customer.id, email } });
@@ -132,7 +134,12 @@ customerApp.post('/auth/login', async (c) => {
 });
 
 customerApp.post('/auth/logout', async (c) => {
-  deleteCookie(c, 'aura_token', { path: '/' });
+  const isProd = c.env.ENVIRONMENT === 'production' || !c.req.url.includes('localhost');
+  deleteCookie(c, 'aura_token', { 
+    path: '/',
+    secure: isProd,
+    sameSite: isProd ? 'None' : 'Lax',
+  });
   return c.json({ success: true, message: 'Logged out successfully' });
 });
 
