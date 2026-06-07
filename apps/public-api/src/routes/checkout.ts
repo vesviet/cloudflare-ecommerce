@@ -241,6 +241,12 @@ checkout.post('/', zValidator('json', CheckoutSchema), async (c) => {
     })
   }
 
+  const metadata: Record<string, string> = { order_id: orderId }
+  if (affiliate_id) metadata.affiliate_id = affiliate_id
+  if (utm_source) metadata.utm_source = utm_source
+  if (utm_medium) metadata.utm_medium = utm_medium
+  if (utm_campaign) metadata.utm_campaign = utm_campaign
+
   const sessionParams: Stripe.Checkout.SessionCreateParams = {
     mode: 'payment',
     line_items: stripeLineItems,
@@ -248,13 +254,7 @@ checkout.post('/', zValidator('json', CheckoutSchema), async (c) => {
     cancel_url: `${storefrontUrl}/checkout?cancelled=true`,
     metadata: { order_id: orderId },
     payment_intent_data: {
-      metadata: {
-        order_id: orderId,
-        affiliate_id: affiliate_id || '',
-        utm_source: utm_source || '',
-        utm_medium: utm_medium || '',
-        utm_campaign: utm_campaign || '',
-      },
+      metadata,
     },
   }
 
