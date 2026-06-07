@@ -13,7 +13,7 @@ STOREFRONT_URL = "http://localhost:3000"
 # Production: set to your real domain, e.g.:
 #   ALLOWED_ORIGINS = "https://aura.store,https://www.aura.store"
 # Or use a secret for sensitive configs: wrangler secret put ALLOWED_ORIGINS
-ALLOWED_ORIGINS = "http://localhost:3000,http://localhost:5173"
+ALLOWED_ORIGINS = "http://localhost:3000,http://localhost:5173,https://aura-shop.tanhdev.com"
 
 
 [[d1_databases]]
