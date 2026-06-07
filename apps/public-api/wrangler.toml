@@ -10,9 +10,7 @@ routes = [
 [vars]
 # Non-secret runtime config — secrets (STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, RESEND_API_KEY, JWT_SECRET)
 # must be set via: wrangler secret put <KEY>
-STOREFRONT_URL = "https://aura-shop.tanhdev.com"
-STRIPE_SECRET_KEY_PART1 = "sk_test_51TbBxQCrGToSqayV"
-STRIPE_SECRET_KEY_PART2 = "EsHlQs5CTzHImYIrBmJBm9T5n0g9NMuCCUzh1jHPI46Jdt3cvsWnrX6ttDI6AVUclltCLVbo00KOkf6iwZ"
+STOREFRONT_URL = "http://localhost:3000"
 
 # RISK-01 FIX: CORS allowed origins — comma-separated list.
 # Local dev: leave as-is (falls back to localhost:3000 and localhost:5173).

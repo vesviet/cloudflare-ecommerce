@@ -215,8 +215,7 @@ checkout.post('/', zValidator('json', CheckoutSchema), async (c) => {
   // BUG-001 FIX: Wrap Stripe session creation in try/catch.
   // If Stripe throws (network error, invalid key, outage), we roll back the order and
   // release the soft-locks so inventory is not stranded for 30 minutes.
-  const stripeSecret = c.env.STRIPE_SECRET_KEY || ((c.env as any).STRIPE_SECRET_KEY_PART1 + (c.env as any).STRIPE_SECRET_KEY_PART2);
-  const stripe = new Stripe(stripeSecret, { apiVersion: '2024-06-20' })
+  const stripe = new Stripe(c.env.STRIPE_SECRET_KEY, { apiVersion: '2024-06-20' })
 
   const storefrontUrl = c.env.STOREFRONT_URL || 'http://localhost:3000'
 
