@@ -130,7 +130,12 @@ catalog.get('/:slug', async (c) => {
 
     const product = await db.select()
       .from(schema.products)
-      .where(and(eq(schema.products.slug, slug), eq(schema.products.status, 'published')))
+      .where(
+        and(
+          sql`${schema.products.slug} = ${slug} OR ${schema.products.id} = ${slug}`,
+          eq(schema.products.status, 'published')
+        )
+      )
       .get();
 
     if (!product) return c.json({ success: false, error: 'Not found' }, 404);

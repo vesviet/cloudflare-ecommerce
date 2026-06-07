@@ -174,7 +174,7 @@ function CheckoutInner() {
       customer_id: customer?.id || undefined,
       shipping_address_json: shippingAddressJson,
       items: items.map(item => ({ variation_id: item.id, quantity: item.quantity })),
-      accepts_marketing: acceptsMarketing ? 1 : 0,
+      accepts_marketing: acceptsMarketing,
     };
 
     if (utm.source) payload.utm_source = utm.source;

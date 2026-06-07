@@ -43,7 +43,7 @@ app.use('/*', cors({
       : ['http://localhost:3000', 'http://localhost:5173']
     return allowedList.includes(origin) ? origin : null
   },
-  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization', 'Cookie'],
   credentials: true,
 }))
