@@ -57,15 +57,18 @@
           "updated_at"
         ]
       },
-      "GuestCheckout": {
+      "Checkout": {
         "type": "object",
         "properties": {
           "email": {
             "type": "string",
-            "format": "email",
-            "example": "guest@example.com"
+            "format": "email"
           },
-          "shipping_address": {
+          "customer_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "address": {
             "type": "object",
             "properties": {
               "fullname": {
@@ -77,12 +80,19 @@
               "zipcode": {
                 "type": "string"
               }
-            },
-            "required": [
-              "fullname",
-              "address",
-              "zipcode"
-            ]
+            }
+          },
+          "shipping_address_json": {
+            "type": "object",
+            "additionalProperties": {
+              "nullable": true
+            }
+          },
+          "billing_address_json": {
+            "type": "object",
+            "additionalProperties": {
+              "nullable": true
+            }
           },
           "items": {
             "type": "array",
@@ -107,11 +117,21 @@
           },
           "affiliate_id": {
             "type": "string"
+          },
+          "utm_source": {
+            "type": "string"
+          },
+          "utm_medium": {
+            "type": "string"
+          },
+          "utm_campaign": {
+            "type": "string"
+          },
+          "accepts_marketing": {
+            "type": "boolean"
           }
         },
         "required": [
-          "email",
-          "shipping_address",
           "items"
         ]
       },
@@ -163,7 +183,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/GuestCheckout"
+                "$ref": "#/components/schemas/Checkout"
               }
             }
           }
