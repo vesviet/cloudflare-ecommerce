@@ -19,15 +19,15 @@ checkout.post('/store/orders', requireRole(['superadmin', 'manager', 'editor']),
     // Two-Step Check 1: Select current variations from DB to prevent Price Tampering and check Stock
     const variationIds = items.map(i => i.variation_id);
     const dbVariations = await db.select({
-      id: schema.productVariations.id,
-      stock: schema.productVariations.stock,
-      sale_price: schema.productVariations.sale_price,
-      regular_price: schema.productVariations.regular_price,
+      id: schema.products.id,
+      stock: schema.products.stock_quantity,
+      sale_price: schema.products.sale_price,
+      regular_price: schema.products.regular_price,
     })
-      .from(schema.productVariations)
+      .from(schema.products)
       .where(and(
-        inArray(schema.productVariations.id, variationIds),
-        eq(schema.productVariations.is_purchasable, 1)
+        inArray(schema.products.id, variationIds),
+        eq(schema.products.is_purchasable, 1)
       ))
       .all();
 
@@ -36,12 +36,12 @@ checkout.post('/store/orders', requireRole(['superadmin', 'manager', 'editor']),
     const allReservations = await db
       .select()
       .from(schema.inventoryReservations)
-      .where(sql`variation_id IN (${sql.join(variationIds, sql`, `)}) AND expires_at > ${now}`)
+      .where(sql`product_id IN (${sql.join(variationIds, sql`, `)}) AND expires_at > ${now}`)
       .all();
 
     const reservationMap = new Map<string, number>();
     for (const res of allReservations) {
-      reservationMap.set(res.variation_id, (reservationMap.get(res.variation_id) || 0) + res.quantity);
+      reservationMap.set(res.product_id, (reservationMap.get(res.product_id) || 0) + res.quantity);
     }
 
     let totalAmount = 0;
@@ -75,7 +75,7 @@ checkout.post('/store/orders', requireRole(['superadmin', 'manager', 'editor']),
         db.insert(schema.inventoryReservations).values({
           id: crypto.randomUUID(),
           order_id: orderId,
-          variation_id: item.variation_id,
+          product_id: item.variation_id,
           quantity: item.quantity,
           expires_at: expiresAt,
         })
@@ -85,7 +85,7 @@ checkout.post('/store/orders', requireRole(['superadmin', 'manager', 'editor']),
         db.insert(schema.orderItems).values({
           id: crypto.randomUUID(),
           order_id: orderId,
-          variation_id: item.variation_id,
+          product_id: item.variation_id,
           quantity: item.quantity,
           price_at_purchase: finalPrice,
         })

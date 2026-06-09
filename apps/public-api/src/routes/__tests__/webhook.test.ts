@@ -20,7 +20,6 @@ vi.mock('@ecommerce/database', () => {
     schema: {
       idempotencyKeys: { id: 'idempotencyKeys' },
       products: { id: 'products' },
-      productVariations: { id: 'productVariations' },
       inventoryReservations: { id: 'inventoryReservations', order_id: 'order_id' },
       orders: { id: 'orders', payment_intent_id: 'payment_intent_id' },
       orderItems: { id: 'orderItems', order_id: 'order_id' },
@@ -31,7 +30,7 @@ vi.mock('@ecommerce/database', () => {
         from: vi.fn().mockReturnThis(),
         where: vi.fn().mockReturnThis(),
         all: vi.fn().mockResolvedValue([
-          { id: 'item_1', variation_id: 'var_1', quantity: 2 }
+          { id: 'item_1', product_id: 'var_1', quantity: 2 }
         ]),
         get: vi.fn().mockResolvedValue({ id: 'order_1', status: 'pending_payment' }),
         insert: vi.fn().mockReturnThis(),

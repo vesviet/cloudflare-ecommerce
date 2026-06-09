@@ -2,26 +2,24 @@ import { sqliteTable, text, integer, real, index } from 'drizzle-orm/sqlite-core
 import { sql } from 'drizzle-orm';
 
 export const customers = sqliteTable('customers', {
-  id: text('id').primaryKey(), // UUID v4
+  id: text('id').primaryKey(),
   email: text('email').notNull().unique(),
   password_hash: text('password_hash'),
-  status: text('status').notNull().default('active'), // active, suspended, verification_pending, invited
+  status: text('status').notNull().default('active'),
   first_name: text('first_name'),
   last_name: text('last_name'),
   phone: text('phone'),
-  dob: text('dob'), // ISO Date (YYYY-MM-DD)
-  gender: text('gender'), // male, female, other, unspecified
+  dob: text('dob'),
+  gender: text('gender'),
   company_name: text('company_name'),
   vat_tax_id: text('vat_tax_id'),
   avatar_url: text('avatar_url'),
   
-  // Auth & Security
   email_verified: integer('email_verified').default(0),
   email_verification_token: text('email_verification_token'),
   password_reset_token: text('password_reset_token'),
   password_reset_expires_at: integer('password_reset_expires_at'),
   
-  // Marketing & Attribution
   accepts_marketing: integer('accepts_marketing').default(0),
   accepts_marketing_updated_at: text('accepts_marketing_updated_at'),
   tags_json: text('tags_json').default('[]'),
@@ -30,11 +28,9 @@ export const customers = sqliteTable('customers', {
   signup_utm_campaign: text('signup_utm_campaign'),
   signup_affiliate_id: text('signup_affiliate_id'),
   
-  // Integrations & CRM
   stripe_customer_id: text('stripe_customer_id').unique(),
   crm_id: text('crm_id'),
   
-  // Auditing
   last_login_at: text('last_login_at'),
   last_login_ip: text('last_login_ip'),
   note: text('note'),
@@ -42,6 +38,7 @@ export const customers = sqliteTable('customers', {
   
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
   updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+  deleted_at: text('deleted_at'), // Soft delete
 });
 
 export const categories = sqliteTable('categories', {
@@ -49,7 +46,7 @@ export const categories = sqliteTable('categories', {
   slug: text('slug').notNull().unique(),
   name: text('name').notNull(),
   description: text('description'),
-  parent_id: text('parent_id'), // Self-referencing FK done loosely, or .references(() => categories.id) if supported. SQLite supports it but Drizzle sometimes has circular type issues. Let's do raw text and enforce at app level or use explicit references.
+  parent_id: text('parent_id'),
   image_url: text('image_url'),
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
   updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
@@ -57,23 +54,44 @@ export const categories = sqliteTable('categories', {
 
 export const products = sqliteTable('products', {
   id: text('id').primaryKey(),
+  parent_id: text('parent_id'), // For variations. References products.id
   slug: text('slug').notNull().unique(),
+  sku: text('sku').unique(),
   title: text('title').notNull(),
+  short_description: text('short_description'),
   description: text('description'),
   images_json: text('images_json').default('[]'),
-  type: text('type').notNull().default('simple'),
+  type: text('type').notNull().default('simple'), // simple, configurable, virtual
+  
   regular_price: integer('regular_price'),
   sale_price: integer('sale_price'),
-  is_purchasable: integer('is_purchasable').notNull().default(1),
+  
+  manage_stock: integer('manage_stock').default(1),
+  stock_quantity: integer('stock_quantity').notNull().default(0),
+  allow_backorders: integer('allow_backorders').default(0),
   in_stock: integer('in_stock').notNull().default(1),
-  attributes: text('attributes'),
+  
+  weight: real('weight'),
+  length: real('length'),
+  width: real('width'),
+  height: real('height'),
+  
+  attributes_json: text('attributes_json'), // Flat variations JSON
+  tags_json: text('tags_json').default('[]'),
+  metafields_json: text('metafields_json').default('{}'),
+  
+  is_purchasable: integer('is_purchasable').notNull().default(1),
   status: text('status').default('draft'), // draft, published, archived
   primary_category_id: text('primary_category_id').references(() => categories.id, { onDelete: 'set null' }),
+  
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
   updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+  deleted_at: text('deleted_at'), // Soft delete
 }, (table) => {
   return {
     statusIdx: index('idx_products_status').on(table.status),
+    parentIdIdx: index('idx_products_parent_id').on(table.parent_id),
+    skuIdx: index('idx_products_sku').on(table.sku),
   };
 });
 
@@ -84,21 +102,29 @@ export const productCategories = sqliteTable('product_categories', {
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
 });
 
-export const productVariations = sqliteTable('product_variations', {
+export const carts = sqliteTable('carts', {
   id: text('id').primaryKey(),
-  product_id: text('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
-  sku: text('sku').notNull().unique(),
-  regular_price: integer('regular_price').notNull(),
-  sale_price: integer('sale_price'),
-  stock: integer('stock').notNull().default(0), // Lưu ý: Constraint CHECK(stock >= 0) sẽ được quản lý thông qua raw SQL lúc setup bảng
-  is_purchasable: integer('is_purchasable').notNull().default(1),
-  in_stock: integer('in_stock').notNull().default(1),
-  attributes_json: text('attributes_json'),
+  customer_id: text('customer_id').references(() => customers.id, { onDelete: 'cascade' }),
+  guest_session_id: text('guest_session_id'),
+  status: text('status').default('active'), // active, converted, abandoned
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
-}, (table) => {
-  return {
-    stockIdx: index('idx_product_variations_stock').on(table.stock),
-  };
+  updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const cartItems = sqliteTable('cart_items', {
+  id: text('id').primaryKey(),
+  cart_id: text('cart_id').notNull().references(() => carts.id, { onDelete: 'cascade' }),
+  product_id: text('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  quantity: integer('quantity').notNull(),
+  created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const sessions = sqliteTable('sessions', {
+  id: text('id').primaryKey(),
+  customer_id: text('customer_id').notNull().references(() => customers.id, { onDelete: 'cascade' }),
+  refresh_token: text('refresh_token').notNull(),
+  expires_at: integer('expires_at').notNull(),
+  created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
 });
 
 export const orders = sqliteTable('orders', {
@@ -106,7 +132,6 @@ export const orders = sqliteTable('orders', {
   customer_id: text('customer_id').references(() => customers.id),
   guest_email: text('guest_email'),
   status: text('status').default('pending_payment'),
-  payment_intent_id: text('payment_intent_id'),
   total_amount: integer('total_amount').notNull(),
   shipping_fee: integer('shipping_fee').default(0),
   affiliate_id: text('affiliate_id'),
@@ -129,9 +154,20 @@ export const orders = sqliteTable('orders', {
 export const orderItems = sqliteTable('order_items', {
   id: text('id').primaryKey(),
   order_id: text('order_id').notNull().references(() => orders.id, { onDelete: 'cascade' }),
-  variation_id: text('variation_id').notNull().references(() => productVariations.id),
+  product_id: text('product_id').notNull().references(() => products.id),
   quantity: integer('quantity').notNull(),
   price_at_purchase: integer('price_at_purchase').notNull(),
+  created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const transactions = sqliteTable('transactions', {
+  id: text('id').primaryKey(),
+  order_id: text('order_id').notNull().references(() => orders.id, { onDelete: 'cascade' }),
+  payment_intent_id: text('payment_intent_id'),
+  amount: integer('amount').notNull(),
+  status: text('status').notNull(), // success, failed, pending
+  provider: text('provider').notNull(), // stripe, vnpay
+  error_message: text('error_message'),
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
 });
 
@@ -165,19 +201,19 @@ export const customerAddresses = sqliteTable('customer_addresses', {
 export const inventoryReservations = sqliteTable('inventory_reservations', {
   id: text('id').primaryKey(),
   order_id: text('order_id').notNull().references(() => orders.id, { onDelete: 'cascade' }),
-  variation_id: text('variation_id').notNull().references(() => productVariations.id, { onDelete: 'cascade' }),
+  product_id: text('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
   quantity: integer('quantity').notNull(),
   expires_at: integer('expires_at').notNull(), // Unix timestamp for soft-lock expiration
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
 }, (table) => {
   return {
-    variationIdIdx: index('idx_inventory_reservations_variation_id').on(table.variation_id),
+    productIdIdx: index('idx_inventory_reservations_product_id').on(table.product_id),
     expiresAtIdx: index('idx_inventory_reservations_expires_at').on(table.expires_at),
   };
 });
 
 export const idempotencyKeys = sqliteTable('idempotency_keys', {
-  id: text('id').primaryKey(), // Stripe event ID
+  id: text('id').primaryKey(),
   event_type: text('event_type').notNull(),
   processed_at: text('processed_at').default(sql`CURRENT_TIMESTAMP`),
 });
@@ -188,8 +224,8 @@ export const cmsEntries = sqliteTable('cms_entries', {
   title: text('title').notNull(),
   excerpt: text('excerpt'),
   content: text('content'),
-  type: text('type').notNull().default('post'), // post, article, event
-  status: text('status').notNull().default('draft'), // draft, published, archived
+  type: text('type').notNull().default('post'),
+  status: text('status').notNull().default('draft'),
   featured_image_url: text('featured_image_url'),
   published_at: integer('published_at'),
   metadata_json: text('metadata_json').default('{}'),
@@ -201,7 +237,17 @@ export const adminUsers = sqliteTable('admin_users', {
   id: text('id').primaryKey(),
   email: text('email').notNull().unique(),
   name: text('name').notNull(),
-  role: text('role').notNull().default('editor'), // superadmin, manager, support, editor
-  status: text('status').notNull().default('active'), // active, inactive
+  role: text('role').notNull().default('editor'),
+  status: text('status').notNull().default('active'),
+  created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const auditLogs = sqliteTable('audit_logs', {
+  id: text('id').primaryKey(),
+  admin_id: text('admin_id').references(() => adminUsers.id, { onDelete: 'set null' }),
+  action: text('action').notNull(),
+  entity_type: text('entity_type').notNull(),
+  entity_id: text('entity_id').notNull(),
+  payload_json: text('payload_json'),
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
 });

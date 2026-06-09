@@ -95,12 +95,12 @@ webhook.post('/stripe', async (c) => {
       for (const item of orderItems) {
         batchQueries.push(
           db
-            .update(schema.productVariations)
-            .set({ stock: sql`stock - ${item.quantity}`, in_stock: sql`CASE WHEN stock - ${item.quantity} > 0 THEN 1 ELSE 0 END` })
+            .update(schema.products)
+            .set({ stock_quantity: sql`stock_quantity - ${item.quantity}`, in_stock: sql`CASE WHEN stock_quantity - ${item.quantity} > 0 THEN 1 ELSE 0 END` })
             .where(
               and(
-                eq(schema.productVariations.id, item.variation_id),
-                sql`stock >= ${item.quantity}`, // RISK-02 FIX: Prevents constraint violation
+                eq(schema.products.id, item.product_id),
+                sql`stock_quantity >= ${item.quantity}`, // RISK-02 FIX: Prevents constraint violation
               )
             ),
         )

@@ -2,6 +2,7 @@
 
 import React, { useState, useRef } from 'react';
 import { useCartStore } from '../../../store/cartStore';
+import { ProductSwatches } from './ProductSwatches';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
 
@@ -116,35 +117,11 @@ export default function ProductClient({ product }: { product: any }) {
         </p>
 
         {isVariable && (
-          <div style={{ marginBottom: '30px' }}>
-            <label style={{ display: 'block', marginBottom: '10px', fontWeight: 600 }}>Select Option:</label>
-            <select 
-              value={selectedVariationId} 
-              onChange={(e) => setSelectedVariationId(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '16px',
-                background: 'rgba(255,255,255,0.05)',
-                border: '1px solid var(--glass-border)',
-                borderRadius: '8px',
-                color: '#fff',
-                fontSize: '1rem',
-                outline: 'none',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                appearance: 'none',
-              }}
-              onFocus={(e) => e.target.style.boxShadow = '0 0 15px var(--accent-glow)'}
-              onBlur={(e) => e.target.style.boxShadow = 'none'}
-            >
-              <option value="" disabled style={{ background: 'var(--bg-color)' }}>-- Choose an option --</option>
-              {variations.map((v: any) => (
-                <option key={v.id} value={v.id} disabled={v.stock <= 0} style={{ background: 'var(--bg-color)' }}>
-                  {(v.attributes && Object.values(v.attributes).filter(Boolean).length > 0) ? Object.values(v.attributes).filter(Boolean).join(' - ') : v.sku} - {formatCurrency(v.sale_price || v.regular_price)} {v.stock <= 0 ? '(Out of Stock)' : ''}
-                </option>
-              ))}
-            </select>
-          </div>
+          <ProductSwatches 
+            variations={variations} 
+            selectedVariationId={selectedVariationId} 
+            onSelectVariation={setSelectedVariationId} 
+          />
         )}
 
         <button 

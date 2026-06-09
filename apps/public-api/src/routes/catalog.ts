@@ -48,7 +48,7 @@ catalog.get('/', async (c) => {
         )
         SELECT DISTINCT p.* FROM products p
         LEFT JOIN product_categories pc ON p.id = pc.product_id
-        WHERE p.status = 'published' AND (
+        WHERE p.status = 'published' AND p.parent_id IS NULL AND p.deleted_at IS NULL AND (
           p.primary_category_id IN (SELECT id FROM category_tree) OR
           pc.category_id IN (SELECT id FROM category_tree)
         )
@@ -59,7 +59,11 @@ catalog.get('/', async (c) => {
     } else {
       productRows = await db.select()
         .from(schema.products)
-        .where(eq(schema.products.status, 'published'))
+        .where(and(
+          eq(schema.products.status, 'published'),
+          sql`${schema.products.parent_id} IS NULL`,
+          sql`${schema.products.deleted_at} IS NULL`
+        ))
         .orderBy(sql`${schema.products.created_at} DESC`)
         .limit(20)
         .all();
@@ -71,15 +75,20 @@ catalog.get('/', async (c) => {
   let allVariations: any[] = [];
   if (productIds.length > 0) {
     allVariations = await db.select()
-      .from(schema.productVariations)
-      .where(inArray(schema.productVariations.product_id, productIds))
+      .from(schema.products)
+      .where(and(
+        inArray(schema.products.parent_id, productIds),
+        sql`${schema.products.deleted_at} IS NULL`
+      ))
       .all();
   }
 
   const variationsByProductId = allVariations.reduce((acc: any, v: any) => {
-    if (!acc[v.product_id]) acc[v.product_id] = [];
-    acc[v.product_id].push({
+    if (!v.parent_id) return acc;
+    if (!acc[v.parent_id]) acc[v.parent_id] = [];
+    acc[v.parent_id].push({
       ...v,
+      stock: v.stock_quantity,
       attributes: v.attributes_json ? JSON.parse(v.attributes_json) : {}
     });
     return acc;
@@ -141,10 +150,14 @@ catalog.get('/:slug', async (c) => {
     if (!product) return c.json({ success: false, error: 'Not found' }, 404);
 
     const variations = (await db.select()
-      .from(schema.productVariations)
-      .where(eq(schema.productVariations.product_id, product.id))
+      .from(schema.products)
+      .where(and(
+        eq(schema.products.parent_id, product.id),
+        sql`${schema.products.deleted_at} IS NULL`
+      ))
       .all()).map(v => ({
         ...v,
+        stock: v.stock_quantity,
         attributes: v.attributes_json ? JSON.parse(v.attributes_json) : {}
       }));
 

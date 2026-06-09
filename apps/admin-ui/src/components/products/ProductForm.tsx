@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { ProductData, ProductVariation, CategoryData } from '../../types';
+import { DynamicAttributeBuilder } from './DynamicAttributeBuilder';
 
 interface ProductFormProps {
   initialData: ProductData | null;
@@ -248,8 +249,11 @@ export const ProductForm: React.FC<ProductFormProps> = ({ initialData, API_BASE_
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {productVariations.map((v, idx) => (
-                    <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 1fr 1fr auto', gap: '12px', alignItems: 'center', background: 'rgba(255,255,255,0.03)', padding: '12px', borderRadius: '6px', border: '1px solid var(--glass-border)' }}>
-                      <input type="text" placeholder="Variant (e.g. Red - S)" className="input-control" style={{ padding: '8px 10px', fontSize: '13px' }} value={v.attributes?.name || ''} onChange={e => handleVariationChange(idx, 'attributes', { ...v.attributes, name: e.target.value })} required />
+                    <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 1fr 1fr auto', gap: '12px', alignItems: 'start', background: 'rgba(255,255,255,0.03)', padding: '12px', borderRadius: '6px', border: '1px solid var(--glass-border)' }}>
+                      <DynamicAttributeBuilder 
+                        attributes={v.attributes || {}} 
+                        onChange={attrs => handleVariationChange(idx, 'attributes', attrs)} 
+                      />
                       <input type="text" placeholder="SKU" className="input-control" style={{ padding: '8px 10px', fontSize: '13px' }} value={v.sku} onChange={e => handleVariationChange(idx, 'sku', e.target.value)} />
                       <input type="number" placeholder="Price" className="input-control" style={{ padding: '8px 10px', fontSize: '13px' }} value={v.regular_price} onChange={e => handleVariationChange(idx, 'regular_price', e.target.value)} required />
                       <input type="number" placeholder="Sale" className="input-control" style={{ padding: '8px 10px', fontSize: '13px' }} value={v.sale_price || ''} onChange={e => handleVariationChange(idx, 'sale_price', e.target.value)} />

@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { Bindings } from './types';
+import { eq, sql, and, inArray } from 'drizzle-orm';
+import { createDb, schema } from '@ecommerce/database';
 import metricsRoutes from './routes/metrics';
 import ordersRoutes from './routes/orders';
 import customersRoutes from './routes/customers';
@@ -48,4 +50,40 @@ app.route('/cms', cmsRoutes);
 app.route('/media', mediaRoutes);
 app.route('/admin-users', adminUsersRoutes);
 
-export default app;
+export default {
+  fetch: app.fetch,
+  async scheduled(event: any, env: Bindings, ctx: any) {
+    const db = createDb(env.DB);
+    const now = Math.floor(Date.now() / 1000);
+    
+    // Find expired orders (pending_payment orders older than 30 mins)
+    const expiredReservations = await db.select({ order_id: schema.inventoryReservations.order_id })
+      .from(schema.inventoryReservations)
+      .where(sql`expires_at < ${now}`)
+      .all();
+      
+    if (expiredReservations.length > 0) {
+      const orderIds = Array.from(new Set(expiredReservations.map(r => r.order_id)));
+      
+      const batchQueries: any[] = [];
+      // Mark orders as failed
+      batchQueries.push(
+        db.update(schema.orders)
+          .set({ status: 'failed' })
+          .where(and(
+            inArray(schema.orders.id, orderIds),
+            eq(schema.orders.status, 'pending_payment')
+          ))
+      );
+      
+      // Delete reservations
+      batchQueries.push(
+        db.delete(schema.inventoryReservations)
+          .where(sql`expires_at < ${now}`)
+      );
+      
+      await db.batch(batchQueries as any);
+      console.log(`[Cron] Cleaned up ${expiredReservations.length} expired reservations for ${orderIds.length} orders.`);
+    }
+  }
+};

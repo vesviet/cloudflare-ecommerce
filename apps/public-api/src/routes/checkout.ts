@@ -66,8 +66,8 @@ checkout.post('/', zValidator('json', CheckoutSchema), async (c) => {
   // Fetch all variations in one query
   const variations = await db
     .select()
-    .from(schema.productVariations)
-    .where(inArray(schema.productVariations.id, variationIds))
+    .from(schema.products)
+    .where(inArray(schema.products.id, variationIds))
     .all()
 
   // Fetch all active reservations for these variations in one query
@@ -75,23 +75,26 @@ checkout.post('/', zValidator('json', CheckoutSchema), async (c) => {
   const allReservations = await db
     .select()
     .from(schema.inventoryReservations)
-    .where(sql`variation_id IN (${sql.join(variationIds, sql`, `)}) AND expires_at > ${now}`)
+    .where(sql`product_id IN (${sql.join(variationIds, sql`, `)}) AND expires_at > ${now}`)
     .all()
 
   // Group reservations by variation_id
   const reservationMap = new Map<string, number>()
   for (const res of allReservations) {
-    reservationMap.set(res.variation_id, (reservationMap.get(res.variation_id) || 0) + res.quantity)
+    reservationMap.set(res.product_id, (reservationMap.get(res.product_id) || 0) + res.quantity)
   }
 
   // Fetch products for names in one query
-  const productIds = variations.map(v => v.product_id)
-  const products = await db
-    .select({ id: schema.products.id, title: schema.products.title })
-    .from(schema.products)
-    .where(inArray(schema.products.id, productIds))
-    .all()
-  const productMap = new Map(products.map(p => [p.id, p.title]))
+  const parentIds = variations.map(v => v.parent_id).filter(id => id !== null) as string[]
+  let productMap = new Map<string, string>()
+  if (parentIds.length > 0) {
+    const products = await db
+      .select({ id: schema.products.id, title: schema.products.title })
+      .from(schema.products)
+      .where(inArray(schema.products.id, parentIds))
+      .all()
+    productMap = new Map(products.map(p => [p.id, p.title]))
+  }
 
   for (const item of items) {
     const variation = variations.find(v => v.id === item.variation_id)
@@ -101,7 +104,7 @@ checkout.post('/', zValidator('json', CheckoutSchema), async (c) => {
     }
 
     const reservedQuantity = reservationMap.get(item.variation_id) || 0
-    const availableStock = variation.stock - reservedQuantity
+    const availableStock = variation.stock_quantity - reservedQuantity
 
     if (availableStock < item.quantity) {
       return c.json({
@@ -117,7 +120,7 @@ checkout.post('/', zValidator('json', CheckoutSchema), async (c) => {
       variation_id: item.variation_id,
       quantity: item.quantity,
       price,
-      name: productMap.get(variation.product_id) ?? `Product ${item.variation_id.slice(0, 8)}`,
+      name: variation.parent_id ? (productMap.get(variation.parent_id) ?? `Product ${item.variation_id.slice(0, 8)}`) : variation.title,
     })
   }
 
@@ -194,7 +197,7 @@ checkout.post('/', zValidator('json', CheckoutSchema), async (c) => {
     await db.insert(schema.orderItems).values({
       id: crypto.randomUUID(),
       order_id: orderId,
-      variation_id: item.variation_id,
+      product_id: item.variation_id,
       quantity: item.quantity,
       price_at_purchase: item.price,
     })
@@ -203,7 +206,7 @@ checkout.post('/', zValidator('json', CheckoutSchema), async (c) => {
     await db.insert(schema.inventoryReservations).values({
       id: crypto.randomUUID(),
       order_id: orderId,
-      variation_id: item.variation_id,
+      product_id: item.variation_id,
       quantity: item.quantity,
       expires_at: expiresAt,
     })

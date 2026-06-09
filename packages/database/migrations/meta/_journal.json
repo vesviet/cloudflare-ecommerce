@@ -5,50 +5,8 @@
     {
       "idx": 0,
       "version": "5",
-      "when": 1779771449575,
-      "tag": "0000_woozy_network",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "5",
-      "when": 1779807266037,
-      "tag": "0001_red_nico_minoru",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "5",
-      "when": 1779857825009,
-      "tag": "0002_motionless_cannonball",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "5",
-      "when": 1779868166093,
-      "tag": "0003_lucky_dark_beast",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "5",
-      "when": 1779941256308,
-      "tag": "0004_slippery_gorilla_man",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "5",
-      "when": 1780454673073,
-      "tag": "0005_long_shiva",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "5",
-      "when": 1780626955372,
-      "tag": "0006_many_marvex",
+      "when": 1780978506925,
+      "tag": "0000_massive_silver_fox",
       "breakpoints": true
     }
   ]

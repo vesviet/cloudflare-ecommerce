@@ -22,7 +22,6 @@ vi.mock('@ecommerce/database', () => {
   return {
     schema: {
       products: { id: 'products' },
-      productVariations: { id: 'productVariations' },
       inventoryReservations: { id: 'inventoryReservations', order_id: 'order_id' },
       orders: { id: 'orders' },
       orderItems: { id: 'orderItems' },
@@ -34,7 +33,7 @@ vi.mock('@ecommerce/database', () => {
         from: vi.fn().mockReturnThis(),
         where: vi.fn().mockReturnThis(),
         all: vi.fn().mockResolvedValue([
-          { id: '550e8400-e29b-41d4-a716-446655440000', product_id: 'prod_1', stock: 5, is_purchasable: 1, regular_price: 1000 }
+          { id: '550e8400-e29b-41d4-a716-446655440000', parent_id: 'prod_1', stock_quantity: 5, is_purchasable: 1, regular_price: 1000 }
         ]),
         get: vi.fn().mockResolvedValue({ id: 'cust_1' }),
         insert: vi.fn().mockReturnThis(),

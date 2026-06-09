@@ -11,20 +11,17 @@ const products = new Hono<{ Bindings: Bindings }>();
 products.get('/products', async (c) => {
   try {
     const db = createDb(c.env.DB);
-    // Complex GROUP BY with json_group_array is not expressible via Drizzle builder;
-    // using sql helper to safely execute the aggregate query.
     const results = await db.all<any>(sql`
       SELECT 
         p.*,
         (SELECT json_group_array(category_id) FROM product_categories WHERE product_id = p.id) as secondary_categories,
-        json_group_array(json_object(
+        (SELECT CASE WHEN COUNT(v.id) > 0 THEN json_group_array(json_object(
           'id', v.id, 'sku', v.sku, 'regular_price', v.regular_price, 
-          'sale_price', v.sale_price, 'stock', v.stock, 'is_purchasable', v.is_purchasable,
+          'sale_price', v.sale_price, 'stock', v.stock_quantity, 'is_purchasable', v.is_purchasable,
           'attributes', v.attributes_json
-        )) as variations
+        )) ELSE '[]' END FROM products v WHERE v.parent_id = p.id AND v.deleted_at IS NULL AND v.is_purchasable = 1) as variations
       FROM products p
-      LEFT JOIN product_variations v ON p.id = v.product_id AND v.is_purchasable = 1
-      GROUP BY p.id
+      WHERE p.parent_id IS NULL AND p.deleted_at IS NULL
       ORDER BY p.created_at DESC
     `);
     
@@ -46,24 +43,24 @@ products.get('/products', async (c) => {
 products.get('/store/products', async (c) => {
   try {
     const db = createDb(c.env.DB);
-    // Complex GROUP BY aggregate with json_group_array — use sql helper
     const results = await db.all<any>(sql`
-      SELECT p.*, 
-             json_group_array(json_object(
-                'id', v.id, 'sku', v.sku, 'regular_price', v.regular_price, 
-                'sale_price', v.sale_price, 'stock', v.stock, 'in_stock', v.in_stock,
-                'attributes', v.attributes_json
-             )) as variations
+      SELECT 
+        p.*,
+        (SELECT CASE WHEN COUNT(v.id) > 0 THEN json_group_array(json_object(
+          'id', v.id, 'sku', v.sku, 'regular_price', v.regular_price, 
+          'sale_price', v.sale_price, 'stock', v.stock_quantity, 'in_stock', v.in_stock,
+          'attributes', v.attributes_json
+        )) ELSE '[]' END FROM products v WHERE v.parent_id = p.id AND v.deleted_at IS NULL) as variations
       FROM products p
-      LEFT JOIN product_variations v ON p.id = v.product_id
-      GROUP BY p.id
+      WHERE p.parent_id IS NULL AND p.deleted_at IS NULL
       ORDER BY p.created_at DESC
     `);
 
     const formattedProducts = results.map((row: any) => {
       const vars = JSON.parse(row.variations || '[]');
-      const minPrice = vars.length > 0 ? Math.min(...vars.map((v: any) => v.sale_price || v.regular_price || 0)) : row.sale_price || row.regular_price;
-      const maxPrice = vars.length > 0 ? Math.max(...vars.map((v: any) => v.regular_price || 0)) : row.regular_price;
+      const validVars = vars.filter((v: any) => v.id !== null);
+      const minPrice = validVars.length > 0 ? Math.min(...validVars.map((v: any) => v.sale_price || v.regular_price || 0)) : row.sale_price || row.regular_price;
+      const maxPrice = validVars.length > 0 ? Math.max(...validVars.map((v: any) => v.regular_price || 0)) : row.regular_price;
 
       return {
         id: row.id,
@@ -85,13 +82,13 @@ products.get('/store/products', async (c) => {
           price: (row.sale_price || row.regular_price || 0).toString(),
           regular_price: (row.regular_price || 0).toString(),
           sale_price: row.sale_price ? row.sale_price.toString() : row.regular_price?.toString(),
-          price_range: row.type === 'variable' && vars.length > 0 ? {
+          price_range: (row.type === 'variable' || row.type === 'configurable') && validVars.length > 0 ? {
             min_amount: minPrice.toString(),
             max_amount: maxPrice.toString(),
           } : null,
         },
-        attributes: JSON.parse(row.attributes || '[]'),
-        variations: vars,
+        attributes: JSON.parse(row.attributes_json || '[]'),
+        variations: validVars,
       };
     });
 
@@ -129,6 +126,10 @@ products.post('/products', zValidator('form', productFormSchema), async (c) => {
     if (body['variations']) {
       try {
         variations = JSON.parse(body['variations'] as string);
+        const isValidAttributes = variations.every(v => v.attributes === undefined || (typeof v.attributes === 'object' && v.attributes !== null && !Array.isArray(v.attributes)));
+        if (!isValidAttributes) {
+          return c.json({ success: false, error: 'Invalid attributes format in variations' }, 400);
+        }
       } catch (e) {
         return c.json({ success: false, error: 'Invalid variations JSON' }, 400);
       }
@@ -170,40 +171,32 @@ products.post('/products', zValidator('form', productFormSchema), async (c) => {
       type,
       regular_price,
       sale_price,
+      stock_quantity: type === 'simple' ? stock : 0,
+      manage_stock: 1,
+      in_stock: type === 'simple' ? (stock > 0 ? 1 : 0) : 1,
       primary_category_id,
     });
 
     // Insert variations via Drizzle batch
     const variationInserts = [];
-    if (type === 'simple' || variations.length === 0) {
-      const variationId = crypto.randomUUID();
-      const sku = `SKU-${slug.toUpperCase()}`;
-      variationInserts.push(
-        db.insert(schema.productVariations).values({
-          id: variationId,
-          product_id: productId,
-          sku,
-          regular_price,
-          sale_price,
-          stock,
-          in_stock: stock > 0 ? 1 : 0,
-          attributes_json: JSON.stringify({}),
-        })
-      );
-    } else {
+    if (type !== 'simple' && variations.length > 0) {
       variations.forEach((v: any, index: number) => {
         const variationId = crypto.randomUUID();
         const sku = v.sku || `SKU-${slug.toUpperCase()}-${index + 1}`;
         variationInserts.push(
-          db.insert(schema.productVariations).values({
+          db.insert(schema.products).values({
             id: variationId,
-            product_id: productId,
+            parent_id: productId,
+            slug: `${slug}-${index + 1}`,
             sku,
+            title: `${name} - ${v.attributes ? Object.values(v.attributes).join(' ') : index + 1}`,
+            type: 'simple',
             regular_price: v.regular_price || 0,
             sale_price: v.sale_price || null,
-            stock: v.stock || 0,
+            stock_quantity: v.stock || 0,
             in_stock: (v.stock || 0) > 0 ? 1 : 0,
             attributes_json: JSON.stringify(v.attributes || {}),
+            primary_category_id,
           })
         );
       });
@@ -262,6 +255,10 @@ products.put('/products/:id', zValidator('form', productFormSchema), async (c) =
     if (body['variations']) {
       try {
         variations = JSON.parse(body['variations'] as string);
+        const isValidAttributes = variations.every(v => v.attributes === undefined || (typeof v.attributes === 'object' && v.attributes !== null && !Array.isArray(v.attributes)));
+        if (!isValidAttributes) {
+          return c.json({ success: false, error: 'Invalid attributes format in variations' }, 400);
+        }
       } catch (e) {
         return c.json({ success: false, error: 'Invalid variations JSON' }, 400);
       }
@@ -286,7 +283,16 @@ products.put('/products/:id', zValidator('form', productFormSchema), async (c) =
       return c.json({ success: false, error: 'Product not found' }, 404);
     }
 
-    const updateData: any = { title: name, type, regular_price, sale_price, primary_category_id, updated_at: sql`CURRENT_TIMESTAMP` };
+    const updateData: any = { 
+      title: name, 
+      type, 
+      regular_price, 
+      sale_price, 
+      primary_category_id, 
+      updated_at: sql`CURRENT_TIMESTAMP`,
+      stock_quantity: type === 'simple' ? stock : 0,
+      in_stock: type === 'simple' ? (stock > 0 ? 1 : 0) : 1
+    };
     // Only update images if the client actually sent image data
     if (body['existing_images'] !== undefined || files.length > 0) {
       updateData.images_json = JSON.stringify(imageUrls);
@@ -311,32 +317,33 @@ products.put('/products/:id', zValidator('form', productFormSchema), async (c) =
     }
 
     // Handle Variations UPSERT / Soft Delete
-    if (type === 'variable' && variations.length > 0) {
+    if (type !== 'simple' && variations.length > 0) {
       // 1. Mark all existing variations as unpurchasable (soft delete)
       batchQueries.push(
-        db.update(schema.productVariations)
-          .set({ is_purchasable: 0 })
-          .where(eq(schema.productVariations.product_id, productId))
+        db.update(schema.products)
+          .set({ is_purchasable: 0, deleted_at: sql`CURRENT_TIMESTAMP` })
+          .where(eq(schema.products.parent_id, productId))
       );
 
       // 2. Upsert incoming variations
-      variations.forEach((v: any) => {
+      variations.forEach((v: any, index: number) => {
         if (v.id) {
-          // Update existing and restore purchasable state
+          // Update existing and restore
           batchQueries.push(
-            db.update(schema.productVariations)
+            db.update(schema.products)
               .set({
                 sku: v.sku,
                 regular_price: v.regular_price,
                 sale_price: v.sale_price,
-                stock: v.stock,
+                stock_quantity: v.stock,
                 in_stock: (v.stock || 0) > 0 ? 1 : 0,
                 attributes_json: JSON.stringify(v.attributes || {}),
                 is_purchasable: 1,
+                deleted_at: null
               })
               .where(and(
-                eq(schema.productVariations.id, v.id),
-                eq(schema.productVariations.product_id, productId)
+                eq(schema.products.id, v.id),
+                eq(schema.products.parent_id, productId)
               ))
           );
         } else {
@@ -344,27 +351,24 @@ products.put('/products/:id', zValidator('form', productFormSchema), async (c) =
           const variationId = crypto.randomUUID();
           const sku = v.sku || `SKU-${productId.substring(0, 6)}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
           batchQueries.push(
-            db.insert(schema.productVariations).values({
+            db.insert(schema.products).values({
               id: variationId,
-              product_id: productId,
+              parent_id: productId,
+              slug: `${productId.substring(0, 6)}-${Math.random().toString(36).substring(2, 6)}`,
               sku,
+              title: `${name} - ${v.attributes ? Object.values(v.attributes).join(' ') : index + 1}`,
+              type: 'simple',
               regular_price: v.regular_price || 0,
               sale_price: v.sale_price || null,
-              stock: v.stock || 0,
+              stock_quantity: v.stock || 0,
               in_stock: (v.stock || 0) > 0 ? 1 : 0,
               attributes_json: JSON.stringify(v.attributes || {}),
               is_purchasable: 1,
+              primary_category_id
             })
           );
         }
       });
-    } else if (type === 'simple') {
-      // For simple products, update all variations of this product to match
-      batchQueries.push(
-        db.update(schema.productVariations)
-          .set({ regular_price, sale_price, stock, in_stock: stock > 0 ? 1 : 0 })
-          .where(eq(schema.productVariations.product_id, productId))
-      );
     }
 
     await db.batch(batchQueries as any);

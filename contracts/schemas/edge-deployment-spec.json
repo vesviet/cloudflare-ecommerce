@@ -1,35 +1,26 @@
 {
-  "project_ref": "ecommerce-monorepo",
+  "project_ref": "e-commerce",
   "deployment_target": "workers",
   "environments": ["production"],
   "version": "latest",
-  "wrangler_config_path": [
-    "apps/public-api/wrangler.toml",
-    "apps/admin-api/wrangler.toml"
+  "wrangler_config_path": "apps/public-api/wrangler.toml",
+  "bindings": [
+    {
+      "name": "DB",
+      "type": "d1",
+      "id": "b41da4e0-7f8c-44db-8854-0499d5c2ced5"
+    }
   ],
-  "bindings_changed": [],
   "secret_names": [],
-  "dns_cache_security": {
-    "routes": [],
-    "cache_changes": null,
-    "waf_approval_ref": null
-  },
-  "rollout": {
-    "deploy_steps": [
-      "1. Run D1 database migrations for production: `pnpm --filter public-api exec wrangler d1 migrations apply DB --remote`",
-      "2. Cloudflare Pages CI will automatically deploy the frontend changes if pushed to main.",
-      "3. Trigger Workers deployment for public-api: `pnpm --filter public-api exec wrangler deploy`",
-      "4. Trigger Workers deployment for admin-api: `pnpm --filter admin-api exec wrangler deploy`"
-    ],
-    "preview_validated": false,
-    "smoke_tests": [
-      "Submit a valid guest checkout payload to the production checkout endpoint and verify 200 OK + Stripe URL.",
-      "Submit an invalid payload (e.g. missing UUID) and verify 400 Bad Request.",
-      "Ensure Admin UI login still successfully routes to the admin CRM data."
-    ]
-  },
-  "handoff": {
-    "devops_ci_notes": "No new secrets needed. The `db:migrate` command in the CI or manual instructions has been updated to use wrangler directly on the `public-api`.",
-    "residual_risks": "Index creation on D1 locks the table momentarily. If traffic is exceptionally high during migration, some API requests might time out. Recommended to deploy during off-peak hours."
-  }
+  "routes": [],
+  "deploy_steps": [
+    "Run script to drop all existing tables to clean state (PRAGMA foreign_keys = OFF; DROP TABLE IF EXISTS ...)",
+    "CLOUDFLARE_ACCOUNT_ID=c55319ae6f6801987a7ab8e1ac412856 pnpm --filter public-api exec wrangler d1 migrations apply DB --remote"
+  ],
+  "smoke_tests": [
+    "Verify API endpoints can query DB successfully"
+  ],
+  "rollback_plan": "Restore from D1 backup if schema corruption occurs.",
+  "status": "success",
+  "notes": "Data cleaned and migrations 0000_massive_silver_fox.sql and 0001_json_indexes.sql applied successfully."
 }

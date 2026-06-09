@@ -39,15 +39,14 @@ orders.get('/orders/:id', async (c) => {
     const items = await db.select({
       id: schema.orderItems.id,
       order_id: schema.orderItems.order_id,
-      variation_id: schema.orderItems.variation_id,
+      product_id: schema.orderItems.product_id,
       quantity: schema.orderItems.quantity,
       price_at_purchase: schema.orderItems.price_at_purchase,
-      sku: schema.productVariations.sku,
+      sku: schema.products.sku,
       product_title: schema.products.title,
     })
       .from(schema.orderItems)
-      .leftJoin(schema.productVariations, eq(schema.orderItems.variation_id, schema.productVariations.id))
-      .leftJoin(schema.products, eq(schema.productVariations.product_id, schema.products.id))
+      .leftJoin(schema.products, eq(schema.orderItems.product_id, schema.products.id))
       .where(eq(schema.orderItems.order_id, orderId))
       .all();
 
@@ -87,7 +86,7 @@ orders.post('/orders/:id/refund', requireRole(['superadmin', 'manager', 'support
     }
 
     const items = await db.select({
-      variation_id: schema.orderItems.variation_id,
+      product_id: schema.orderItems.product_id,
       quantity: schema.orderItems.quantity,
     })
       .from(schema.orderItems)
@@ -100,9 +99,9 @@ orders.post('/orders/:id/refund', requireRole(['superadmin', 'manager', 'support
         .set({ status: 'refunded', updated_at: sql`CURRENT_TIMESTAMP` })
         .where(eq(schema.orders.id, orderId)),
       ...items.map(item =>
-        db.update(schema.productVariations)
-          .set({ stock: sql`stock + ${item.quantity}`, in_stock: 1 })
-          .where(eq(schema.productVariations.id, item.variation_id))
+        db.update(schema.products)
+          .set({ stock_quantity: sql`stock_quantity + ${item.quantity}`, in_stock: 1 })
+          .where(eq(schema.products.id, item.product_id))
       ),
     ]);
 

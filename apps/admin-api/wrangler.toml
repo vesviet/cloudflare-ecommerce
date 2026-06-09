@@ -31,3 +31,6 @@ preview_id = "local-cache-kv"
 [[queues.producers]]
 binding = "EVENT_QUEUE"
 queue = "ecommerce-events-prod"
+
+[triggers]
+crons = ["*/15 * * * *"] # Every 15 minutes for inventory cleanup
