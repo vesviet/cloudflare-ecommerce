@@ -146,6 +146,55 @@ webhook.post('/stripe', async (c) => {
         }
       }
     }
+  } else if (event.type === 'charge.refunded') {
+    const charge = event.data.object as Stripe.Charge
+    const orderId = charge.metadata?.order_id
+
+    if (!orderId) {
+      console.warn('[Webhook] Refund charge is missing order_id in metadata')
+    } else {
+      const order = await db
+        .select()
+        .from(schema.orders)
+        .where(eq(schema.orders.id, orderId))
+        .get()
+
+      if (order && order.status !== 'refunded') {
+        const orderItems = await db
+          .select()
+          .from(schema.orderItems)
+          .where(eq(schema.orderItems.order_id, order.id))
+          .all()
+
+        const batchQueries: any[] = []
+
+        // Restore inventory for each item
+        for (const item of orderItems) {
+          batchQueries.push(
+            db
+              .update(schema.productVariations)
+              .set({ 
+                stock: sql`stock + ${item.quantity}`, 
+                in_stock: 1 
+              })
+              .where(eq(schema.productVariations.id, item.variation_id))
+          )
+        }
+
+        // Advance order state machine: processing/completed → refunded
+        batchQueries.push(
+          db
+            .update(schema.orders)
+            .set({ status: 'refunded' })
+            .where(eq(schema.orders.id, order.id))
+        )
+
+        await db.batch(batchQueries as any)
+        console.log(`[Webhook] Order ${order.id} refunded, stock restored for ${orderItems.length} items`)
+      } else {
+        console.log(`[Webhook] Order for refund not found or already refunded (payment_intent: ${charge.payment_intent})`)
+      }
+    }
   } else {
     console.log(`[Webhook] Unhandled event type: ${event.type} — acknowledged but not processed`)
   }

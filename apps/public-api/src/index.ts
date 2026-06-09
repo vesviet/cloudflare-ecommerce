@@ -9,6 +9,7 @@ import { customerRouter as customer } from '@ecommerce/shared-routes';
 
 import categories from './routes/categories'
 import cms from './routes/cms'
+import admin from './routes/admin'
 import { mediaRouter as media } from '@ecommerce/shared-routes';
 
 type Bindings = {
@@ -56,6 +57,7 @@ app.get('/', (c) => {
 app.route('/api/products', catalog)
 app.route('/api/categories', categories)
 app.route('/api/cms', cms)
+app.route('/api/admin', admin)
 app.route('/api/checkout', checkout)
 app.route('/api/webhooks', webhook)
 app.route('/api', customer)
