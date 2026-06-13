@@ -12,6 +12,7 @@ import categoriesRoutes from './routes/categories';
 import cmsRoutes from './routes/cms';
 import { mediaRouter as mediaRoutes } from '@ecommerce/shared-routes';
 import adminUsersRoutes from './routes/adminUsers';
+import settingsRoutes from './routes/settings';
 
 import { adminAuth, type Env } from './middleware/auth';
 
@@ -50,6 +51,7 @@ app.route('/categories', categoriesRoutes);
 app.route('/cms', cmsRoutes);
 app.route('/media', mediaRoutes);
 app.route('/admin-users', adminUsersRoutes);
+app.route('/settings', settingsRoutes);
 
 export default {
   fetch: app.fetch,

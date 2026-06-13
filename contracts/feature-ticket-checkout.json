@@ -1,0 +1,34 @@
+{
+  "title": "Core Checkout & Order State Logic",
+  "business_context": {
+    "problem": "Lack of explicit business rules for inventory deduction, order state transitions, B2B pricing, and coupon stacking.",
+    "outcome": "A clear, testable set of business rules that engineering can implement without ambiguity.",
+    "preserved_behavior": "Checkout must still create `orders` and `transactions`.",
+    "changed_behavior": "Strict rules applied to inventory soft-locks, coupon limits, and failure states."
+  },
+  "actors": [
+    "B2C Customer",
+    "B2B Customer",
+    "System (Cron)"
+  ],
+  "business_rules": [
+    "INVENTORY_01: Inventory soft-locks (`inventory_reservations`) are created when a user initiates checkout and expire exactly 15 minutes later.",
+    "INVENTORY_02: Inventory is PERMANENTLY deducted from `products.stock_quantity` ONLY when the payment transaction is successful.",
+    "ORDER_01: An order is created in `pending_payment` state. If payment fails, it remains `pending_payment` but the inventory soft-lock will expire naturally after 15 mins.",
+    "ORDER_02: A background cron job must mark any `pending_payment` order as `abandoned` after 24 hours.",
+    "B2B_01: B2B customers pay standard retail/sale prices. No wholesale discounts are applied automatically. The VAT/Company info is strictly for tax invoicing.",
+    "COUPON_01: Strict Limit - Only ONE (1) coupon code can be applied per order. If a user enters a new coupon, it replaces the existing one."
+  ],
+  "acceptance_criteria": [
+    "Given a user starts checkout, When they proceed to payment, Then a 15-minute soft-lock is placed on the inventory.",
+    "Given an active soft-lock, When the payment is successful, Then the product stock is permanently deducted and the lock is removed.",
+    "Given an active soft-lock, When the payment fails, Then the order stays `pending_payment` and the user can try again within the 15-minute window.",
+    "Given a `pending_payment` order older than 24 hours, When the cron job runs, Then the order status is updated to `abandoned`.",
+    "Given a cart with an existing coupon, When the user applies a new valid coupon, Then the old coupon is removed and the new one's discount is applied."
+  ],
+  "edge_cases": [
+    "Race Condition: User A's soft-lock expires, User B buys the last item, User A tries to pay. System must reject User A's payment attempt and notify them of out-of-stock.",
+    "Stripe Webhook Delay: If the webhook arrives after the soft-lock expires but the payment was actually captured, the system must forcefully deduct inventory (potentially going negative) and alert an admin, OR refund the payment automatically if oversold."
+  ],
+  "open_questions": []
+}

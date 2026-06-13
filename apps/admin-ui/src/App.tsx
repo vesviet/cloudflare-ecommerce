@@ -1,19 +1,23 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import './App.css';
 import type { Toast } from './types';
 import { Sidebar } from './components/Sidebar';
 import { ToastContainer } from './components/ToastContainer';
-import { OverviewTab } from './tabs/OverviewTab';
-import { OrdersTab } from './tabs/OrdersTab';
-import { ProductsTab } from './tabs/ProductsTab';
-import { CategoriesTab } from './tabs/CategoriesTab';
-import { CustomersTab } from './tabs/CustomersTab';
-import { CmsTab } from './tabs/CmsTab';
-import { TeamTab } from './tabs/TeamTab';
 import { LoginScreen } from './components/LoginScreen';
 import { GlassCard } from './components/ui/GlassCard';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { SkeletonLoader } from './components/ui/SkeletonLoader';
+
+const OverviewTab = lazy(() => import('./tabs/OverviewTab').then(module => ({ default: module.OverviewTab })));
+const OrdersTab = lazy(() => import('./tabs/OrdersTab').then(module => ({ default: module.OrdersTab })));
+const ProductsTab = lazy(() => import('./tabs/ProductsTab').then(module => ({ default: module.ProductsTab })));
+const CategoriesTab = lazy(() => import('./tabs/CategoriesTab').then(module => ({ default: module.CategoriesTab })));
+const CustomersTab = lazy(() => import('./tabs/CustomersTab').then(module => ({ default: module.CustomersTab })));
+const CmsTab = lazy(() => import('./tabs/CmsTab').then(module => ({ default: module.CmsTab })));
+const TeamTab = lazy(() => import('./tabs/TeamTab').then(module => ({ default: module.TeamTab })));
+const SettingsTab = lazy(() => import('./tabs/SettingsTab').then(module => ({ default: module.SettingsTab })));
 
 // Use environment variable if available, fallback to localhost for dev
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8788/api';
@@ -137,51 +141,60 @@ function App() {
       <Sidebar userRole={user?.role} onLogout={handleLogout} />
 
       <main className="main-content">
-        <AnimatePresence mode="wait">
-          <Routes location={location} key={location.pathname}>
-            <Route path="/" element={<Navigate to="/overview" replace />} />
-            <Route path="/overview" element={
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
-                <OverviewTab API_BASE_URL={API_BASE_URL} addToast={addToast} />
-              </motion.div>
-            } />
-            <Route path="/orders" element={
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
-                <OrdersTab API_BASE_URL={API_BASE_URL} addToast={addToast} />
-              </motion.div>
-            } />
-            <Route path="/products" element={
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
-                <ProductsTab API_BASE_URL={API_BASE_URL} addToast={addToast} />
-              </motion.div>
-            } />
-            <Route path="/categories" element={
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
-                <CategoriesTab API_BASE_URL={API_BASE_URL} addToast={addToast} />
-              </motion.div>
-            } />
-            <Route path="/customers" element={
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
-                <CustomersTab API_BASE_URL={API_BASE_URL} addToast={addToast} />
-              </motion.div>
-            } />
-            <Route path="/cms" element={
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
-                <CmsTab API_BASE_URL={API_BASE_URL} addToast={addToast} />
-              </motion.div>
-            } />
-            <Route path="/team" element={
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
-                <TeamTab API_BASE_URL={API_BASE_URL} addToast={addToast} />
-              </motion.div>
-            } />
-            <Route path="*" element={
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
-                <div style={{ padding: '40px', color: 'var(--text-muted)', textAlign: 'center' }}>Page not found</div>
-              </motion.div>
-            } />
-          </Routes>
-        </AnimatePresence>
+        <ErrorBoundary>
+          <Suspense fallback={<div style={{ padding: '24px' }}><SkeletonLoader height="400px" /></div>}>
+            <AnimatePresence mode="wait">
+              <Routes location={location} key={location.pathname}>
+                <Route path="/" element={<Navigate to="/overview" replace />} />
+                <Route path="/overview" element={
+                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+                    <OverviewTab API_BASE_URL={API_BASE_URL} addToast={addToast} />
+                  </motion.div>
+                } />
+                <Route path="/orders" element={
+                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+                    <OrdersTab API_BASE_URL={API_BASE_URL} addToast={addToast} />
+                  </motion.div>
+                } />
+                <Route path="/products" element={
+                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+                    <ProductsTab API_BASE_URL={API_BASE_URL} addToast={addToast} />
+                  </motion.div>
+                } />
+                <Route path="/categories" element={
+                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+                    <CategoriesTab API_BASE_URL={API_BASE_URL} addToast={addToast} />
+                  </motion.div>
+                } />
+                <Route path="/customers" element={
+                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+                    <CustomersTab API_BASE_URL={API_BASE_URL} addToast={addToast} />
+                  </motion.div>
+                } />
+                <Route path="/cms" element={
+                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+                    <CmsTab API_BASE_URL={API_BASE_URL} addToast={addToast} />
+                  </motion.div>
+                } />
+                <Route path="/team" element={
+                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+                    <TeamTab API_BASE_URL={API_BASE_URL} addToast={addToast} />
+                  </motion.div>
+                } />
+                <Route path="/settings" element={
+                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+                    <SettingsTab />
+                  </motion.div>
+                } />
+                <Route path="*" element={
+                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+                    <div style={{ padding: '40px', color: 'var(--text-muted)', textAlign: 'center' }}>Page not found</div>
+                  </motion.div>
+                } />
+              </Routes>
+            </AnimatePresence>
+          </Suspense>
+        </ErrorBoundary>
       </main>
 
       <ToastContainer toasts={toasts} />

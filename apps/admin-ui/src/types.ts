@@ -11,13 +11,19 @@ export interface ProductVariation {
 export interface ProductData {
   id: string;
   title: string;
+  sku?: string;
   slug: string;
   status: string;
-  type: string;
+  type: 'simple' | 'configurable' | 'virtual';
   description: string | null;
   images?: string[];
   regular_price: number;
   sale_price: number | null;
+  manage_stock?: number;
+  weight?: number | null;
+  length?: number | null;
+  width?: number | null;
+  height?: number | null;
   primary_category_id?: string | null;
   secondary_categories?: string[];
   variations: ProductVariation[];

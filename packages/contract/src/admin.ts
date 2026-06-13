@@ -96,10 +96,15 @@ export const fulfillSchema = z.object({
 
 export const productFormSchema = z.object({
   name: z.string().min(1, "Name is required"),
-  type: z.string().optional(),
+  sku: z.string().min(3, "SKU is required and must be at least 3 characters"),
+  type: z.enum(['simple', 'configurable', 'virtual']).optional(),
   regular_price: z.string().optional(),
   sale_price: z.string().optional().nullable(),
   stock: z.string().optional(),
+  weight: z.string().optional(),
+  length: z.string().optional(),
+  width: z.string().optional(),
+  height: z.string().optional(),
   primary_category_id: z.string().optional().nullable(),
   secondary_categories: z.string().optional(),
   variations: z.string().optional(),

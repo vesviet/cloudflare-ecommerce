@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "TURBOPACK=0 next build",
+    "build": "next build",
     "build:pages": "mkdir -p apps && rm -f apps/storefront-ui && ln -s .. apps/storefront-ui && npx @cloudflare/next-on-pages",
     "start": "next start",
     "lint": "eslint"

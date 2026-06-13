@@ -4,10 +4,13 @@
   "scripts": {
     "dev": "wrangler dev --port 8788 --inspector-port 9230",
     "deploy": "wrangler deploy",
-    "lint": "eslint src/"
+    "lint": "eslint src/",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@ecommerce/contract": "workspace:*",
+    "@ecommerce/core-services": "workspace:*",
     "@ecommerce/database": "workspace:^",
     "@ecommerce/shared-routes": "workspace:*",
     "@hono/zod-validator": "^0.2.1",
@@ -22,6 +25,7 @@
     "eslint": "^9.39.4",
     "typescript": "^5.0.4",
     "typescript-eslint": "^8.59.2",
+    "vitest": "^2.1.8",
     "wrangler": "^3.57.1"
   }
 }

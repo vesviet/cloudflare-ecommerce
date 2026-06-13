@@ -3,6 +3,9 @@ main = "src/index.ts"
 compatibility_date = "2024-06-05"
 compatibility_flags = ["nodejs_compat"]
 
+[placement]
+mode = "smart"
+
 routes = [
   { pattern = "api-shop.tanhdev.com", custom_domain = true }
 ]
@@ -52,4 +55,4 @@ max_retries = 3
 dead_letter_queue = "ecommerce-events-dlq"
 
 [triggers]
-crons = ["*/5 * * * *"] # Every 5 minutes for inventory cleanup
+crons = ["*/5 * * * *", "0 * * * *"] # Every 5 minutes for inventory, Hourly for abandoned orders

@@ -1,0 +1,70 @@
+{
+  "project": "Cloudflare E-Commerce",
+  "version": "1.1",
+  "inputs": {
+    "feature_ticket_ref": "contracts/feature-ticket-checkout.json",
+    "architecture_review_ref": "architecture_review_checkout.md"
+  },
+  "ai_assisted_development_policy": {
+    "ai_tooling_in_use": ["Antigravity"],
+    "trust_zones_defined": ["restricted", "standard"],
+    "restricted_zone_slices": ["slice-1-checkout-inventory", "slice-2-payment-webhook"],
+    "ai_code_review_focus": "Deep-dive human review required for inventory math (D1 batch transactions) and Stripe webhook signature validation."
+  },
+  "slices": [
+    {
+      "id": "slice-0-feature-flag",
+      "owner": "backend-developer",
+      "description": "Create a `settings` table in D1 to manage the `checkout-v2` feature flag in real-time without redeploying the Worker.",
+      "depends_on": [],
+      "trust_zone": "standard"
+    },
+    {
+      "id": "slice-1-checkout-inventory",
+      "owner": "backend-developer",
+      "description": "Implement checkout API endpoint to create order and 15-minute soft-lock. MUST use pure D1 `db.batch()` for atomic transactions to prevent race conditions.",
+      "depends_on": ["slice-0-feature-flag"],
+      "trust_zone": "restricted"
+    },
+    {
+      "id": "slice-2-payment-webhook",
+      "owner": "backend-developer",
+      "description": "Implement Stripe webhook handler. MUST use `idempotency_keys` table to prevent duplicate processing. Data Minimization: Log ONLY `stripe_event_id`, `order_id`, and `status` to `audit_logs` (NO full payload).",
+      "depends_on": ["slice-1-checkout-inventory"],
+      "trust_zone": "restricted"
+    },
+    {
+      "id": "slice-3-abandoned-cron",
+      "owner": "backend-developer",
+      "description": "Implement Cloudflare Worker Cron handler (hourly) to mark `pending_payment` orders > 24h as `abandoned`. MUST use pagination (LIMIT/OFFSET) to avoid Worker timeouts.",
+      "depends_on": ["slice-1-checkout-inventory"],
+      "trust_zone": "standard"
+    },
+    {
+      "id": "slice-4-coupon-stacking",
+      "owner": "backend-developer",
+      "description": "Implement `POST /api/cart/coupon`. Strict Limit 1: DELETE existing `order_discounts` for the cart and INSERT the new one.",
+      "depends_on": [],
+      "trust_zone": "standard"
+    }
+  ],
+  "progressive_delivery": {
+    "feature_flags_required": ["checkout-v2 (via D1 settings table)"],
+    "canary_target": "10% of logged-in user traffic",
+    "rollback_trigger": "Checkout 5xx error rate > 1% OR Stripe webhook failure rate > 0%",
+    "observability_requirement": "Log all inventory soft-lock collisions and webhook signature failures."
+  },
+  "impact_and_gates": {
+    "impact_radius": "Critical path: Checkout and Payment. A bug here halts all revenue.",
+    "quality_gates": [
+      "Unit tests for soft-lock expiration logic.",
+      "Unit tests for webhook idempotency logic (Mandatory).",
+      "Stripe CLI local webhook testing must pass before merge."
+    ]
+  },
+  "documentation_deltas": [
+    "Update README with Stripe webhook setup instructions for local development.",
+    "Document D1 `settings` table schema for feature flags."
+  ],
+  "open_questions": []
+}

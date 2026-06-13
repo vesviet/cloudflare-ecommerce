@@ -10,6 +10,7 @@ import { customerRouter as customer } from '@ecommerce/shared-routes';
 
 import categories from './routes/categories'
 import cms from './routes/cms'
+import cart from './routes/cart'
 import { mediaRouter as media, featureFlagsRoute } from '@ecommerce/shared-routes';
 
 type Bindings = {
@@ -57,6 +58,7 @@ app.get('/', (c) => {
 app.route('/api/products', catalog)
 app.route('/api/categories', categories)
 app.route('/api/cms', cms)
+app.route('/api/cart', cart)
 app.route('/api/checkout', checkout)
 app.route('/api/webhooks', webhook)
 app.route('/api/rma', rma)
@@ -258,5 +260,40 @@ export default {
     }
 
     console.log(`[Cron] Done: cancelled=${cancelledCount} skipped=${skippedCount} total_expired=${expiredReservations.length}`)
+
+    // 4. Abandoned Orders Cleanup (Runs hourly or periodically)
+    // Orders older than 24h in 'pending_payment' state -> 'abandoned'
+    const twentyFourHoursAgo = Math.floor(Date.now() / 1000) - (24 * 60 * 60)
+    
+    // Convert to ISO string since created_at is text in schema.ts default(sql`CURRENT_TIMESTAMP`)
+    const twentyFourHoursAgoISO = new Date(twentyFourHoursAgo * 1000).toISOString()
+
+    const limit = 100
+    let offset = 0
+    let abandonedCount = 0
+
+    while (true) {
+      const pendingOrders = await db
+        .select()
+        .from(schema.orders)
+        .where(sql`status = 'pending_payment' AND created_at < ${twentyFourHoursAgoISO}`)
+        .limit(limit)
+        .offset(offset)
+        .all()
+
+      if (!pendingOrders || pendingOrders.length === 0) break
+
+      const abandonBatch = pendingOrders.map(o => 
+        db.update(schema.orders).set({ status: 'abandoned' }).where(eq(schema.orders.id, o.id))
+      )
+      
+      await db.batch(abandonBatch as any)
+      abandonedCount += pendingOrders.length
+      offset += limit
+    }
+
+    if (abandonedCount > 0) {
+      console.log(`[Cron] Abandoned ${abandonedCount} orders older than 24h.`)
+    }
   },
 }

@@ -8,7 +8,7 @@ import Link from 'next/link';
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
 
 export default function CartDrawer() {
-  const { items, isCartOpen, toggleCart, removeItem, updateQuantity, getCartTotal } = useCartStore();
+  const { items, isCartOpen, toggleCart, removeItem, updateQuantity, getCartTotal, coupon, applyCoupon, removeCoupon, getCartSubtotal, getDiscountAmount } = useCartStore();
 
   // Prevent background scrolling when cart is open
   useEffect(() => {
@@ -123,6 +123,48 @@ export default function CartDrawer() {
 
         {items.length > 0 && (
           <div style={{ padding: '24px', borderTop: '1px solid var(--glass-border)', background: 'rgba(0,0,0,0.2)' }}>
+            
+            {/* Coupon Section */}
+            <div style={{ marginBottom: '16px' }}>
+              {coupon ? (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ color: '#4ade80', fontWeight: 600 }}>{coupon?.code}</span>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Applied</span>
+                  </div>
+                  <button onClick={() => removeCoupon()} style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', display: 'flex' }}><X size={16} /></button>
+                </div>
+              ) : (
+                <form 
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    const input = e.currentTarget.elements.namedItem('coupon') as HTMLInputElement;
+                    if (input.value.trim()) {
+                      const res = await applyCoupon(input.value.trim());
+                      if (!res.success) alert(res.error);
+                      else input.value = '';
+                    }
+                  }}
+                  style={{ display: 'flex', gap: '8px' }}
+                >
+                  <input type="text" name="coupon" placeholder="Discount code" style={{ flex: 1, padding: '10px 14px', borderRadius: '8px', background: 'rgba(0,0,0,0.45)', color: 'white', border: '1px solid rgba(255,255,255,0.12)', outline: 'none' }} />
+                  <button type="submit" className="btn" style={{ padding: '0 16px' }}>Apply</button>
+                </form>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '1rem', color: 'var(--text-muted)' }}>
+              <span>Subtotal</span>
+              <span>{formatCurrency(getCartSubtotal())}</span>
+            </div>
+
+            {getDiscountAmount() > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '1rem', color: '#4ade80' }}>
+                <span>Discount</span>
+                <span>-{formatCurrency(getDiscountAmount())}</span>
+              </div>
+            )}
+
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', fontSize: '1.2rem', fontWeight: 600 }}>
               <span>Total</span>
               <span>{formatCurrency(getCartTotal())}</span>

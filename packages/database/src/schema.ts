@@ -330,3 +330,11 @@ export const failedJobs = sqliteTable('failed_jobs', {
   status: text('status').default('failed'), // failed, retried
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
 });
+
+export const settings = sqliteTable('settings', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull(), // JSON or string
+  type: text('type').default('string').notNull(), // 'boolean', 'number', 'string'
+  description: text('description'),
+  updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+});

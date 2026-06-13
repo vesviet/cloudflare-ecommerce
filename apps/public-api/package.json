@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@ecommerce/contract": "workspace:*",
+    "@ecommerce/core-services": "workspace:*",
     "@ecommerce/database": "workspace:*",
     "@ecommerce/shared-routes": "workspace:*",
     "@hono/zod-validator": "^0.2.1",

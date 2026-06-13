@@ -35,7 +35,7 @@ export const ProductList: React.FC<ProductListProps> = ({ products, API_BASE_URL
           </thead>
           <tbody>
             {products.map((p) => {
-              const isVariable = p.type === 'variable';
+              const isVariable = p.type === 'configurable';
               const minPrice = isVariable && p.variations.length > 0 
                 ? Math.min(...p.variations.map((v: any) => Number(v.sale_price || v.regular_price))) / 100 
                 : (p.sale_price || p.regular_price || 0) / 100;

@@ -17,6 +17,28 @@ vi.mock('stripe', () => {
   };
 });
 
+// Mock core-services PaymentService
+vi.mock('@ecommerce/core-services', async () => {
+  return {
+    InventoryService: {
+      validateAndReserveInventory: vi.fn().mockResolvedValue({ validItems: [{ variation_id: '550e8400-e29b-41d4-a716-446655440000', quantity: 2, price: 1000 }], subTotal: 2000 }),
+      getSoftLockQueries: vi.fn().mockReturnValue([]),
+      getReleaseSoftLockQueries: vi.fn().mockReturnValue([]),
+    },
+    PaymentService: {
+      calculatePricing: vi.fn().mockResolvedValue({ discountAmount: 0, appliedCouponId: null, shippingFeeCents: 999, totalAmountCents: 2999 }),
+      createStripeSession: vi.fn().mockResolvedValue({
+        id: 'cs_test_123',
+        url: 'https://checkout.stripe.com/pay/cs_test_123'
+      })
+    },
+    OrderService: {
+      getCreateOrderQueries: vi.fn().mockReturnValue([]),
+      getUpdateCustomerAttributionQueries: vi.fn().mockReturnValue([]),
+    }
+  };
+});
+
 // Mock Database Module
 vi.mock('@ecommerce/database', () => {
   return {
@@ -41,6 +63,7 @@ vi.mock('@ecommerce/database', () => {
         update: vi.fn().mockReturnThis(),
         set: vi.fn().mockReturnThis(),
         delete: vi.fn().mockReturnThis(),
+        batch: vi.fn().mockResolvedValue([{ success: true }]),
       }
     })
   }

@@ -1,0 +1,39 @@
+{
+  "project": "Cloudflare E-Commerce",
+  "version": "1.0",
+  "deployment_target": "Cloudflare Workers (public-api) & D1 (ecommerce-db)",
+  "scope": {
+    "services": ["public-api"],
+    "environments": ["production", "staging"],
+    "change_type": "feature rollout & schema migration",
+    "behavior_assumptions": "Checkout endpoints will use D1 batching. Webhook will process Stripe events. Cron will mark old orders abandoned."
+  },
+  "execution": {
+    "build": "pnpm build",
+    "config": "Set STRIPE_WEBHOOK_SECRET via `wrangler secret put STRIPE_WEBHOOK_SECRET` on Cloudflare Dashboard manually (Do not hardcode in CI).",
+    "migration": "D1 migrations run automatically via `deploy.yml` CI pipeline.",
+    "deployment": "Wrangler deploy via GitHub Actions",
+    "feature_flag_controls": "Managed via `settings` table in D1. Init script required to insert `checkout-v2` = true after successful canary test."
+  },
+  "impact_review": {
+    "affected_dependencies": ["ecommerce-db", "stripe-api"],
+    "order_sensitive_steps": [
+      "1. Run D1 migrations (creating settings table & inventory_reservations if not exist)",
+      "2. Set STRIPE_WEBHOOK_SECRET",
+      "3. Deploy Worker code"
+    ],
+    "smoke_checks_required": [
+      "Verify Stripe Webhook returns 200 OK for test events",
+      "Verify Checkout V1 still works before enabling V2 flag"
+    ],
+    "rollback_blockers": "Once stock is decremented via V2, rolling back to V1 might cause mismatch in inventory state if V1 does not check `inventory_reservations`."
+  },
+  "verification": {
+    "health_checks": "Cloudflare Worker success rate > 99%",
+    "logs_and_dashboards": "Monitor Cloudflare Analytics for 5xx errors. Monitor `audit_logs` table for Stripe Event processing success."
+  },
+  "rollback": {
+    "code_or_config_rollback": "Update D1 `settings` table to set `checkout-v2` = false to instantly revert to old behavior.",
+    "data_considerations": "If rolling back, ensure pending `inventory_reservations` from V2 are either cleared or ignored by V1."
+  }
+}

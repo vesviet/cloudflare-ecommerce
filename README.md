@@ -52,6 +52,7 @@ The system uses a strict Role-Based Access Control model managed in `packages/da
 - Node.js 22+
 - `pnpm` 9+
 - Cloudflare Wrangler CLI
+- [Stripe CLI](https://stripe.com/docs/stripe-cli) (For local webhook testing)
 
 ### Running Locally
 ```bash
@@ -61,3 +62,10 @@ pnpm install
 # Start all local development servers
 pnpm dev
 ```
+
+### Stripe Webhook Local Testing
+To test Stripe Webhooks locally, run the Stripe CLI to forward events to the local `public-api` worker:
+```bash
+stripe listen --forward-to localhost:8787/api/webhooks/stripe
+```
+Then copy the webhook secret provided by the CLI and set it in your `apps/public-api/.dev.vars` file as `STRIPE_WEBHOOK_SECRET=whsec_...`

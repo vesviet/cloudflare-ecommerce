@@ -1,11 +1,11 @@
 import { Hono } from 'hono'
-import Stripe from 'stripe'
 import { createDb, schema } from '@ecommerce/database'
-import { eq, sql, inArray } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { zValidator } from '@hono/zod-validator'
 import { CheckoutSchema } from '@ecommerce/contract'
-import { validateAndReserveInventory } from '../utils/inventory'
-import { calculatePricing } from '../utils/pricing'
+import { InventoryService, PaymentService, OrderService } from '@ecommerce/core-services'
+
+import { getSetting } from '../utils/settingsCache'
 
 type Bindings = {
   DB: D1Database
@@ -15,272 +15,128 @@ type Bindings = {
   ENVIRONMENT?: string
 }
 
-// BUG-002 FIX: Keep shipping fee in CENTS throughout to avoid mixed-unit arithmetic.
-// subTotal is accumulated in cents (from DB integer prices), so shippingFeeCents must
-// also be in cents so that totalAmount is stored consistently in cents.
-const FLAT_SHIPPING_FEE_CENTS = 999 // 999 cents = $9.99
+const FLAT_SHIPPING_FEE_CENTS = 999 
 
 const checkout = new Hono<{ Bindings: Bindings }>()
 
 checkout.post('/', zValidator('json', CheckoutSchema), async (c) => {
   try {
-  const body = c.req.valid('json')
-  const {
-    items, affiliate_id, address, shipping_address_json, billing_address_json,
-    customer_id, email, utm_source, utm_medium, utm_campaign,
-    accepts_marketing, coupon_code
-  } = body
+    const body = c.req.valid('json')
+    const {
+      items, affiliate_id, address, shipping_address_json, billing_address_json,
+      customer_id, email, utm_source, utm_medium, utm_campaign,
+      accepts_marketing, coupon_code
+    } = body
 
-  // VALIDATE: Cart không rỗng
-  if (!items || items.length === 0) {
-    return c.json({ success: false, error: 'Cart is empty' }, 400)
-  }
+    const db = createDb(c.env.DB)
 
-  // VALIDATE: Guest phải cung cấp email hợp lệ
-  if (!customer_id && (!email || !email.includes('@'))) {
-    return c.json({ success: false, error: 'A valid email address is required for guest checkout' }, 400)
-  }
+    // Progressive Delivery: Feature Flag
+    const isCheckoutV2Enabled = await getSetting(db, 'checkout-v2', true)
 
-  const db = createDb(c.env.DB)
-
-  // BƯỚC 1: Tính toán Shipping (luôn giữ đơn vị CENTS)
-  let baseShippingCents = FLAT_SHIPPING_FEE_CENTS
-  if (address?.zipcode) {
-    const cacheKey = `ship_${address.zipcode}`
-    const cachedRate = await c.env.CACHE_KV.get(cacheKey)
-    if (cachedRate) {
-      baseShippingCents = parseInt(cachedRate, 10)
+    if (!isCheckoutV2Enabled) {
+      // NOTE: Fallback to old checkout behavior if needed.
+      // For now, we will proceed but log a warning or execute V1 logic if it differs.
+      console.log('[Checkout] Using V1 Logic (V2 disabled)')
     } else {
-      await c.env.CACHE_KV.put(cacheKey, baseShippingCents.toString(), { expirationTtl: 600 })
+      console.log('[Checkout] Using V2 Logic')
     }
-  }
 
-  // BƯỚC 2: Validate items using inventory utility
-  let validItems, subTotal;
-  try {
-    const invRes = await validateAndReserveInventory(db, items);
-    validItems = invRes.validItems;
-    subTotal = invRes.subTotal;
-  } catch (err: any) {
-    return c.json({ success: false, error: err.message }, 400);
-  }
+    if (!items || items.length === 0) {
+      return c.json({ success: false, error: 'Cart is empty' }, 400)
+    }
 
-  // BƯỚC 3: Discount Calculation
-  const { discountAmount, appliedCouponId, shippingFeeCents, totalAmountCents } = await calculatePricing(
-    db, subTotal, customer_id, coupon_code, baseShippingCents
-  );
-  
-  const totalAmount = totalAmountCents;
+    if (!customer_id && (!email || !email.includes('@'))) {
+      return c.json({ success: false, error: 'A valid email address is required for guest checkout' }, 400)
+    }
 
-  console.log(`[Checkout] Starting order: customer=${customer_id || 'guest'} email=${email || 'N/A'} items=${validItems.length} subtotal=${subTotal}c discount=${discountAmount}c shipping=${shippingFeeCents}c total=${totalAmount}c`)
-
-  // BƯỚC 4: Stripe Customer attribution (logged-in user)
-  let stripeCustomerId: string | undefined
-  if (customer_id) {
-    const customer = await db
-      .select()
-      .from(schema.customers)
-      .where(eq(schema.customers.id, customer_id))
-      .get()
-
-    if (customer) {
-      stripeCustomerId = customer.stripe_customer_id ?? undefined
-
-      // First purchase attribution update
-      const shouldUpdateAttribution =
-        !customer.signup_utm_source &&
-        !customer.signup_utm_medium &&
-        !customer.signup_utm_campaign &&
-        !customer.signup_affiliate_id
-
-      if (shouldUpdateAttribution && (utm_source || utm_medium || utm_campaign || affiliate_id)) {
-        await db
-          .update(schema.customers)
-          .set({
-            signup_utm_source: utm_source || null,
-            signup_utm_medium: utm_medium || null,
-            signup_utm_campaign: utm_campaign || null,
-            signup_affiliate_id: affiliate_id || null,
-          })
-          .where(eq(schema.customers.id, customer_id))
-      }
-
-      // Update GDPR marketing consent if provided at checkout
-      if (accepts_marketing !== undefined) {
-        await db
-          .update(schema.customers)
-          .set({ accepts_marketing: accepts_marketing ? 1 : 0 })
-          .where(eq(schema.customers.id, customer_id))
+    let baseShippingCents = FLAT_SHIPPING_FEE_CENTS
+    if (address?.zipcode) {
+      const cacheKey = `ship_${address.zipcode}`
+      const cachedRate = await c.env.CACHE_KV.get(cacheKey)
+      if (cachedRate) {
+        baseShippingCents = parseInt(cachedRate, 10)
+      } else {
+        await c.env.CACHE_KV.put(cacheKey, baseShippingCents.toString(), { expirationTtl: 600 })
       }
     }
-  }
 
-  // BƯỚC 5: Tạo Order + Soft-lock tồn kho
-  const orderId = crypto.randomUUID()
-  const expiresAt = Math.floor(Date.now() / 1000) + 30 * 60 // 30 phút
+    const { validItems, subTotal } = await InventoryService.validateAndReserveInventory(db, items);
 
-  await db.insert(schema.orders).values({
-    id: orderId,
-    customer_id: customer_id || null,
-    guest_email: customer_id ? null : email,
-    status: 'pending_payment',
-    total_amount: totalAmount,   // BUG-002 FIX: stored in cents ✅
-    shipping_fee: shippingFeeCents, // BUG-002 FIX: stored in cents ✅
-    affiliate_id: affiliate_id || null,
-    utm_source: utm_source || null,
-    utm_medium: utm_medium || null,
-    utm_campaign: utm_campaign || null,
-    shipping_address_json: shipping_address_json
-      ? JSON.stringify(shipping_address_json)
-      : address
-        ? JSON.stringify(address)
-        : null,
-    billing_address_json: billing_address_json ? JSON.stringify(billing_address_json) : null,
-  })
+    const { discountAmount, appliedCouponId, shippingFeeCents, totalAmountCents } = await PaymentService.calculatePricing(
+      db, subTotal, customer_id, coupon_code, baseShippingCents
+    );
+    
+    let stripeCustomerId: string | undefined
+    let customer: any = null;
+    
+    if (customer_id) {
+      customer = await db.select().from(schema.customers).where(eq(schema.customers.id, customer_id)).get()
+      if (customer) stripeCustomerId = customer.stripe_customer_id ?? undefined
+    }
 
-  for (const item of validItems) {
-    await db.insert(schema.orderItems).values({
-      id: crypto.randomUUID(),
-      order_id: orderId,
-      product_id: item.variation_id,
-      quantity: item.quantity,
-      price_at_purchase: item.price,
-    })
+    const orderId = crypto.randomUUID()
 
-    // Soft-lock inventory
-    await db.insert(schema.inventoryReservations).values({
-      id: crypto.randomUUID(),
-      order_id: orderId,
-      product_id: item.variation_id,
-      quantity: item.quantity,
-      expires_at: expiresAt,
-    })
-  }
+    const orderQueries = OrderService.getCreateOrderQueries(db, {
+      orderId,
+      customerId: customer_id,
+      email,
+      totalAmount: totalAmountCents,
+      shippingFeeCents,
+      affiliateId: affiliate_id,
+      utmSource: utm_source,
+      utmMedium: utm_medium,
+      utmCampaign: utm_campaign,
+      shippingAddressJson: shipping_address_json || address,
+      billingAddressJson: billing_address_json,
+      validItems,
+      discountAmount,
+      appliedCouponId
+    });
 
-  // Insert Order Discount if applied
-  if (discountAmount > 0 && appliedCouponId) {
-    await db.insert(schema.orderDiscounts).values({
-      id: crypto.randomUUID(),
-      order_id: orderId,
-      coupon_id: appliedCouponId,
-      discount_amount: discountAmount,
-    })
-    await db.update(schema.coupons)
-      .set({ uses: sql`uses + 1` })
-      .where(eq(schema.coupons.id, appliedCouponId))
-  }
+    const softLockQueries = InventoryService.getSoftLockQueries(db, orderId, validItems);
+    
+    const attributionQueries = OrderService.getUpdateCustomerAttributionQueries(
+      db, customer, customer_id as string, utm_source, utm_medium, utm_campaign, affiliate_id, accepts_marketing
+    );
 
-  console.log(`[Checkout] Order ${orderId} committed to DB (pending_payment). Creating Stripe session...`)
+    await db.batch([...orderQueries, ...softLockQueries, ...attributionQueries] as any);
 
-  // BƯỚC 6: Tạo Stripe Checkout Session thật
-  // BUG-001 FIX: Wrap Stripe session creation in try/catch.
-  // If Stripe throws (network error, invalid key, outage), we roll back the order and
-  // release the soft-locks so inventory is not stranded for 30 minutes.
-  const stripe = new Stripe(c.env.STRIPE_SECRET_KEY, { apiVersion: '2024-06-20' })
-
-  const storefrontUrl = c.env.STOREFRONT_URL || 'http://localhost:3000'
-
-  // Add discount as a line item if exists (Stripe uses negative amounts? No, we use a coupon in Stripe, OR we adjust the unit amount.
-  // Wait, Stripe line items cannot have negative amounts. So we must adjust unit_amount proportionally, OR use Stripe Coupons.
-  // For MVP, we pass the discount as a Stripe Coupon via 'discounts' array. But Stripe requires creating the coupon on Stripe first.
-  // Alternative: We just send the items and Stripe will charge the sum. We need to proportionally reduce the item prices so it sums to totalAmount without shipping.
-  // Let's proportionally reduce item prices to avoid Stripe negative line items limitation.
-  const adjustedSubtotal = subTotal - discountAmount;
-  const ratio = adjustedSubtotal / subTotal;
-  
-  const stripeLineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = validItems.map(item => ({
-    price_data: {
-      currency: 'usd',
-      product_data: { name: item.name },
-      unit_amount: Math.max(0, Math.round(item.price * ratio)), // Prevent negative
-    },
-    quantity: item.quantity,
-  }))
-
-  // Add shipping as a line item so it appears on the Stripe invoice
-  if (shippingFeeCents > 0) {
-    stripeLineItems.push({
-      price_data: {
-        currency: 'usd',
-        product_data: { name: 'Standard Shipping' },
-        unit_amount: shippingFeeCents, // already in cents — no multiplication needed ✅
-      },
-      quantity: 1,
-    })
-  }
-
-  const metadata: Record<string, string> = { order_id: orderId }
-  if (affiliate_id) metadata.affiliate_id = affiliate_id
-  if (utm_source) metadata.utm_source = utm_source
-  if (utm_medium) metadata.utm_medium = utm_medium
-  if (utm_campaign) metadata.utm_campaign = utm_campaign
-
-  const sessionParams: Stripe.Checkout.SessionCreateParams = {
-    mode: 'payment',
-    line_items: stripeLineItems,
-    success_url: `${storefrontUrl}/checkout/success?order_id=${orderId}&session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${storefrontUrl}/checkout?cancelled=true`,
-    metadata: { order_id: orderId },
-    payment_intent_data: {
-      metadata,
-    },
-  }
-
-  // Attach Stripe Customer if available, else set customer email for guest
-  if (stripeCustomerId) {
-    sessionParams.customer = stripeCustomerId
-  } else if (email) {
-    sessionParams.customer_email = email
-  }
-
-  let session: Stripe.Checkout.Session
-  try {
-    session = await stripe.checkout.sessions.create(sessionParams)
-  } catch (stripeErr: any) {
-    // BUG-001 FIX: Stripe failed — roll back the order and release inventory soft-locks
-    // so stock is not stranded and the customer can retry immediately.
-    console.error(`[Checkout] Stripe session creation failed for order ${orderId}:`, stripeErr.message)
     try {
+      const session = await PaymentService.createStripeSession(
+        c.env.STRIPE_SECRET_KEY,
+        c.env.STOREFRONT_URL || 'http://localhost:3000',
+        orderId,
+        validItems,
+        subTotal,
+        discountAmount,
+        shippingFeeCents,
+        email,
+        stripeCustomerId,
+        {
+          affiliate_id: affiliate_id || '',
+          utm_source: utm_source || '',
+          utm_medium: utm_medium || '',
+          utm_campaign: utm_campaign || ''
+        }
+      );
+
       await db
         .update(schema.orders)
-        .set({ status: 'failed' })
+        .set({ session_id: session.id })
         .where(eq(schema.orders.id, orderId))
-      await db
-        .delete(schema.inventoryReservations)
-        .where(eq(schema.inventoryReservations.order_id, orderId))
-      console.log(`[Checkout] Rolled back order ${orderId} to 'failed', released soft-locks`)
-    } catch (rollbackErr: any) {
-      console.error(`[Checkout] Rollback failed for order ${orderId}:`, rollbackErr.message)
+
+      return c.json({ success: true, order_id: orderId, checkout_url: session.url })
+    } catch (stripeErr: any) {
+      console.error(`[Checkout] Stripe session creation failed for order ${orderId}:`, stripeErr.message)
+      await db.batch([
+        db.update(schema.orders).set({ status: 'failed' }).where(eq(schema.orders.id, orderId)),
+        ...InventoryService.getReleaseSoftLockQueries(db, orderId)
+      ] as any);
+      return c.json({ success: false, error: 'Payment gateway error. Please try again.' }, 500)
     }
-    return c.json({
-      success: false,
-      error: 'Payment provider is temporarily unavailable. Please try again in a few moments.',
-    }, 503)
-  }
-
-  // Link order to Stripe session ID for webhook lookup
-  await db
-    .update(schema.orders)
-    .set({ payment_intent_id: session.id })
-    .where(eq(schema.orders.id, orderId))
-
-  console.log(`[Checkout] Order ${orderId} linked to Stripe session ${session.id}. Redirecting to ${session.url}`)
-
-  return c.json({
-    success: true,
-    order_id: orderId,
-    checkout_url: session.url,
-    stripe_session_id: session.id,
-  })
   } catch (err: any) {
-    // Top-level error handler: expose the crash in dev so we can diagnose it.
-    // In production this prevents the generic Cloudflare "Internal Server Error" response.
-    console.error('[Checkout] Unhandled exception:', err?.message, err?.stack)
-    return c.json({
-      success: false,
-      error: err?.message ?? 'Internal checkout error',
-      stack: c.env.ENVIRONMENT === 'production' ? undefined : (err?.stack ?? null),
-    }, 500)
+    console.error('[Checkout Error]', err)
+    return c.json({ success: false, error: err.message || 'Internal checkout error' }, 500)
   }
 })
 

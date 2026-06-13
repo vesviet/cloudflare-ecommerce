@@ -8,6 +8,7 @@ import {
   Users, 
   FileText, 
   Shield, 
+  Settings,
   LogOut,
   ChevronLeft,
   ChevronRight,
@@ -28,6 +29,7 @@ const NAV_ITEMS = [
   { id: 'customers', path: '/customers', label: 'Customers', roles: ['superadmin', 'manager', 'support'], icon: Users },
   { id: 'cms', path: '/cms', label: 'Content (CMS)', roles: ['superadmin', 'manager', 'editor'], icon: FileText },
   { id: 'team', path: '/team', label: 'Team', roles: ['superadmin'], icon: Shield },
+  { id: 'settings', path: '/settings', label: 'Settings', roles: ['superadmin', 'manager'], icon: Settings },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({ userRole, onLogout }) => {
