@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import useSWR from 'swr';
 import { GlassCard } from '../components/ui/GlassCard';
 import { SkeletonLoader } from '../components/ui/SkeletonLoader';
@@ -87,9 +87,9 @@ export const TeamTab: React.FC<TeamTabProps> = ({ API_BASE_URL, addToast }) => {
     editor: { bg: 'rgba(255, 255, 255, 0.1)', color: '#e0e0e0', border: 'rgba(255, 255, 255, 0.2)' },
   };
 
-  if (error) {
-    addToast(error.message || 'Failed to fetch team members', 'error');
-  }
+  useEffect(() => {
+    if (error) addToast(error.message || 'Failed to fetch team members', 'error');
+  }, [error, addToast]);
 
   return (
     <div className="w-full">

@@ -16,7 +16,7 @@ import { LoginScreen } from './components/LoginScreen';
 import { GlassCard } from './components/ui/GlassCard';
 
 // Use environment variable if available, fallback to localhost for dev
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8788';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8788/api';
 
 // Global SWR configuration could be moved here later
 

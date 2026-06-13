@@ -19,7 +19,7 @@ metrics.get('/metrics', async (c) => {
     `);
 
     const lowStock = await db.get<{ lowStockCount: number }>(sql`
-      SELECT COUNT(*) as lowStockCount FROM product_variations WHERE stock < 5
+      SELECT COUNT(*) as lowStockCount FROM products WHERE stock_quantity < 5 AND manage_stock = 1
     `);
 
     const totalOrders = stats?.totalOrders || 0;

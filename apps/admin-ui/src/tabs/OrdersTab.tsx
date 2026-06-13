@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import useSWR from 'swr';
 import type { OrderData } from '../types';
 import { OrderDetailModal } from '../components/OrderDetailModal';
@@ -21,6 +21,8 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({ API_BASE_URL, addToast }) 
   const [fulfillTrackingNumber, setFulfillTrackingNumber] = useState('');
   const [fulfillCarrierName, setFulfillCarrierName] = useState('');
   const [isFulfilling, setIsFulfilling] = useState(false);
+  const [fulfillItemsOptions, setFulfillItemsOptions] = useState<any[]>([]);
+  const [selectedFulfillItems, setSelectedFulfillItems] = useState<any[]>([]);
 
   // Detail State
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
@@ -30,11 +32,30 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({ API_BASE_URL, addToast }) 
 
   const orders = result?.data || [];
 
-  const handleOpenFulfillModal = (orderId: string) => {
+  const handleOpenFulfillModal = async (orderId: string) => {
     setFulfillOrderId(orderId);
     setFulfillTrackingNumber('');
     setFulfillCarrierName('');
+    setFulfillItemsOptions([]);
+    setSelectedFulfillItems([]);
     setShowFulfillModal(true);
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/orders/${orderId}`);
+      const data = await res.json();
+      if (data.success && data.data.items) {
+        const opts = data.data.items.map((i: any) => ({
+          order_item_id: i.id,
+          product_title: i.product_title,
+          maxQuantity: i.quantity,
+          quantity: i.quantity
+        }));
+        setFulfillItemsOptions(opts);
+        setSelectedFulfillItems(opts);
+      }
+    } catch (e) {
+      console.error('Failed to fetch items for fulfillment:', e);
+    }
   };
 
   const handleFulfillSubmit = async (e: React.FormEvent) => {
@@ -51,7 +72,11 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({ API_BASE_URL, addToast }) 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tracking_number: fulfillTrackingNumber,
-          carrier_name: fulfillCarrierName
+          carrier_name: fulfillCarrierName,
+          items: selectedFulfillItems.filter(i => i.quantity > 0).map(i => ({
+            order_item_id: i.order_item_id,
+            quantity: i.quantity
+          }))
         })
       });
       const data = await res.json();
@@ -71,9 +96,9 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({ API_BASE_URL, addToast }) 
 
   const formatCurrency = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
 
-  if (error) {
-    addToast(error.message || 'Failed to fetch orders', 'error');
-  }
+  useEffect(() => {
+    if (error) addToast(error.message || 'Failed to fetch orders', 'error');
+  }, [error, addToast]);
 
   return (
     <div className="w-full">
@@ -228,6 +253,52 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({ API_BASE_URL, addToast }) 
                   required
                 />
               </div>
+
+              <div className="mt-4">
+                <label className="block text-sm font-medium text-text-muted mb-2">Items to Fulfill</label>
+                {fulfillItemsOptions.length === 0 ? (
+                  <div className="text-sm text-text-muted">Loading items...</div>
+                ) : (
+                  <div className="space-y-2 max-h-[200px] overflow-y-auto pr-2">
+                    {fulfillItemsOptions.map((item) => {
+                      const selected = selectedFulfillItems.find(i => i.order_item_id === item.order_item_id);
+                      return (
+                        <div key={item.order_item_id} className="flex items-center gap-3 p-2 rounded-lg bg-white/5 border border-white/10">
+                          <input 
+                            type="checkbox" 
+                            checked={!!selected}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedFulfillItems([...selectedFulfillItems, { ...item, quantity: item.maxQuantity }]);
+                              } else {
+                                setSelectedFulfillItems(selectedFulfillItems.filter(i => i.order_item_id !== item.order_item_id));
+                              }
+                            }}
+                            className="accent-success-accent w-4 h-4 cursor-pointer"
+                          />
+                          <span className="flex-1 text-sm text-text-main line-clamp-1" title={item.product_title}>{item.product_title}</span>
+                          {selected && (
+                            <input
+                              type="number"
+                              min={1}
+                              max={item.maxQuantity}
+                              value={selected.quantity}
+                              onChange={(e) => {
+                                const q = parseInt(e.target.value) || 1;
+                                setSelectedFulfillItems(selectedFulfillItems.map(i => 
+                                  i.order_item_id === item.order_item_id ? { ...i, quantity: Math.min(q, item.maxQuantity) } : i
+                                ));
+                              }}
+                              className="w-16 px-2 py-1 text-sm bg-black/40 text-text-main border border-white/10 rounded outline-none focus:border-success-accent"
+                            />
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+
               <div className="flex gap-3 mt-8">
                 <button
                   type="button"

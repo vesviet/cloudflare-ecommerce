@@ -57,6 +57,9 @@ function CheckoutInner() {
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [guestAddress, setGuestAddress] = useState<GuestAddress>(EMPTY_GUEST);
 
+  // --- Coupon ---
+  const [couponCode, setCouponCode] = useState('');
+
   // --- B2B ---
   const [isB2B, setIsB2B] = useState(false);
   const [b2bCompany, setB2bCompany] = useState('');
@@ -176,6 +179,10 @@ function CheckoutInner() {
       items: items.map(item => ({ variation_id: item.id, quantity: item.quantity })),
       accepts_marketing: acceptsMarketing,
     };
+
+    if (couponCode.trim()) {
+      payload.coupon_code = couponCode.trim();
+    }
 
     if (utm.source) payload.utm_source = utm.source;
     if (utm.medium) payload.utm_medium = utm.medium;
@@ -431,6 +438,15 @@ function CheckoutInner() {
           </div>
 
           <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+              <input
+                type="text"
+                value={couponCode}
+                onChange={(e) => setCouponCode(e.target.value)}
+                placeholder="Discount code"
+                style={{ ...inputStyle, padding: '8px 12px', fontSize: '0.9rem' }}
+              />
+            </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
               <span>Subtotal</span>
               <span>{formatCurrency(getCartTotal())}</span>

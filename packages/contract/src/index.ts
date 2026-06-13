@@ -15,6 +15,7 @@ export const ProductSchema = z.object({
 export const CheckoutSchema = z.object({
   email: z.string().email().optional(),
   customer_id: z.string().uuid().optional(),
+  coupon_code: z.string().optional(),
   address: z.object({
     fullname: z.string().optional(),
     address: z.string().optional(),
@@ -39,5 +40,63 @@ export const ErrorResponseSchema = z.object({
   success: z.boolean().default(false),
   error: z.string()
 }).openapi('ErrorResponse')
+
+// --- E-COMMERCE STANDARDIZATION ADDITIONS ---
+
+export const CouponSchema = z.object({
+  id: z.string().uuid(),
+  code: z.string(),
+  type: z.enum(['percent', 'fixed', 'freeship']),
+  value: z.number(),
+  max_uses: z.number().int().optional(),
+  uses: z.number().int().default(0),
+  expires_at: z.number().int().optional(),
+  is_active: z.boolean().default(true),
+  created_at: z.string().datetime(),
+}).openapi('Coupon')
+
+export const ReviewSchema = z.object({
+  id: z.string().uuid(),
+  product_id: z.string().uuid(),
+  customer_id: z.string().uuid().optional(),
+  rating: z.number().int().min(1).max(5),
+  comment: z.string().optional(),
+  status: z.enum(['pending', 'approved', 'rejected']).default('pending'),
+  verified_purchase: z.boolean().default(false),
+  created_at: z.string().datetime(),
+}).openapi('Review')
+
+export const WishlistSchema = z.object({
+  id: z.string().uuid(),
+  customer_id: z.string().uuid(),
+  product_id: z.string().uuid(),
+  created_at: z.string().datetime(),
+}).openapi('Wishlist')
+
+export const FulfillmentSchema = z.object({
+  id: z.string().uuid(),
+  order_id: z.string().uuid(),
+  status: z.enum(['processing', 'shipped', 'delivered', 'cancelled']).default('processing'),
+  tracking_number: z.string().optional(),
+  carrier: z.string().optional(),
+  shipped_at: z.string().datetime().optional(),
+  items: z.array(z.object({
+    order_item_id: z.string().uuid(),
+    quantity: z.number().int().positive()
+  })).optional(),
+  created_at: z.string().datetime(),
+  updated_at: z.string().datetime(),
+}).openapi('Fulfillment')
+
+export const RMASchema = z.object({
+  id: z.string().uuid(),
+  order_id: z.string().uuid(),
+  customer_id: z.string().uuid(),
+  status: z.enum(['requested', 'approved', 'refunded', 'rejected']).default('requested'),
+  reason: z.string(),
+  refund_amount: z.number().int().optional(),
+  created_at: z.string().datetime(),
+  updated_at: z.string().datetime(),
+}).openapi('RMA')
 
 export * from './admin';

@@ -25,8 +25,10 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ addToast }) => {
   const recentOrders = ordersResult?.data?.slice(0, 5) || [];
   const loading = metricsLoading || ordersLoading;
 
-  if (metricsError) addToast(metricsError.message || 'Error loading metrics', 'error');
-  if (ordersError) addToast(ordersError.message || 'Error loading orders', 'error');
+  React.useEffect(() => {
+    if (metricsError) addToast(metricsError.message || 'Error loading metrics', 'error');
+    if (ordersError) addToast(ordersError.message || 'Error loading orders', 'error');
+  }, [metricsError, ordersError, addToast]);
 
   const formatCurrency = (minorAmount: number | string) => {
     const amount = typeof minorAmount === 'string' ? parseFloat(minorAmount) : minorAmount;

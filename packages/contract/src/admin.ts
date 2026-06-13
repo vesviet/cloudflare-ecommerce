@@ -88,6 +88,10 @@ export const resetPasswordSchema = z.object({
 export const fulfillSchema = z.object({
   tracking_number: z.string().min(1, "Tracking number is required"),
   carrier_name: z.string().min(1, "Carrier name is required"),
+  items: z.array(z.object({
+    order_item_id: z.string(),
+    quantity: z.number().int().positive()
+  })).optional(),
 });
 
 export const productFormSchema = z.object({

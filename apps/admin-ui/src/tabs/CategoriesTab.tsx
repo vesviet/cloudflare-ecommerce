@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import useSWR from 'swr';
 import type { CategoryData } from '../types';
 import { GlassCard } from '../components/ui/GlassCard';
@@ -86,9 +86,9 @@ export const CategoriesTab: React.FC<CategoriesTabProps> = ({ API_BASE_URL, addT
     }
   };
 
-  if (error) {
-    addToast(error.message || 'Failed to fetch categories', 'error');
-  }
+  useEffect(() => {
+    if (error) addToast(error.message || 'Failed to fetch categories', 'error');
+  }, [error, addToast]);
 
   return (
     <div className="w-full">

@@ -5,7 +5,11 @@
     "build": "turbo run build",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
-    "deploy": "turbo run deploy"
+    "deploy": "turbo run deploy",
+    "setup": "pnpm install && pnpm run setup:db && pnpm run setup:kv && pnpm run setup:secrets",
+    "setup:db": "cd apps/public-api && npx wrangler d1 migrations apply e-commerce --local && npx wrangler d1 execute e-commerce --local --file=seed.sql && cd ../admin-api && npx wrangler d1 migrations apply e-commerce --local && npx wrangler d1 execute e-commerce --local --file=../public-api/seed.sql",
+    "setup:kv": "cd apps/public-api && npx wrangler kv:key put --binding=CACHE_KV \"feature_flags\" \"{\\\"rma_self_service\\\": true}\" --local --preview",
+    "setup:secrets": "node -e \"const fs = require('fs'); ['public-api', 'admin-api'].forEach(app => { const p = 'apps/'+app+'/.dev.vars'; if (!fs.existsSync(p)) fs.copyFileSync('apps/public-api/.dev.vars.example', p); })\""
   },
   "devDependencies": {
     "turbo": "latest"

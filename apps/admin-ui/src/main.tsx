@@ -5,7 +5,7 @@ import { SWRConfig } from 'swr'
 import './index.css'
 import App from './App.tsx'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8788';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8788/api';
 
 // Global fetcher that automatically includes X-Local-Admin-Email in dev mode
 const fetcher = async (url: string) => {

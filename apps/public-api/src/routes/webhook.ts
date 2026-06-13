@@ -172,12 +172,12 @@ webhook.post('/stripe', async (c) => {
         for (const item of orderItems) {
           batchQueries.push(
             db
-              .update(schema.productVariations)
+              .update(schema.products)
               .set({ 
-                stock: sql`stock + ${item.quantity}`, 
+                stock_quantity: sql`stock_quantity + ${item.quantity}`, 
                 in_stock: 1 
               })
-              .where(eq(schema.productVariations.id, item.variation_id))
+              .where(eq(schema.products.id, item.product_id))
           )
         }
 

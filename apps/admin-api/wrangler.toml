@@ -1,8 +1,9 @@
 name = "admin-api-worker"
 main = "src/index.ts"
-compatibility_date = "2024-05-12"
+compatibility_date = "2024-06-05"
 
 [vars]
+# Non-secret runtime config — secrets (STRIPE_SECRET_KEY) must be set via: wrangler secret put <KEY>
 TEAM_DOMAIN = "https://tanhdev.cloudflareaccess.com"
 AUDIENCE_TAG = "876ed9bd951b8a57e6144a5d7344a0999cafbb7f1a2dee69d833778bf6b26f0e"
 
@@ -32,5 +33,8 @@ preview_id = "local-cache-kv"
 binding = "EVENT_QUEUE"
 queue = "ecommerce-events-prod"
 
-[triggers]
-crons = ["*/15 * * * *"] # Every 15 minutes for inventory cleanup
+[[queues.consumers]]
+queue = "ecommerce-events-dlq"
+max_batch_size = 10
+max_batch_timeout = 5
+max_retries = 1

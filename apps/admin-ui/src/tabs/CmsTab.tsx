@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 
 import useSWR from 'swr';
 import { useSearchParams } from 'react-router-dom';
@@ -77,9 +78,9 @@ export function CmsTab({ API_BASE_URL, addToast }: CmsTabProps) {
 
   const editingEntryData = id ? entries.find(e => e.id === id) || null : null;
 
-  if (error) {
-    addToast(error.message || 'Failed to load CMS entries', 'error');
-  }
+  useEffect(() => {
+    if (error) addToast(error.message || 'Failed to load CMS entries', 'error');
+  }, [error, addToast]);
 
   return (
     <div className="w-full">

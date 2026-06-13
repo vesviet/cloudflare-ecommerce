@@ -49,3 +49,9 @@ pnpm-debug.log*
 *.tsbuildinfo
 .turbo/
 AGENTS.md
+
+# ==========================
+# Playwright QA
+# ==========================
+playwright-report/
+test-results/

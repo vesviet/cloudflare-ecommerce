@@ -4,6 +4,8 @@ import { createDb, schema } from '@ecommerce/database'
 import { eq, sql, inArray } from 'drizzle-orm'
 import { zValidator } from '@hono/zod-validator'
 import { CheckoutSchema } from '@ecommerce/contract'
+import { validateAndReserveInventory } from '../utils/inventory'
+import { calculatePricing } from '../utils/pricing'
 
 type Bindings = {
   DB: D1Database
@@ -26,7 +28,7 @@ checkout.post('/', zValidator('json', CheckoutSchema), async (c) => {
   const {
     items, affiliate_id, address, shipping_address_json, billing_address_json,
     customer_id, email, utm_source, utm_medium, utm_campaign,
-    accepts_marketing,
+    accepts_marketing, coupon_code
   } = body
 
   // VALIDATE: Cart không rỗng
@@ -42,94 +44,37 @@ checkout.post('/', zValidator('json', CheckoutSchema), async (c) => {
   const db = createDb(c.env.DB)
 
   // BƯỚC 1: Tính toán Shipping (luôn giữ đơn vị CENTS)
-  // MVP: flat rate 999 cents ($9.99). FedEx/USPS real API là Phase 2.
-  // BUG-002 FIX: shippingFeeCents stays in cents — never divide to dollars here.
-  let shippingFeeCents = FLAT_SHIPPING_FEE_CENTS // 999 cents
+  let baseShippingCents = FLAT_SHIPPING_FEE_CENTS
   if (address?.zipcode) {
     const cacheKey = `ship_${address.zipcode}`
     const cachedRate = await c.env.CACHE_KV.get(cacheKey)
     if (cachedRate) {
-      // Cached values are also stored in cents
-      shippingFeeCents = parseInt(cachedRate, 10)
+      baseShippingCents = parseInt(cachedRate, 10)
     } else {
-      // Giữ flat rate đến khi FedEx/USPS được tích hợp thật
-      await c.env.CACHE_KV.put(cacheKey, shippingFeeCents.toString(), { expirationTtl: 600 })
+      await c.env.CACHE_KV.put(cacheKey, baseShippingCents.toString(), { expirationTtl: 600 })
     }
   }
 
-  // BƯỚC 2: Validate items using batched queries
-  let subTotal = 0 // in cents
-  const validItems: { variation_id: string; quantity: number; price: number; name: string }[] = []
+  // BƯỚC 2: Validate items using inventory utility
+  let validItems, subTotal;
+  try {
+    const invRes = await validateAndReserveInventory(db, items);
+    validItems = invRes.validItems;
+    subTotal = invRes.subTotal;
+  } catch (err: any) {
+    return c.json({ success: false, error: err.message }, 400);
+  }
 
-  const variationIds = items.map((i: any) => i.variation_id)
+  // BƯỚC 3: Discount Calculation
+  const { discountAmount, appliedCouponId, shippingFeeCents, totalAmountCents } = await calculatePricing(
+    db, subTotal, customer_id, coupon_code, baseShippingCents
+  );
   
-  // Fetch all variations in one query
-  const variations = await db
-    .select()
-    .from(schema.products)
-    .where(inArray(schema.products.id, variationIds))
-    .all()
+  const totalAmount = totalAmountCents;
 
-  // Fetch all active reservations for these variations in one query
-  const now = Math.floor(Date.now() / 1000)
-  const allReservations = await db
-    .select()
-    .from(schema.inventoryReservations)
-    .where(sql`product_id IN (${sql.join(variationIds, sql`, `)}) AND expires_at > ${now}`)
-    .all()
+  console.log(`[Checkout] Starting order: customer=${customer_id || 'guest'} email=${email || 'N/A'} items=${validItems.length} subtotal=${subTotal}c discount=${discountAmount}c shipping=${shippingFeeCents}c total=${totalAmount}c`)
 
-  // Group reservations by variation_id
-  const reservationMap = new Map<string, number>()
-  for (const res of allReservations) {
-    reservationMap.set(res.product_id, (reservationMap.get(res.product_id) || 0) + res.quantity)
-  }
-
-  // Fetch products for names in one query
-  const parentIds = variations.map(v => v.parent_id).filter(id => id !== null) as string[]
-  let productMap = new Map<string, string>()
-  if (parentIds.length > 0) {
-    const products = await db
-      .select({ id: schema.products.id, title: schema.products.title })
-      .from(schema.products)
-      .where(inArray(schema.products.id, parentIds))
-      .all()
-    productMap = new Map(products.map(p => [p.id, p.title]))
-  }
-
-  for (const item of items) {
-    const variation = variations.find(v => v.id === item.variation_id)
-
-    if (!variation || variation.is_purchasable === 0) {
-      return c.json({ success: false, error: `Product variation ${item.variation_id} is invalid or unavailable` }, 400)
-    }
-
-    const reservedQuantity = reservationMap.get(item.variation_id) || 0
-    const availableStock = variation.stock_quantity - reservedQuantity
-
-    if (availableStock < item.quantity) {
-      return c.json({
-        success: false,
-        error: `Product variation ${item.variation_id} is out of stock (Available: ${availableStock})`,
-      }, 400)
-    }
-
-    const price = variation.sale_price ?? variation.regular_price
-    subTotal += price * item.quantity
-
-    validItems.push({
-      variation_id: item.variation_id,
-      quantity: item.quantity,
-      price,
-      name: variation.parent_id ? (productMap.get(variation.parent_id) ?? `Product ${item.variation_id.slice(0, 8)}`) : variation.title,
-    })
-  }
-
-  // BUG-002 FIX: Both subTotal and shippingFeeCents are in cents → totalAmount in cents ✅
-  const totalAmount = subTotal + shippingFeeCents
-
-  console.log(`[Checkout] Starting order: customer=${customer_id || 'guest'} email=${email || 'N/A'} items=${validItems.length} subtotal=${subTotal}c shipping=${shippingFeeCents}c total=${totalAmount}c`)
-
-  // BƯỚC 3: Stripe Customer attribution (logged-in user)
+  // BƯỚC 4: Stripe Customer attribution (logged-in user)
   let stripeCustomerId: string | undefined
   if (customer_id) {
     const customer = await db
@@ -170,7 +115,7 @@ checkout.post('/', zValidator('json', CheckoutSchema), async (c) => {
     }
   }
 
-  // BƯỚC 4: Tạo Order + Soft-lock tồn kho
+  // BƯỚC 5: Tạo Order + Soft-lock tồn kho
   const orderId = crypto.randomUUID()
   const expiresAt = Math.floor(Date.now() / 1000) + 30 * 60 // 30 phút
 
@@ -212,9 +157,22 @@ checkout.post('/', zValidator('json', CheckoutSchema), async (c) => {
     })
   }
 
+  // Insert Order Discount if applied
+  if (discountAmount > 0 && appliedCouponId) {
+    await db.insert(schema.orderDiscounts).values({
+      id: crypto.randomUUID(),
+      order_id: orderId,
+      coupon_id: appliedCouponId,
+      discount_amount: discountAmount,
+    })
+    await db.update(schema.coupons)
+      .set({ uses: sql`uses + 1` })
+      .where(eq(schema.coupons.id, appliedCouponId))
+  }
+
   console.log(`[Checkout] Order ${orderId} committed to DB (pending_payment). Creating Stripe session...`)
 
-  // BƯỚC 5: Tạo Stripe Checkout Session thật
+  // BƯỚC 6: Tạo Stripe Checkout Session thật
   // BUG-001 FIX: Wrap Stripe session creation in try/catch.
   // If Stripe throws (network error, invalid key, outage), we roll back the order and
   // release the soft-locks so inventory is not stranded for 30 minutes.
@@ -222,12 +180,19 @@ checkout.post('/', zValidator('json', CheckoutSchema), async (c) => {
 
   const storefrontUrl = c.env.STOREFRONT_URL || 'http://localhost:3000'
 
-  // Build Stripe line items from server-validated prices (all in cents)
+  // Add discount as a line item if exists (Stripe uses negative amounts? No, we use a coupon in Stripe, OR we adjust the unit amount.
+  // Wait, Stripe line items cannot have negative amounts. So we must adjust unit_amount proportionally, OR use Stripe Coupons.
+  // For MVP, we pass the discount as a Stripe Coupon via 'discounts' array. But Stripe requires creating the coupon on Stripe first.
+  // Alternative: We just send the items and Stripe will charge the sum. We need to proportionally reduce the item prices so it sums to totalAmount without shipping.
+  // Let's proportionally reduce item prices to avoid Stripe negative line items limitation.
+  const adjustedSubtotal = subTotal - discountAmount;
+  const ratio = adjustedSubtotal / subTotal;
+  
   const stripeLineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = validItems.map(item => ({
     price_data: {
       currency: 'usd',
       product_data: { name: item.name },
-      unit_amount: Math.round(item.price), // item.price is already in cents ✅
+      unit_amount: Math.max(0, Math.round(item.price * ratio)), // Prevent negative
     },
     quantity: item.quantity,
   }))

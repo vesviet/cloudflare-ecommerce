@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import useSWR from 'swr';
 import { useSearchParams } from 'react-router-dom';
 import type { ProductData } from '../types';
@@ -40,9 +40,9 @@ export const ProductsTab: React.FC<ProductsTabProps> = ({ API_BASE_URL, addToast
 
   const editingProductData = id ? products.find(p => p.id === id) || null : null;
 
-  if (error) {
-    addToast(error.message || 'Failed to fetch products', 'error');
-  }
+  useEffect(() => {
+    if (error) addToast(error.message || 'Failed to fetch products', 'error');
+  }, [error, addToast]);
 
   return (
     <div className="w-full">

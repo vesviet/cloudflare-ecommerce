@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import useSWR from 'swr';
 import type { CustomerData } from '../types';
 import { GlassCard } from '../components/ui/GlassCard';
@@ -189,9 +189,9 @@ export const CustomersTab: React.FC<CustomersTabProps> = ({ API_BASE_URL, addToa
 
   const formatCurrency = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
 
-  if (error) {
-    addToast(error.message || 'Failed to fetch customers', 'error');
-  }
+  useEffect(() => {
+    if (error) addToast(error.message || 'Failed to fetch customers', 'error');
+  }, [error, addToast]);
 
   return (
     <div className="w-full">

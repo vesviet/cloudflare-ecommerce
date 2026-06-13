@@ -153,7 +153,7 @@ export const orders = sqliteTable('orders', {
 
 export const orderItems = sqliteTable('order_items', {
   id: text('id').primaryKey(),
-  order_id: text('order_id').notNull().references(() => orders.id, { onDelete: 'cascade' }),
+  order_id: text('order_id').notNull().references(() => orders.id),
   product_id: text('product_id').notNull().references(() => products.id),
   quantity: integer('quantity').notNull(),
   price_at_purchase: integer('price_at_purchase').notNull(),
@@ -162,7 +162,7 @@ export const orderItems = sqliteTable('order_items', {
 
 export const transactions = sqliteTable('transactions', {
   id: text('id').primaryKey(),
-  order_id: text('order_id').notNull().references(() => orders.id, { onDelete: 'cascade' }),
+  order_id: text('order_id').notNull().references(() => orders.id),
   payment_intent_id: text('payment_intent_id'),
   amount: integer('amount').notNull(),
   status: text('status').notNull(), // success, failed, pending
@@ -249,5 +249,84 @@ export const auditLogs = sqliteTable('audit_logs', {
   entity_type: text('entity_type').notNull(),
   entity_id: text('entity_id').notNull(),
   payload_json: text('payload_json'),
+  created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+// --- E-COMMERCE STANDARDIZATION ADDITIONS ---
+
+export const coupons = sqliteTable('coupons', {
+  id: text('id').primaryKey(),
+  code: text('code').notNull().unique(),
+  type: text('type').notNull(), // percent, fixed, freeship
+  value: real('value').notNull(),
+  max_uses: integer('max_uses'),
+  uses: integer('uses').default(0),
+  expires_at: integer('expires_at'),
+  is_active: integer('is_active').default(1),
+  created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const orderDiscounts = sqliteTable('order_discounts', {
+  id: text('id').primaryKey(),
+  order_id: text('order_id').notNull().references(() => orders.id, { onDelete: 'cascade' }),
+  coupon_id: text('coupon_id').references(() => coupons.id, { onDelete: 'set null' }),
+  discount_amount: integer('discount_amount').notNull(),
+  created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const productReviews = sqliteTable('product_reviews', {
+  id: text('id').primaryKey(),
+  product_id: text('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  customer_id: text('customer_id').references(() => customers.id, { onDelete: 'set null' }),
+  rating: integer('rating').notNull(), // 1 to 5
+  comment: text('comment'),
+  status: text('status').default('pending'), // pending, approved, rejected
+  verified_purchase: integer('verified_purchase').default(0),
+  created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const wishlists = sqliteTable('wishlists', {
+  id: text('id').primaryKey(),
+  customer_id: text('customer_id').notNull().references(() => customers.id, { onDelete: 'cascade' }),
+  product_id: text('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const fulfillments = sqliteTable('fulfillments', {
+  id: text('id').primaryKey(),
+  order_id: text('order_id').notNull().references(() => orders.id, { onDelete: 'cascade' }),
+  status: text('status').default('processing'), // processing, shipped, delivered, cancelled
+  tracking_number: text('tracking_number'),
+  carrier: text('carrier'),
+  shipped_at: text('shipped_at'),
+  created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+  updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const fulfillmentItems = sqliteTable('fulfillment_items', {
+  id: text('id').primaryKey(),
+  fulfillment_id: text('fulfillment_id').notNull().references(() => fulfillments.id, { onDelete: 'cascade' }),
+  order_item_id: text('order_item_id').notNull().references(() => orderItems.id, { onDelete: 'cascade' }),
+  quantity: integer('quantity').notNull(),
+  created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const rmaRequests = sqliteTable('rma_requests', {
+  id: text('id').primaryKey(),
+  order_id: text('order_id').notNull().references(() => orders.id, { onDelete: 'cascade' }),
+  customer_id: text('customer_id').notNull().references(() => customers.id, { onDelete: 'cascade' }),
+  status: text('status').default('requested'), // requested, approved, refunded, rejected
+  reason: text('reason').notNull(),
+  refund_amount: integer('refund_amount'),
+  created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+  updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const failedJobs = sqliteTable('failed_jobs', {
+  id: text('id').primaryKey(),
+  queue_name: text('queue_name').notNull(),
+  payload_json: text('payload_json'),
+  error_message: text('error_message'),
+  status: text('status').default('failed'), // failed, retried
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
 });

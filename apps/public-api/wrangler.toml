@@ -45,3 +45,13 @@ preview_bucket_name = "cms-bucket-preview"
 [[queues.producers]]
 binding = "EVENT_QUEUE"
 queue = "ecommerce-events-prod"
+
+[[queues.consumers]]
+queue = "ecommerce-events-prod"
+max_batch_size = 10
+max_batch_timeout = 5
+max_retries = 3
+dead_letter_queue = "ecommerce-events-dlq"
+
+[triggers]
+crons = ["*/5 * * * *"] # Every 5 minutes for inventory cleanup

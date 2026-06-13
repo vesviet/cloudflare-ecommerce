@@ -1,0 +1,15 @@
+# Cloudflare Workers Local Secrets
+# Copy this file to .dev.vars and fill in the actual values
+
+# Required for Authentication
+JWT_SECRET=local_dev_secret_key_123
+
+# Required for Checkout / Payments (Use test mode keys)
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+
+# Optional: Required for sending emails locally
+RESEND_API_KEY=re_...
+
+# Required for bypassing Cloudflare Access in local development
+LOCAL_DEV=true

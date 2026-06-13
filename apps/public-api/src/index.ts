@@ -5,12 +5,12 @@ import { eq, sql } from 'drizzle-orm'
 import catalog from './routes/catalog'
 import checkout from './routes/checkout'
 import webhook from './routes/webhook'
+import rma from './routes/rma'
 import { customerRouter as customer } from '@ecommerce/shared-routes';
 
 import categories from './routes/categories'
 import cms from './routes/cms'
-import admin from './routes/admin'
-import { mediaRouter as media } from '@ecommerce/shared-routes';
+import { mediaRouter as media, featureFlagsRoute } from '@ecommerce/shared-routes';
 
 type Bindings = {
   DB: D1Database
@@ -57,10 +57,11 @@ app.get('/', (c) => {
 app.route('/api/products', catalog)
 app.route('/api/categories', categories)
 app.route('/api/cms', cms)
-app.route('/api/admin', admin)
 app.route('/api/checkout', checkout)
 app.route('/api/webhooks', webhook)
+app.route('/api/rma', rma)
 app.route('/api', customer)
+app.route('/api', featureFlagsRoute)
 
 app.route('/media', media)
 
@@ -229,15 +230,31 @@ export default {
         continue
       }
 
-      await db.batch([
+      const batchQueries: any[] = [
         db.update(schema.orders)
           .set({ status: 'cancelled' })
           .where(eq(schema.orders.id, res.order_id)),
         db.delete(schema.inventoryReservations)
           .where(eq(schema.inventoryReservations.id, res.id))
-      ])
+      ]
+
+      const orderDiscount = await db
+        .select()
+        .from(schema.orderDiscounts)
+        .where(eq(schema.orderDiscounts.order_id, res.order_id))
+        .get()
+
+      if (orderDiscount && orderDiscount.coupon_id) {
+        batchQueries.push(
+          db.update(schema.coupons)
+            .set({ uses: sql`MAX(0, uses - 1)` })
+            .where(eq(schema.coupons.id, orderDiscount.coupon_id))
+        )
+      }
+
+      await db.batch(batchQueries as any)
       cancelledCount++
-      console.log(`[Cron] Cancelled order ${res.order_id}, released soft-lock (Variation: ${res.variation_id}, Qty: ${res.quantity})`)
+      console.log(`[Cron] Cancelled order ${res.order_id}, released soft-lock (Product: ${res.product_id}, Qty: ${res.quantity})`)
     }
 
     console.log(`[Cron] Done: cancelled=${cancelledCount} skipped=${skippedCount} total_expired=${expiredReservations.length}`)

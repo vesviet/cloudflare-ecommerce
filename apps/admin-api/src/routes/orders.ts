@@ -114,7 +114,7 @@ orders.post('/orders/:id/refund', requireRole(['superadmin', 'manager', 'support
 orders.post('/orders/:id/fulfill', requireRole(['superadmin', 'manager', 'support']), zValidator('json', fulfillSchema), async (c) => {
   const orderId = c.req.param('id');
   try {
-    const { tracking_number, carrier_name } = c.req.valid('json');
+    const { tracking_number, carrier_name, items } = c.req.valid('json');
 
     const db = createDb(c.env.DB);
     const order = await db.select({ status: schema.orders.status })
@@ -129,15 +129,62 @@ orders.post('/orders/:id/fulfill', requireRole(['superadmin', 'manager', 'suppor
       return c.json({ success: false, error: `Order cannot be fulfilled from status: ${order.status}` }, 400);
     }
 
-    // Update order status to completed and attach tracking details
-    await db.update(schema.orders)
-      .set({ 
-        status: 'completed', 
-        tracking_number, 
-        carrier_name,
-        updated_at: sql`CURRENT_TIMESTAMP`
+    const orderItems = await db.select().from(schema.orderItems).where(eq(schema.orderItems.order_id, orderId)).all();
+    const itemsToFulfill = items || orderItems.map(i => ({ order_item_id: i.id, quantity: i.quantity }));
+
+    // Create fulfillment record
+    const fulfillmentId = crypto.randomUUID();
+    await db.insert(schema.fulfillments).values({
+      id: fulfillmentId,
+      order_id: orderId,
+      status: 'shipped',
+      tracking_number,
+      carrier: carrier_name,
+      shipped_at: new Date().toISOString(),
+    });
+
+    // Create fulfillment items records
+    const fulfillmentItemsRecords = itemsToFulfill.map(i => ({
+      id: crypto.randomUUID(),
+      fulfillment_id: fulfillmentId,
+      order_item_id: i.order_item_id,
+      quantity: i.quantity,
+    }));
+    await db.insert(schema.fulfillmentItems).values(fulfillmentItemsRecords);
+
+    // Check if fully fulfilled
+    let isFullyFulfilled = false;
+    if (!items) {
+      isFullyFulfilled = true;
+    } else {
+      const allFulfillments = await db.select({
+        order_item_id: schema.fulfillmentItems.order_item_id,
+        quantity: schema.fulfillmentItems.quantity
       })
-      .where(eq(schema.orders.id, orderId));
+      .from(schema.fulfillmentItems)
+      .innerJoin(schema.fulfillments, eq(schema.fulfillments.id, schema.fulfillmentItems.fulfillment_id))
+      .where(eq(schema.fulfillments.order_id, orderId))
+      .all();
+      
+      const fulfilledMap = new Map<string, number>();
+      allFulfillments.forEach(f => {
+        fulfilledMap.set(f.order_item_id, (fulfilledMap.get(f.order_item_id) || 0) + f.quantity);
+      });
+      
+      isFullyFulfilled = orderItems.every(oi => (fulfilledMap.get(oi.id) || 0) >= oi.quantity);
+    }
+
+    // Update order status to completed and attach tracking details if fully fulfilled
+    if (isFullyFulfilled) {
+      await db.update(schema.orders)
+        .set({ 
+          status: 'completed', 
+          tracking_number, 
+          carrier_name,
+          updated_at: sql`CURRENT_TIMESTAMP`
+        })
+        .where(eq(schema.orders.id, orderId));
+    }
 
     // Send email notification event via Queue
     if (c.env.EVENT_QUEUE) {
@@ -146,10 +193,11 @@ orders.post('/orders/:id/fulfill', requireRole(['superadmin', 'manager', 'suppor
         orderId,
         trackingNumber: tracking_number,
         carrierName: carrier_name,
+        isPartial: !isFullyFulfilled
       });
     }
 
-    return c.json({ success: true, message: `Order ${orderId} fulfilled successfully` });
+    return c.json({ success: true, message: `Order ${orderId} ${isFullyFulfilled ? 'completely' : 'partially'} fulfilled successfully` });
   } catch (err: any) {
     return c.json({ success: false, error: err.message }, 500);
   }
