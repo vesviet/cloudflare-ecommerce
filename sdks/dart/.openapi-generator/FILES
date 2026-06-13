@@ -27,6 +27,3 @@ lib/model/checkout_items_inner.dart
 lib/model/error_response.dart
 lib/model/product.dart
 pubspec.yaml
-test/checkout_address_test.dart
-test/checkout_items_inner_test.dart
-test/checkout_test.dart
