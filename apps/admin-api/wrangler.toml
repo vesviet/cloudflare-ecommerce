@@ -3,7 +3,7 @@ main = "src/index.ts"
 compatibility_date = "2024-06-05"
 
 routes = [
-  { pattern = "api-admin.tanhdev.com", custom_domain = true }
+  { pattern = "admin.tanhdev.com/api/*", zone_name = "tanhdev.com" }
 ]
 
 [vars]

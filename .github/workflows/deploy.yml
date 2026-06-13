@@ -77,7 +77,7 @@ jobs:
 
       - name: 🏗️ Build Admin UI (Vite)
         env:
-          VITE_API_URL: https://api-admin.tanhdev.com
+          VITE_API_URL: https://admin.tanhdev.com/api
         run: pnpm --filter admin-ui run build
 
       - name: 🚀 Deploy Admin UI (Pages)

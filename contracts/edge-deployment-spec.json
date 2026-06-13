@@ -40,12 +40,11 @@
       "tanhdev.com"
     ],
     "routes": [
-      "api-admin.tanhdev.com",
+      "admin.tanhdev.com/api/*",
       "api-shop.tanhdev.com",
       "aura-shop.tanhdev.com"
     ],
     "custom_domains": [
-      "api-admin.tanhdev.com",
       "api-shop.tanhdev.com",
       "aura-shop.tanhdev.com"
     ],
