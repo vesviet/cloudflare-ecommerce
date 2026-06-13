@@ -24,13 +24,13 @@ class DefaultApi {
   ///
   /// Parameters:
   ///
-  /// * [GuestCheckout] guestCheckout:
-  Future<Response> apiCheckoutGuestPostWithHttpInfo({ GuestCheckout? guestCheckout, }) async {
+  /// * [Checkout] checkout:
+  Future<Response> apiCheckoutGuestPostWithHttpInfo({ Checkout? checkout, }) async {
     // ignore: prefer_const_declarations
     final path = r'/api/checkout/guest';
 
     // ignore: prefer_final_locals
-    Object? postBody = guestCheckout;
+    Object? postBody = checkout;
 
     final queryParams = <QueryParam>[];
     final headerParams = <String, String>{};
@@ -56,9 +56,9 @@ class DefaultApi {
   ///
   /// Parameters:
   ///
-  /// * [GuestCheckout] guestCheckout:
-  Future<ApiCheckoutGuestPost200Response?> apiCheckoutGuestPost({ GuestCheckout? guestCheckout, }) async {
-    final response = await apiCheckoutGuestPostWithHttpInfo( guestCheckout: guestCheckout, );
+  /// * [Checkout] checkout:
+  Future<ApiCheckoutGuestPost200Response?> apiCheckoutGuestPost({ Checkout? checkout, }) async {
+    final response = await apiCheckoutGuestPostWithHttpInfo( checkout: checkout, );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }

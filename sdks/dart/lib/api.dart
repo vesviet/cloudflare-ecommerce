@@ -31,10 +31,10 @@ part 'auth/http_bearer_auth.dart';
 part 'api/default_api.dart';
 
 part 'model/api_checkout_guest_post200_response.dart';
+part 'model/checkout.dart';
+part 'model/checkout_address.dart';
+part 'model/checkout_items_inner.dart';
 part 'model/error_response.dart';
-part 'model/guest_checkout.dart';
-part 'model/guest_checkout_items_inner.dart';
-part 'model/guest_checkout_shipping_address.dart';
 part 'model/product.dart';
 
 

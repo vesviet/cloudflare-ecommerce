@@ -33,9 +33,9 @@ Class | Method | HTTP request | Description
 ## Documentation For Models
 
  - [ApiCheckoutGuestPost200Response](docs/ApiCheckoutGuestPost200Response.md)
- - [GuestCheckout](docs/GuestCheckout.md)
- - [GuestCheckoutItemsInner](docs/GuestCheckoutItemsInner.md)
- - [GuestCheckoutShippingAddress](docs/GuestCheckoutShippingAddress.md)
+ - [Checkout](docs/Checkout.md)
+ - [CheckoutAddress](docs/CheckoutAddress.md)
+ - [CheckoutItemsInner](docs/CheckoutItemsInner.md)
  - [ModelErrorResponse](docs/ModelErrorResponse.md)
  - [Product](docs/Product.md)
 

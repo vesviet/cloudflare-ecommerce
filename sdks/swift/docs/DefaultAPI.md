@@ -10,7 +10,7 @@ Method | HTTP request | Description
 
 # **apiCheckoutGuestPost**
 ```swift
-    open class func apiCheckoutGuestPost(guestCheckout: GuestCheckout? = nil, completion: @escaping (_ data: ApiCheckoutGuestPost200Response?, _ error: Error?) -> Void)
+    open class func apiCheckoutGuestPost(checkout: Checkout? = nil, completion: @escaping (_ data: ApiCheckoutGuestPost200Response?, _ error: Error?) -> Void)
 ```
 
 Submit a guest order
@@ -22,10 +22,10 @@ Guest checkout
 // The following code samples are still beta. For any issue, please report via http://github.com/OpenAPITools/openapi-generator/issues/new
 import AuraApiSDK
 
-let guestCheckout = GuestCheckout(email: "email_example", shippingAddress: GuestCheckout_shipping_address(fullname: "fullname_example", address: "address_example", zipcode: "zipcode_example"), items: [GuestCheckout_items_inner(variationId: 123, quantity: 123)], affiliateId: "affiliateId_example") // GuestCheckout |  (optional)
+let checkout = Checkout(email: "email_example", customerId: 123, couponCode: "couponCode_example", address: Checkout_address(fullname: "fullname_example", address: "address_example", zipcode: "zipcode_example"), shippingAddressJson: "TODO", billingAddressJson: "TODO", items: [Checkout_items_inner(variationId: 123, quantity: 123)], affiliateId: "affiliateId_example", utmSource: "utmSource_example", utmMedium: "utmMedium_example", utmCampaign: "utmCampaign_example", acceptsMarketing: false) // Checkout |  (optional)
 
 // Submit a guest order
-DefaultAPI.apiCheckoutGuestPost(guestCheckout: guestCheckout) { (response, error) in
+DefaultAPI.apiCheckoutGuestPost(checkout: checkout) { (response, error) in
     guard error == nil else {
         print(error)
         return
@@ -41,7 +41,7 @@ DefaultAPI.apiCheckoutGuestPost(guestCheckout: guestCheckout) { (response, error
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **guestCheckout** | [**GuestCheckout**](GuestCheckout.md) |  | [optional] 
+ **checkout** | [**Checkout**](Checkout.md) |  | [optional] 
 
 ### Return type
 

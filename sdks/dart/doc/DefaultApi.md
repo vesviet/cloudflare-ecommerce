@@ -14,7 +14,7 @@ Method | HTTP request | Description
 
 
 # **apiCheckoutGuestPost**
-> ApiCheckoutGuestPost200Response apiCheckoutGuestPost(guestCheckout)
+> ApiCheckoutGuestPost200Response apiCheckoutGuestPost(checkout)
 
 Submit a guest order
 
@@ -25,10 +25,10 @@ Guest checkout
 import 'package:aura_api_sdk/api.dart';
 
 final api_instance = DefaultApi();
-final guestCheckout = GuestCheckout(); // GuestCheckout | 
+final checkout = Checkout(); // Checkout | 
 
 try {
-    final result = api_instance.apiCheckoutGuestPost(guestCheckout);
+    final result = api_instance.apiCheckoutGuestPost(checkout);
     print(result);
 } catch (e) {
     print('Exception when calling DefaultApi->apiCheckoutGuestPost: $e\n');
@@ -39,7 +39,7 @@ try {
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **guestCheckout** | [**GuestCheckout**](GuestCheckout.md)|  | [optional] 
+ **checkout** | [**Checkout**](Checkout.md)|  | [optional] 
 
 ### Return type
 

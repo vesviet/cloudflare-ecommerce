@@ -184,14 +184,14 @@ class ApiClient {
           return value is DateTime ? value : DateTime.tryParse(value);
         case 'ApiCheckoutGuestPost200Response':
           return ApiCheckoutGuestPost200Response.fromJson(value);
+        case 'Checkout':
+          return Checkout.fromJson(value);
+        case 'CheckoutAddress':
+          return CheckoutAddress.fromJson(value);
+        case 'CheckoutItemsInner':
+          return CheckoutItemsInner.fromJson(value);
         case 'ErrorResponse':
           return ErrorResponse.fromJson(value);
-        case 'GuestCheckout':
-          return GuestCheckout.fromJson(value);
-        case 'GuestCheckoutItemsInner':
-          return GuestCheckoutItemsInner.fromJson(value);
-        case 'GuestCheckoutShippingAddress':
-          return GuestCheckoutShippingAddress.fromJson(value);
         case 'Product':
           return Product.fromJson(value);
         default:

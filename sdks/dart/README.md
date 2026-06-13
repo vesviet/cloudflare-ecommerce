@@ -42,10 +42,10 @@ import 'package:aura_api_sdk/api.dart';
 
 
 final api_instance = DefaultApi();
-final guestCheckout = GuestCheckout(); // GuestCheckout | 
+final checkout = Checkout(); // Checkout | 
 
 try {
-    final result = api_instance.apiCheckoutGuestPost(guestCheckout);
+    final result = api_instance.apiCheckoutGuestPost(checkout);
     print(result);
 } catch (e) {
     print('Exception when calling DefaultApi->apiCheckoutGuestPost: $e\n');
@@ -66,10 +66,10 @@ Class | Method | HTTP request | Description
 ## Documentation For Models
 
  - [ApiCheckoutGuestPost200Response](doc//ApiCheckoutGuestPost200Response.md)
+ - [Checkout](doc//Checkout.md)
+ - [CheckoutAddress](doc//CheckoutAddress.md)
+ - [CheckoutItemsInner](doc//CheckoutItemsInner.md)
  - [ErrorResponse](doc//ErrorResponse.md)
- - [GuestCheckout](doc//GuestCheckout.md)
- - [GuestCheckoutItemsInner](doc//GuestCheckoutItemsInner.md)
- - [GuestCheckoutShippingAddress](doc//GuestCheckoutShippingAddress.md)
  - [Product](doc//Product.md)
 
 

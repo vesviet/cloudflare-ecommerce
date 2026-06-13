@@ -1,5 +1,4 @@
 .gitignore
-.openapi-generator-ignore
 .swiftformat
 AuraApiSDK.podspec
 AuraApiSDK/Classes/OpenAPIs/APIHelper.swift
@@ -12,9 +11,9 @@ AuraApiSDK/Classes/OpenAPIs/JSONDataEncoding.swift
 AuraApiSDK/Classes/OpenAPIs/JSONEncodingHelper.swift
 AuraApiSDK/Classes/OpenAPIs/Models.swift
 AuraApiSDK/Classes/OpenAPIs/Models/ApiCheckoutGuestPost200Response.swift
-AuraApiSDK/Classes/OpenAPIs/Models/GuestCheckout.swift
-AuraApiSDK/Classes/OpenAPIs/Models/GuestCheckoutItemsInner.swift
-AuraApiSDK/Classes/OpenAPIs/Models/GuestCheckoutShippingAddress.swift
+AuraApiSDK/Classes/OpenAPIs/Models/Checkout.swift
+AuraApiSDK/Classes/OpenAPIs/Models/CheckoutAddress.swift
+AuraApiSDK/Classes/OpenAPIs/Models/CheckoutItemsInner.swift
 AuraApiSDK/Classes/OpenAPIs/Models/ModelErrorResponse.swift
 AuraApiSDK/Classes/OpenAPIs/Models/Product.swift
 AuraApiSDK/Classes/OpenAPIs/OpenISO8601DateFormatter.swift
@@ -25,10 +24,10 @@ Cartfile
 Package.swift
 README.md
 docs/ApiCheckoutGuestPost200Response.md
+docs/Checkout.md
+docs/CheckoutAddress.md
+docs/CheckoutItemsInner.md
 docs/DefaultAPI.md
-docs/GuestCheckout.md
-docs/GuestCheckoutItemsInner.md
-docs/GuestCheckoutShippingAddress.md
 docs/ModelErrorResponse.md
 docs/Product.md
 git_push.sh

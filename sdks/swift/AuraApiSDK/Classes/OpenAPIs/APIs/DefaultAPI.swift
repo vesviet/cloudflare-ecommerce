@@ -15,13 +15,13 @@ open class DefaultAPI {
     /**
      Submit a guest order
      
-     - parameter guestCheckout: (body)  (optional)
+     - parameter checkout: (body)  (optional)
      - parameter apiResponseQueue: The queue on which api response is dispatched.
      - parameter completion: completion handler to receive the data and the error objects
      */
     @discardableResult
-    open class func apiCheckoutGuestPost(guestCheckout: GuestCheckout? = nil, apiResponseQueue: DispatchQueue = AuraApiSDKAPI.apiResponseQueue, completion: @escaping ((_ data: ApiCheckoutGuestPost200Response?, _ error: Error?) -> Void)) -> RequestTask {
-        return apiCheckoutGuestPostWithRequestBuilder(guestCheckout: guestCheckout).execute(apiResponseQueue) { result in
+    open class func apiCheckoutGuestPost(checkout: Checkout? = nil, apiResponseQueue: DispatchQueue = AuraApiSDKAPI.apiResponseQueue, completion: @escaping ((_ data: ApiCheckoutGuestPost200Response?, _ error: Error?) -> Void)) -> RequestTask {
+        return apiCheckoutGuestPostWithRequestBuilder(checkout: checkout).execute(apiResponseQueue) { result in
             switch result {
             case let .success(response):
                 completion(response.body, nil)
@@ -35,13 +35,13 @@ open class DefaultAPI {
      Submit a guest order
      - POST /api/checkout/guest
      - Guest checkout
-     - parameter guestCheckout: (body)  (optional)
+     - parameter checkout: (body)  (optional)
      - returns: RequestBuilder<ApiCheckoutGuestPost200Response> 
      */
-    open class func apiCheckoutGuestPostWithRequestBuilder(guestCheckout: GuestCheckout? = nil) -> RequestBuilder<ApiCheckoutGuestPost200Response> {
+    open class func apiCheckoutGuestPostWithRequestBuilder(checkout: Checkout? = nil) -> RequestBuilder<ApiCheckoutGuestPost200Response> {
         let localVariablePath = "/api/checkout/guest"
         let localVariableURLString = AuraApiSDKAPI.basePath + localVariablePath
-        let localVariableParameters = JSONEncodingHelper.encodingParameters(forEncodableObject: guestCheckout)
+        let localVariableParameters = JSONEncodingHelper.encodingParameters(forEncodableObject: checkout)
 
         let localVariableUrlComponents = URLComponents(string: localVariableURLString)
 
