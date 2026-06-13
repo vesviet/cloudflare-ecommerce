@@ -2,6 +2,10 @@ name = "admin-api-worker"
 main = "src/index.ts"
 compatibility_date = "2024-06-05"
 
+routes = [
+  { pattern = "api-admin.tanhdev.com", custom_domain = true }
+]
+
 [vars]
 # Non-secret runtime config — secrets (STRIPE_SECRET_KEY) must be set via: wrangler secret put <KEY>
 TEAM_DOMAIN = "https://tanhdev.cloudflareaccess.com"
@@ -9,7 +13,7 @@ AUDIENCE_TAG = "876ed9bd951b8a57e6144a5d7344a0999cafbb7f1a2dee69d833778bf6b26f0e
 
 [[d1_databases]]
 binding = "DB"
-database_name = "e-commerce"
+database_name = "ecommerce-db"
 database_id = "b41da4e0-7f8c-44db-8854-0499d5c2ced5"
 preview_database_id = "local" # Dùng SQLite local khi chạy wrangler dev
 migrations_dir = "../../packages/database/migrations"

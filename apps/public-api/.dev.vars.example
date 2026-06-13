@@ -13,3 +13,6 @@ RESEND_API_KEY=re_...
 
 # Required for bypassing Cloudflare Access in local development
 LOCAL_DEV=true
+
+# Local CORS origins
+ALLOWED_ORIGINS="http://localhost:3000,http://localhost:5173"

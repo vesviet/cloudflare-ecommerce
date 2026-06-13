@@ -13,16 +13,14 @@ routes = [
 STOREFRONT_URL = "https://aura-shop.tanhdev.com"
 
 # RISK-01 FIX: CORS allowed origins — comma-separated list.
-# Local dev: leave as-is (falls back to localhost:3000 and localhost:5173).
-# Production: set to your real domain, e.g.:
-#   ALLOWED_ORIGINS = "https://aura.store,https://www.aura.store"
-# Or use a secret for sensitive configs: wrangler secret put ALLOWED_ORIGINS
-ALLOWED_ORIGINS = "http://localhost:3000,http://localhost:5173,https://aura-shop.tanhdev.com"
+# Production: set to your real domain.
+# Local origins (http://localhost:3000,http://localhost:5173) should be set in .dev.vars for local development.
+ALLOWED_ORIGINS = "https://aura-shop.tanhdev.com"
 
 
 [[d1_databases]]
 binding = "DB"
-database_name = "e-commerce"
+database_name = "ecommerce-db"
 database_id = "b41da4e0-7f8c-44db-8854-0499d5c2ced5"
 preview_database_id = "local" # Dùng SQLite local khi chạy wrangler dev
 migrations_dir = "../../packages/database/migrations"

@@ -1,0 +1,100 @@
+{
+  "contract_type": "edge-deployment-spec",
+  "platform": "cloudflare",
+  "project_ref": "vesviet/cloudflare-ecommerce",
+  "deployment_target": "workers",
+  "version": "latest",
+  "environments": [
+    "production"
+  ],
+  "wrangler_config_path": "apps/public-api/wrangler.toml, apps/admin-api/wrangler.toml",
+  "bindings": [
+    {
+      "type": "d1",
+      "binding_name": "DB",
+      "resource_id": "b41da4e0-7f8c-44db-8854-0499d5c2ced5"
+    },
+    {
+      "type": "kv",
+      "binding_name": "CACHE_KV",
+      "resource_id": "279b6209ce47468abc735e3f5c472be8"
+    },
+    {
+      "type": "r2",
+      "binding_name": "PRODUCTS_R2",
+      "resource_id": "e-commerce"
+    },
+    {
+      "type": "r2",
+      "binding_name": "CMS_R2",
+      "resource_id": "cms"
+    },
+    {
+      "type": "queue",
+      "binding_name": "EVENT_QUEUE",
+      "resource_id": "ecommerce-events-prod"
+    }
+  ],
+  "dns_and_routing": {
+    "zones": [
+      "tanhdev.com"
+    ],
+    "routes": [
+      "api-admin.tanhdev.com",
+      "api-shop.tanhdev.com",
+      "aura-shop.tanhdev.com"
+    ],
+    "custom_domains": [
+      "api-admin.tanhdev.com",
+      "api-shop.tanhdev.com",
+      "aura-shop.tanhdev.com"
+    ],
+    "redirects": []
+  },
+  "cache_and_security": {
+    "cache_rules": [],
+    "turnstile_sites": [],
+    "waf_notes": "CORS restricted to production domain for public-api."
+  },
+  "secret_names": [
+    "STRIPE_SECRET_KEY",
+    "STRIPE_WEBHOOK_SECRET",
+    "RESEND_API_KEY",
+    "JWT_SECRET",
+    "CLOUDFLARE_API_TOKEN",
+    "CLOUDFLARE_ACCOUNT_ID"
+  ],
+  "deploy_steps": [
+    {
+      "order": 1,
+      "action": "Update wrangler.toml for public-api and admin-api to restrict CORS and add routes",
+      "is_destructive": false,
+      "owner": "cloudflare-engineer"
+    },
+    {
+      "order": 2,
+      "action": "Update GitHub actions deploy.yml to point VITE_API_URL to api-admin.tanhdev.com",
+      "is_destructive": false,
+      "owner": "cloudflare-engineer"
+    },
+    {
+      "order": 3,
+      "action": "Deploy via GitHub Actions (git push)",
+      "is_destructive": false,
+      "owner": "devops-engineer"
+    }
+  ],
+  "rollback_plan": {
+    "strategy": "revert_commit",
+    "estimated_time_mins": 5,
+    "data_loss_risk": "none"
+  },
+  "smoke_tests": [
+    "GET https://api-admin.tanhdev.com returns correct HTTP status (not 522/404)",
+    "OPTIONS request to https://api-shop.tanhdev.com from localhost should fail CORS on production"
+  ],
+  "documentation_deltas": [],
+  "residual_risks": [
+    "Requires .dev.vars to be setup locally by developers to allow localhost CORS testing"
+  ]
+}

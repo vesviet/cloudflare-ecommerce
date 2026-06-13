@@ -43,7 +43,7 @@ export const syncCategoryFiltersToKV = async (env: Bindings) => {
     // Save to KV
     for (const [categoryId, keysSet] of Object.entries(filtersByCategory)) {
       const keysArray = Array.from(keysSet);
-      await env.CATALOG_FILTERS_KV.put(\`category_filters:\${categoryId}\`, JSON.stringify({ available_filters: keysArray }));
+      await env.CATALOG_FILTERS_KV.put(`category_filters:${categoryId}`, JSON.stringify({ available_filters: keysArray }));
     }
     
     // Generate a master list
