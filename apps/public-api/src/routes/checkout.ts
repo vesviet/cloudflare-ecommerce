@@ -60,6 +60,8 @@ checkout.post('/', zValidator('json', CheckoutSchema), async (c) => {
       }
     }
 
+    // We no longer soft-lock. We still use validateAndReserveInventory to validate prices and compute subTotal.
+    // The name `validateAndReserveInventory` might be old, but we will ignore the soft-lock part since we don't execute those queries anymore.
     const { validItems, subTotal } = await InventoryService.validateAndReserveInventory(db, items);
 
     const { discountAmount, appliedCouponId, shippingFeeCents, totalAmountCents } = await PaymentService.calculatePricing(
@@ -76,31 +78,37 @@ checkout.post('/', zValidator('json', CheckoutSchema), async (c) => {
 
     const orderId = crypto.randomUUID()
 
-    const orderQueries = OrderService.getCreateOrderQueries(db, {
-      orderId,
-      customerId: customer_id,
-      email,
-      totalAmount: totalAmountCents,
-      shippingFeeCents,
-      affiliateId: affiliate_id,
-      utmSource: utm_source,
-      utmMedium: utm_medium,
-      utmCampaign: utm_campaign,
-      shippingAddressJson: shipping_address_json || address,
-      billingAddressJson: billing_address_json,
-      validItems,
-      discountAmount,
-      appliedCouponId
-    });
-
-    const softLockQueries = InventoryService.getSoftLockQueries(db, orderId, validItems);
-    
     const attributionQueries = OrderService.getUpdateCustomerAttributionQueries(
       db, customer, customer_id as string, utm_source, utm_medium, utm_campaign, affiliate_id, accepts_marketing
     );
+    if (attributionQueries.length > 0) {
+      await db.batch(attributionQueries as any);
+    }
 
-    await db.batch([...orderQueries, ...softLockQueries, ...attributionQueries] as any);
+    // Process Checkout via Two-Phase Commit Orchestrator
+    try {
+      await OrderService.processCheckout(db, c.env.DB, {
+        orderId,
+        customerId: customer_id,
+        email,
+        totalAmount: totalAmountCents,
+        shippingFeeCents,
+        affiliateId: affiliate_id,
+        utmSource: utm_source,
+        utmMedium: utm_medium,
+        utmCampaign: utm_campaign,
+        shippingAddressJson: shipping_address_json || address,
+        billingAddressJson: billing_address_json,
+        validItems,
+        discountAmount,
+        appliedCouponId
+      });
+    } catch (orderErr: any) {
+      console.error(`[Checkout] Order creation/inventory failed for ${orderId}:`, orderErr.message);
+      return c.json({ success: false, error: orderErr.message || 'Inventory allocation failed.' }, 400);
+    }
 
+    // Inventory is successfully locked. Create Stripe Session.
     try {
       const session = await PaymentService.createStripeSession(
         c.env.STRIPE_SECRET_KEY,
@@ -128,10 +136,11 @@ checkout.post('/', zValidator('json', CheckoutSchema), async (c) => {
       return c.json({ success: true, order_id: orderId, checkout_url: session.url })
     } catch (stripeErr: any) {
       console.error(`[Checkout] Stripe session creation failed for order ${orderId}:`, stripeErr.message)
-      await db.batch([
-        db.update(schema.orders).set({ status: 'failed' }).where(eq(schema.orders.id, orderId)),
-        ...InventoryService.getReleaseSoftLockQueries(db, orderId)
-      ] as any);
+      
+      // If Stripe fails, we must rollback the order and inventory
+      // We can use the orchestrator's cancellation method
+      c.executionCtx.waitUntil(OrderService.cancelOrderAndRestock(db, c.env.DB, orderId));
+
       return c.json({ success: false, error: 'Payment gateway error. Please try again.' }, 500)
     }
   } catch (err: any) {

@@ -3,3 +3,7 @@ export * from './payment.service';
 export * from './order.service';
 export * from './product.service';
 export * from './category.service';
+export * from './cache.service';
+export * from './catalog.service';
+export * from './order.repository';
+export * from './inventory.repository';

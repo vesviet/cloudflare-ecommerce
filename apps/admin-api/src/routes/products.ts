@@ -4,7 +4,7 @@ import { createDb, schema } from '@ecommerce/database';
 import { Bindings } from '../types';
 import { zValidator } from '@hono/zod-validator';
 import { productFormSchema } from '@ecommerce/contract';
-import { ProductService } from '@ecommerce/core-services';
+import { ProductService, CacheService } from '@ecommerce/core-services';
 
 const products = new Hono<{ Bindings: Bindings }>();
 
@@ -165,6 +165,13 @@ products.post('/products', zValidator('form', productFormSchema), async (c) => {
 
     if (batchQueries.length > 0) {
       await db.batch(batchQueries as any);
+      
+      // Fetch the generated slug to invalidate the specific item cache
+      const newProduct = await db.select({ slug: schema.products.slug }).from(schema.products).where(eq(schema.products.id, productId)).get();
+      if (newProduct && newProduct.slug) {
+        c.executionCtx.waitUntil(CacheService.invalidateProductCache(c.env, newProduct.slug));
+        c.executionCtx.waitUntil(CacheService.invalidateProductCache(c.env, productId));
+      }
     }
 
     return c.json({ success: true, message: 'Product created successfully', data: { id: productId } });
@@ -242,6 +249,13 @@ products.put('/products/:id', zValidator('form', productFormSchema), async (c) =
 
     if (batchQueries.length > 0) {
       await db.batch(batchQueries as any);
+
+      // Invalidate item cache (both by id and potential slug)
+      const updatedProduct = await db.select({ slug: schema.products.slug }).from(schema.products).where(eq(schema.products.id, productId)).get();
+      if (updatedProduct && updatedProduct.slug) {
+        c.executionCtx.waitUntil(CacheService.invalidateProductCache(c.env, updatedProduct.slug));
+      }
+      c.executionCtx.waitUntil(CacheService.invalidateProductCache(c.env, productId));
     }
 
     return c.json({ success: true, message: 'Product updated successfully' });

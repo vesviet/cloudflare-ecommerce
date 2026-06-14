@@ -58,20 +58,15 @@ webhook.post('/stripe', async (c) => {
                   await db.select().from(schema.orders).where(eq(schema.orders.payment_intent_id, sessionId)).get();
 
     if (order && order.status === 'pending_payment') {
-      const orderItems = await db.select().from(schema.orderItems).where(eq(schema.orderItems.order_id, order.id)).all()
+      const success = await OrderService.processPaymentSuccess(db, order.id);
 
-      const batchQueries = [
-        ...InventoryService.getCommitDeductionQueries(db, order.id, orderItems),
-        ...OrderService.getAdvanceOrderStatusQueries(db, order.id, 'processing'),
-        db.insert(schema.auditLogs).values({
+      if (success) {
+        await db.insert(schema.auditLogs).values({
           id: crypto.randomUUID(), action: 'stripe_webhook_success',
           entity_type: 'order',
           entity_id: order.id,
           payload_json: JSON.stringify({ stripe_event_id: event.id, order_id: order.id, status: 'processing' })
-        })
-      ];
-
-      await db.batch(batchQueries as any)
+        }).execute();
 
       if (c.env.EVENT_QUEUE) {
         await c.env.EVENT_QUEUE.send({
@@ -98,25 +93,35 @@ webhook.post('/stripe', async (c) => {
       const order = await db.select().from(schema.orders).where(eq(schema.orders.payment_intent_id, paymentIntentId)).get()
       
       if (order && ['processing', 'completed'].includes(order.status || '')) {
-        const orderItems = await db.select().from(schema.orderItems).where(eq(schema.orderItems.order_id, order.id)).all()
+        const success = await OrderService.refundOrderAndRestock(db, c.env.DB, order.id, order.status);
 
-        const batchQueries = [
-          ...InventoryService.getRestockQueries(db, orderItems),
-          ...OrderService.getAdvanceOrderStatusQueries(db, order.id, 'refunded'),
-          db.insert(schema.auditLogs).values({
+        if (success) {
+          await db.insert(schema.auditLogs).values({
             id: crypto.randomUUID(), action: 'stripe_webhook_refund',
             entity_type: 'order',
             entity_id: order.id,
             payload_json: JSON.stringify({ stripe_event_id: event.id, order_id: order.id, status: 'refunded' })
-          })
-        ];
-
-        await db.batch(batchQueries as any)
+          }).execute();
+        }
       }
     }
   }
 
   return c.json({ received: true })
 })
+
+webhook.post('/carrier', async (c) => {
+  const body = await c.req.json();
+  const { order_id, status } = body;
+
+  const db = createDb(c.env.DB);
+  
+  if (status === 'Delivered') {
+    await OrderService.completeOrder(db, order_id);
+    console.log(`[Webhook] Order ${order_id} marked as completed via Carrier webhook.`);
+  }
+
+  return c.json({ received: true });
+});
 
 export default webhook

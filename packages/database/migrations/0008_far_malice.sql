@@ -1,0 +1,19 @@
+ALTER TABLE fulfillments ADD `session_id` text;--> statement-breakpoint
+ALTER TABLE fulfillments ADD `payment_intent_id` text;--> statement-breakpoint
+ALTER TABLE orders ADD `session_id` text;--> statement-breakpoint
+ALTER TABLE orders ADD `payment_intent_id` text;--> statement-breakpoint
+CREATE INDEX `idx_carts_customer_id` ON `carts` (`customer_id`);--> statement-breakpoint
+CREATE INDEX `idx_carts_guest_session_id` ON `carts` (`guest_session_id`);--> statement-breakpoint
+CREATE INDEX `idx_fulfillment_items_fulfillment_id` ON `fulfillment_items` (`fulfillment_id`);--> statement-breakpoint
+CREATE INDEX `idx_fulfillment_items_order_item_id` ON `fulfillment_items` (`order_item_id`);--> statement-breakpoint
+CREATE INDEX `idx_fulfillments_order_id` ON `fulfillments` (`order_id`);--> statement-breakpoint
+CREATE INDEX `idx_order_items_order_id` ON `order_items` (`order_id`);--> statement-breakpoint
+CREATE INDEX `idx_order_items_product_id` ON `order_items` (`product_id`);--> statement-breakpoint
+CREATE INDEX `idx_orders_customer_id` ON `orders` (`customer_id`);--> statement-breakpoint
+CREATE INDEX `idx_orders_session_id` ON `orders` (`session_id`);--> statement-breakpoint
+CREATE INDEX `idx_products_category_id` ON `products` (`primary_category_id`);--> statement-breakpoint
+CREATE INDEX `idx_rma_requests_order_id` ON `rma_requests` (`order_id`);--> statement-breakpoint
+CREATE INDEX `idx_rma_requests_customer_id` ON `rma_requests` (`customer_id`);--> statement-breakpoint
+CREATE INDEX `idx_sessions_customer_id` ON `sessions` (`customer_id`);--> statement-breakpoint
+CREATE INDEX `idx_transactions_order_id` ON `transactions` (`order_id`);--> statement-breakpoint
+CREATE INDEX `idx_wishlists_customer_product` ON `wishlists` (`customer_id`,`product_id`);
