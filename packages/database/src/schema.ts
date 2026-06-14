@@ -83,6 +83,7 @@ export const products = sqliteTable('products', {
   return {
     statusIdx: index('idx_products_status').on(table.status),
     parentIdIdx: index('idx_products_parent_id').on(table.parent_id),
+    categoryIdIdx: index('idx_products_category_id').on(table.primary_category_id),
   };
 });
 
@@ -180,6 +181,11 @@ export const carts = sqliteTable('carts', {
   status: text('status').default('active'), // active, converted, abandoned
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
   updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+}, (table) => {
+  return {
+    customerIdIdx: index('idx_carts_customer_id').on(table.customer_id),
+    guestSessionIdIdx: index('idx_carts_guest_session_id').on(table.guest_session_id),
+  };
 });
 
 export const cartItems = sqliteTable('cart_items', {
@@ -196,6 +202,10 @@ export const sessions = sqliteTable('sessions', {
   refresh_token: text('refresh_token').notNull(),
   expires_at: integer('expires_at').notNull(),
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+}, (table) => {
+  return {
+    customerIdIdx: index('idx_sessions_customer_id').on(table.customer_id),
+  };
 });
 
 export const orders = sqliteTable('orders', {
@@ -221,6 +231,8 @@ export const orders = sqliteTable('orders', {
   return {
     statusIdx: index('idx_orders_status').on(table.status),
     createdAtIdx: index('idx_orders_created_at').on(table.created_at),
+    customerIdIdx: index('idx_orders_customer_id').on(table.customer_id),
+    sessionIdIdx: index('idx_orders_session_id').on(table.session_id),
   };
 });
 
@@ -231,6 +243,11 @@ export const orderItems = sqliteTable('order_items', {
   quantity: integer('quantity').notNull(),
   price_at_purchase: integer('price_at_purchase').notNull(),
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+}, (table) => {
+  return {
+    orderIdIdx: index('idx_order_items_order_id').on(table.order_id),
+    productIdIdx: index('idx_order_items_product_id').on(table.product_id),
+  };
 });
 
 export const transactions = sqliteTable('transactions', {
@@ -242,6 +259,10 @@ export const transactions = sqliteTable('transactions', {
   provider: text('provider').notNull(), // stripe, vnpay
   error_message: text('error_message'),
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+}, (table) => {
+  return {
+    orderIdIdx: index('idx_transactions_order_id').on(table.order_id),
+  };
 });
 
 export const customerAddresses = sqliteTable('customer_addresses', {
@@ -369,6 +390,10 @@ export const wishlists = sqliteTable('wishlists', {
   customer_id: text('customer_id').notNull().references(() => customers.id, { onDelete: 'cascade' }),
   product_id: text('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+}, (table) => {
+  return {
+    customerProductIdx: index('idx_wishlists_customer_product').on(table.customer_id, table.product_id),
+  };
 });
 
 export const fulfillments = sqliteTable('fulfillments', {
@@ -382,6 +407,10 @@ export const fulfillments = sqliteTable('fulfillments', {
   shipped_at: text('shipped_at'),
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
   updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+}, (table) => {
+  return {
+    orderIdIdx: index('idx_fulfillments_order_id').on(table.order_id),
+  };
 });
 
 export const fulfillmentItems = sqliteTable('fulfillment_items', {
@@ -390,6 +419,11 @@ export const fulfillmentItems = sqliteTable('fulfillment_items', {
   order_item_id: text('order_item_id').notNull().references(() => orderItems.id, { onDelete: 'cascade' }),
   quantity: integer('quantity').notNull(),
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+}, (table) => {
+  return {
+    fulfillmentIdIdx: index('idx_fulfillment_items_fulfillment_id').on(table.fulfillment_id),
+    orderItemIdIdx: index('idx_fulfillment_items_order_item_id').on(table.order_item_id),
+  };
 });
 
 export const rmaRequests = sqliteTable('rma_requests', {
@@ -401,6 +435,11 @@ export const rmaRequests = sqliteTable('rma_requests', {
   refund_amount: integer('refund_amount'),
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
   updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+}, (table) => {
+  return {
+    orderIdIdx: index('idx_rma_requests_order_id').on(table.order_id),
+    customerIdIdx: index('idx_rma_requests_customer_id').on(table.customer_id),
+  };
 });
 
 export const failedJobs = sqliteTable('failed_jobs', {
