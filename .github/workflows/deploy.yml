@@ -24,7 +24,7 @@ jobs:
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
       - name: 🔒 Run Trivy Vulnerability Scanner
-        uses: aquasecurity/trivy-action@7b7aa2eb111e111bd2925b6a7a5f2db8416d8a39
+        uses: aquasecurity/trivy-action@bfa4b33a029b9aa80ddb784b45574c30e072c59e
         with:
           scan-type: 'fs'
           ignore-unfixed: true
@@ -32,7 +32,7 @@ jobs:
           severity: 'CRITICAL,HIGH'
 
       - name: 📦 Setup pnpm
-        uses: pnpm/action-setup@fe02f34f77f8bf23d1da92eb4bc89ea11fb82e78 # v4.0.0
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: 9
 
@@ -70,7 +70,7 @@ jobs:
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
       - name: 📦 Setup pnpm
-        uses: pnpm/action-setup@fe02f34f77f8bf23d1da92eb4bc89ea11fb82e78 # v4.0.0
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: 9
 
