@@ -108,8 +108,8 @@ jobs:
           echo "Deploying to Pages..."
           pnpm dlx wrangler@3 pages deploy .vercel/output/static --project-name ecommerce-storefront-ui
 
-      - name: 📄 Generate SBOM
-        uses: anchore/sbom-action@f325610c9f50a54015d37dc8bce81409c5333461 # v0.16.0
+      - name: 📦 Generate SBOM
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
         with:
           path: .
           format: 'spdx-json'
