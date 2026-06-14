@@ -196,70 +196,40 @@ export default {
     }
   },
 
-  // 3. Cron Trigger — auto-cancel expired pending orders every 5 minutes
+  // 3. Cron Trigger — auto-cancel expired pending orders every 15 minutes
   async scheduled(event: any, env: Bindings, ctx: any): Promise<void> {
-    console.log(`[Cron] Scanning expired soft-locks at ${new Date().toISOString()}`)
+    console.log(`[Cron] Scanning expired pending_payment orders at ${new Date().toISOString()}`)
     const db = createDb(env.DB)
 
-    const now = Math.floor(Date.now() / 1000)
-    const expiredReservations = await db
-      .select()
-      .from(schema.inventoryReservations)
-      .where(sql`expires_at < ${now}`)
+    // Orders older than 15 minutes
+    const fifteenMinutesAgo = Math.floor(Date.now() / 1000) - (15 * 60)
+    const fifteenMinutesAgoISO = new Date(fifteenMinutesAgo * 1000).toISOString()
+
+    const expiredOrders = await db
+      .select({ id: schema.orders.id })
+      .from(schema.orders)
+      .where(sql`status = 'pending_payment' AND created_at < ${fifteenMinutesAgoISO}`)
       .all()
 
     let cancelledCount = 0
     let skippedCount = 0
 
-    for (const res of expiredReservations) {
-      // BUG-003 FIX: Only cancel orders that are still in 'pending_payment'.
-      // If a payment webhook processed the order (status = 'processing' or 'completed')
-      // but the soft-lock deletion in the batch failed, the cron would have incorrectly
-      // cancelled a paid order. The status guard prevents that.
-      const order = await db
-        .select({ status: schema.orders.status })
-        .from(schema.orders)
-        .where(eq(schema.orders.id, res.order_id))
-        .get()
-
-      if (!order || order.status !== 'pending_payment') {
-        // Order is already paid/processing/completed/cancelled — just clean up the stale lock
-        await db
-          .delete(schema.inventoryReservations)
-          .where(eq(schema.inventoryReservations.id, res.id))
-        skippedCount++
-        console.log(`[Cron] Skipped cancel for order ${res.order_id} (status=${order?.status ?? 'not found'}), removed stale soft-lock`)
-        continue
+    for (const order of expiredOrders) {
+      try {
+        const success = await OrderService.cancelOrderAndRestock(db, env.DB, order.id);
+        if (success) {
+          cancelledCount++;
+          console.log(`[Cron] Cancelled order ${order.id} and restocked inventory.`);
+        } else {
+          skippedCount++;
+          console.log(`[Cron] Skipped cancel for order ${order.id} (already processed or race condition).`);
+        }
+      } catch (err: any) {
+        console.error(`[Cron] Error cancelling order ${order.id}:`, err.message);
       }
-
-      const batchQueries: any[] = [
-        db.update(schema.orders)
-          .set({ status: 'cancelled' })
-          .where(eq(schema.orders.id, res.order_id)),
-        db.delete(schema.inventoryReservations)
-          .where(eq(schema.inventoryReservations.id, res.id))
-      ]
-
-      const orderDiscount = await db
-        .select()
-        .from(schema.orderDiscounts)
-        .where(eq(schema.orderDiscounts.order_id, res.order_id))
-        .get()
-
-      if (orderDiscount && orderDiscount.coupon_id) {
-        batchQueries.push(
-          db.update(schema.coupons)
-            .set({ uses: sql`MAX(0, uses - 1)` })
-            .where(eq(schema.coupons.id, orderDiscount.coupon_id))
-        )
-      }
-
-      await db.batch(batchQueries as any)
-      cancelledCount++
-      console.log(`[Cron] Cancelled order ${res.order_id}, released soft-lock (Product: ${res.product_id}, Qty: ${res.quantity})`)
     }
 
-    console.log(`[Cron] Done: cancelled=${cancelledCount} skipped=${skippedCount} total_expired=${expiredReservations.length}`)
+    console.log(`[Cron] Done: cancelled=${cancelledCount} skipped=${skippedCount} total_expired=${expiredOrders.length}`)
 
     // 4. Abandoned Orders Cleanup (Runs hourly or periodically)
     // Orders older than 24h in 'pending_payment' state -> 'abandoned'

@@ -1,22 +1,11 @@
-import { eq, sql } from 'drizzle-orm';
-import { schema } from '@ecommerce/database';
+import { OrderRepository } from './order.repository';
+import { InventoryRepository } from './inventory.repository';
 
 export class OrderService {
   /**
-   * Generates Drizzle queries to advance order state.
+   * Two-Phase Commit Orchestrator for processing a new checkout.
    */
-  static getAdvanceOrderStatusQueries(db: any, orderId: string, newStatus: string) {
-    return [
-      db.update(schema.orders)
-        .set({ status: newStatus, updated_at: sql`CURRENT_TIMESTAMP` })
-        .where(eq(schema.orders.id, orderId))
-    ];
-  }
-
-  /**
-   * Generates Drizzle queries to create an initial order.
-   */
-  static getCreateOrderQueries(db: any, orderData: {
+  static async processCheckout(drizzleDb: any, rawD1Db: any, orderData: {
     orderId: string;
     customerId?: string;
     email?: string;
@@ -31,158 +20,68 @@ export class OrderService {
     validItems: any[];
     discountAmount: number;
     appliedCouponId?: string | null;
-  }) {
-    const batchQueries: any[] = [];
+  }): Promise<{ success: boolean; message?: string }> {
+    // Phase 1: Create Order in 'pending_payment'
+    await OrderRepository.createOrder(drizzleDb, orderData);
 
-    batchQueries.push(
-      db.insert(schema.orders).values({
-        id: orderData.orderId,
-        customer_id: orderData.customerId || null,
-        guest_email: orderData.customerId ? null : orderData.email,
-        status: 'pending_payment',
-        total_amount: orderData.totalAmount,
-        shipping_fee: orderData.shippingFeeCents,
-        affiliate_id: orderData.affiliateId || null,
-        utm_source: orderData.utmSource || null,
-        utm_medium: orderData.utmMedium || null,
-        utm_campaign: orderData.utmCampaign || null,
-        shipping_address_json: orderData.shippingAddressJson ? JSON.stringify(orderData.shippingAddressJson) : null,
-        billing_address_json: orderData.billingAddressJson ? JSON.stringify(orderData.billingAddressJson) : null,
-      })
-    );
+    // Phase 2: Atomic Inventory Deduction
+    const itemsToDeduct = orderData.validItems.map(i => ({ productId: i.variation_id, quantity: i.quantity }));
+    const deductionSuccess = await InventoryRepository.deductStock(rawD1Db, itemsToDeduct);
 
-    for (const item of orderData.validItems) {
-      batchQueries.push(
-        db.insert(schema.orderItems).values({
-          id: crypto.randomUUID(),
-          order_id: orderData.orderId,
-          product_id: item.variation_id,
-          quantity: item.quantity,
-          price_at_purchase: item.price,
-        })
-      );
+    if (!deductionSuccess) {
+      // Phase 3 (Rollback): Mark Order as Failed
+      await OrderRepository.updateOrderStatus(drizzleDb, orderData.orderId, 'pending_payment', 'failed');
+      throw new Error('Out of stock or inventory lock failed');
     }
 
-    if (orderData.discountAmount > 0 && orderData.appliedCouponId) {
-      batchQueries.push(
-        db.insert(schema.orderDiscounts).values({
-          id: crypto.randomUUID(),
-          order_id: orderData.orderId,
-          coupon_id: orderData.appliedCouponId,
-          discount_amount: orderData.discountAmount,
-        })
-      );
-      batchQueries.push(
-        db.update(schema.coupons)
-          .set({ uses: sql`uses + 1` })
-          .where(eq(schema.coupons.id, orderData.appliedCouponId))
-      );
-    }
-
-    return batchQueries;
+    return { success: true };
   }
 
   /**
-   * Generates Drizzle queries to update customer attribution if needed.
+   * Cancels an unpaid order and restocks inventory via Optimistic Lock.
    */
-  static getUpdateCustomerAttributionQueries(db: any, customer: any, customerId: string, utmSource?: string, utmMedium?: string, utmCampaign?: string, affiliateId?: string, acceptsMarketing?: boolean) {
-    const queries = [];
-    if (customer) {
-      const shouldUpdateAttribution =
-        !customer.signup_utm_source &&
-        !customer.signup_utm_medium &&
-        !customer.signup_utm_campaign &&
-        !customer.signup_affiliate_id;
-
-      if (shouldUpdateAttribution && (utmSource || utmMedium || utmCampaign || affiliateId)) {
-        queries.push(
-          db.update(schema.customers)
-            .set({
-              signup_utm_source: utmSource || null,
-              signup_utm_medium: utmMedium || null,
-              signup_utm_campaign: utmCampaign || null,
-              signup_affiliate_id: affiliateId || null,
-            })
-            .where(eq(schema.customers.id, customerId))
-        );
-      }
-
-      if (acceptsMarketing !== undefined) {
-        queries.push(
-          db.update(schema.customers)
-            .set({ accepts_marketing: acceptsMarketing ? 1 : 0 })
-            .where(eq(schema.customers.id, customerId))
-        );
-      }
-    }
-    return queries;
-  }
-
-  /**
-   * Logic for fulfilling an order (or partial). 
-   * Returns queries to execute and boolean if fully fulfilled.
-   */
-  static async prepareFulfillment(db: any, orderId: string, trackingNumber: string, carrierName: string, requestItems?: { order_item_id: string; quantity: number }[]) {
-    const orderItems = await db.select().from(schema.orderItems).where(eq(schema.orderItems.order_id, orderId)).all();
-    const itemsToFulfill = requestItems || orderItems.map((i: any) => ({ order_item_id: i.id, quantity: i.quantity }));
-
-    const fulfillmentId = crypto.randomUUID();
-    const queries = [];
-
-    queries.push(
-      db.insert(schema.fulfillments).values({
-        id: fulfillmentId,
-        order_id: orderId,
-        status: 'shipped',
-        tracking_number: trackingNumber,
-        carrier: carrierName,
-        shipped_at: new Date().toISOString(),
-      })
-    );
-
-    const fulfillmentItemsRecords = itemsToFulfill.map((i: any) => ({
-      id: crypto.randomUUID(),
-      fulfillment_id: fulfillmentId,
-      order_item_id: i.order_item_id,
-      quantity: i.quantity,
-    }));
+  static async cancelOrderAndRestock(drizzleDb: any, rawD1Db: any, orderId: string): Promise<boolean> {
+    // Try to acquire lock and transition state
+    const lockedAndUpdated = await OrderRepository.updateOrderStatus(drizzleDb, orderId, 'pending_payment', 'cancelled');
     
-    queries.push(db.insert(schema.fulfillmentItems).values(fulfillmentItemsRecords));
-
-    let isFullyFulfilled = false;
-    if (!requestItems) {
-      isFullyFulfilled = true;
-    } else {
-      const allFulfillments = await db.select({
-        order_item_id: schema.fulfillmentItems.order_item_id,
-        quantity: schema.fulfillmentItems.quantity
-      })
-      .from(schema.fulfillmentItems)
-      .innerJoin(schema.fulfillments, eq(schema.fulfillments.id, schema.fulfillmentItems.fulfillment_id))
-      .where(eq(schema.fulfillments.order_id, orderId))
-      .all();
-      
-      const fulfilledMap = new Map<string, number>();
-      allFulfillments.forEach((f: any) => {
-        fulfilledMap.set(f.order_item_id, (fulfilledMap.get(f.order_item_id) || 0) + f.quantity);
-      });
-      
-      isFullyFulfilled = orderItems.every((oi: any) => (fulfilledMap.get(oi.id) || 0) >= oi.quantity);
+    if (lockedAndUpdated) {
+      // Fetch items and restock
+      const items = await OrderRepository.getOrderItems(drizzleDb, orderId);
+      const itemsToRestock = items.map(i => ({ productId: i.product_id, quantity: i.quantity }));
+      await InventoryRepository.restock(rawD1Db, itemsToRestock);
+      return true;
     }
 
-    if (isFullyFulfilled) {
-      queries.push(
-        db.update(schema.orders)
-          .set({ 
-            status: 'completed', 
-            tracking_number: trackingNumber, 
-            carrier_name: carrierName,
-            updated_at: sql`CURRENT_TIMESTAMP`
-          })
-          .where(eq(schema.orders.id, orderId))
-      );
+    return false; // Already processing/shipped/cancelled
+  }
+
+  /**
+   * Marks a processing/completed order as refunded and restocks inventory.
+   */
+  static async refundOrderAndRestock(drizzleDb: any, rawD1Db: any, orderId: string, oldStatus: string): Promise<boolean> {
+    const lockedAndUpdated = await OrderRepository.updateOrderStatus(drizzleDb, orderId, oldStatus, 'refunded');
+    
+    if (lockedAndUpdated) {
+      const items = await OrderRepository.getOrderItems(drizzleDb, orderId);
+      const itemsToRestock = items.map(i => ({ productId: i.product_id, quantity: i.quantity }));
+      await InventoryRepository.restock(rawD1Db, itemsToRestock);
+      return true;
     }
 
-    return { queries, isFullyFulfilled };
+    return false;
+  }
+
+  /**
+   * Marks a pending order as processing after successful payment via Optimistic Lock.
+   */
+  static async processPaymentSuccess(drizzleDb: any, orderId: string): Promise<boolean> {
+    return OrderRepository.updateOrderStatus(drizzleDb, orderId, 'pending_payment', 'processing');
+  }
+
+  /**
+   * Marks a shipped order as completed after Carrier webhook.
+   */
+  static async completeOrder(drizzleDb: any, orderId: string): Promise<boolean> {
+    return OrderRepository.updateOrderStatus(drizzleDb, orderId, 'shipped', 'completed');
   }
 }

@@ -5,3 +5,5 @@ export * from './product.service';
 export * from './category.service';
 export * from './cache.service';
 export * from './catalog.service';
+export * from './order.repository';
+export * from './inventory.repository';
