@@ -44,25 +44,29 @@ export const checkoutSchema = z.object({
 export const cmsSchema = z.object({
   title: z.string().min(1, "Title is required"),
   slug: z.string().min(1, "Slug is required"),
-  type: z.enum(['post', 'page', 'block']),
+  type: z.enum(['post', 'page', 'block', 'banner', 'landing_page']),
   status: z.enum(['published', 'draft', 'archived']).optional(),
   content_json: z.string().optional(),
   excerpt: z.string().optional().nullable(),
   meta_title: z.string().optional().nullable(),
   meta_description: z.string().optional().nullable(),
   featured_image: z.string().optional().nullable(),
+  placement: z.string().optional().nullable(),
+  expires_at: z.number().optional().nullable(),
 });
 
 export const updateCmsSchema = z.object({
   title: z.string().optional(),
   slug: z.string().optional(),
-  type: z.enum(['post', 'page', 'block']).optional(),
+  type: z.enum(['post', 'page', 'block', 'banner', 'landing_page']).optional(),
   status: z.enum(['published', 'draft', 'archived']).optional(),
   content_json: z.string().optional(),
   excerpt: z.string().optional().nullable(),
   meta_title: z.string().optional().nullable(),
   meta_description: z.string().optional().nullable(),
   featured_image: z.string().optional().nullable(),
+  placement: z.string().optional().nullable(),
+  expires_at: z.number().optional().nullable(),
 });
 
 export const customerSchema = z.object({

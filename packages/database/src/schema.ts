@@ -229,8 +229,14 @@ export const cmsEntries = sqliteTable('cms_entries', {
   featured_image_url: text('featured_image_url'),
   published_at: integer('published_at'),
   metadata_json: text('metadata_json').default('{}'),
+  placement: text('placement'),
+  expires_at: integer('expires_at'),
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
   updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+}, (table) => {
+  return {
+    placementIdx: index('idx_cms_entries_placement').on(table.placement),
+  };
 });
 
 export const adminUsers = sqliteTable('admin_users', {

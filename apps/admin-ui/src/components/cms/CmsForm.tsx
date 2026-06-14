@@ -238,6 +238,8 @@ export function CmsForm({ initialData, API_BASE_URL, onSaveSuccess, onCancel, ad
                 <option value="post">📝 Blog Post</option>
                 <option value="article">📄 Article</option>
                 <option value="event">📅 Event</option>
+                <option value="banner">🖼️ Banner</option>
+                <option value="landing_page">🚀 Landing Page</option>
               </select>
             </div>
             <div>
@@ -319,6 +321,43 @@ export function CmsForm({ initialData, API_BASE_URL, onSaveSuccess, onCancel, ad
                     placeholder="City or online"
                     value={meta.location || ''}
                     onChange={(e) => setEditingEntry(setMeta(editingEntry, 'location', e.target.value))}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Banner & Landing Page specific fields */}
+          {(editingEntry.type === 'banner' || editingEntry.type === 'landing_page') && (
+            <div className="p-5 rounded-lg bg-white/5 border border-white/10">
+              <div className="font-semibold mb-4 flex items-center gap-2">
+                <span className="text-lg">🎯</span> Placement Details
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm text-text-muted mb-1">Placement ID</label>
+                  <input
+                    className="w-full px-4 py-2 rounded-lg bg-[var(--glass-bg)] border border-white/10 text-sm focus:border-primary-accent focus:ring-1 focus:ring-primary-accent transition-all text-text-main"
+                    type="text"
+                    placeholder="e.g. home_hero_slider"
+                    value={editingEntry.placement || ''}
+                    onChange={(e) => setField('placement', e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-text-muted mb-1">Expires At (Optional)</label>
+                  <input
+                    className="w-full px-4 py-2 rounded-lg bg-[var(--glass-bg)] border border-white/10 text-sm focus:border-primary-accent focus:ring-1 focus:ring-primary-accent transition-all text-text-main"
+                    type="datetime-local"
+                    value={editingEntry.expires_at ? new Date(editingEntry.expires_at).toISOString().slice(0, 16) : ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (!val) {
+                        setEditingEntry((prev) => ({ ...prev, expires_at: null }));
+                      } else {
+                        setEditingEntry((prev) => ({ ...prev, expires_at: new Date(val).getTime() }));
+                      }
+                    }}
                   />
                 </div>
               </div>

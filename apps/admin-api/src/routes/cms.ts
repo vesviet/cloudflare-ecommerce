@@ -63,6 +63,8 @@ app.post('/', requireRole(['superadmin', 'manager', 'editor']), zValidator('json
       featured_image_url: body.featured_image_url || null,
       published_at: body.published_at || null,
       metadata_json: body.metadata_json || '{}',
+      placement: body.placement || null,
+      expires_at: body.expires_at || null,
     });
     
     await invalidateCache(c.env);
@@ -95,6 +97,8 @@ app.put('/:id', requireRole(['superadmin', 'manager', 'editor']), zValidator('js
     if (body.featured_image_url !== undefined) updateData.featured_image_url = body.featured_image_url;
     if (body.published_at !== undefined) updateData.published_at = body.published_at;
     if (body.metadata_json !== undefined) updateData.metadata_json = body.metadata_json;
+    if (body.placement !== undefined) updateData.placement = body.placement;
+    if (body.expires_at !== undefined) updateData.expires_at = body.expires_at;
 
     await db.update(schema.cmsEntries)
       .set(updateData)

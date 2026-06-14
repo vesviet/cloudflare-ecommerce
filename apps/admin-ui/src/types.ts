@@ -62,11 +62,13 @@ export interface CmsEntry {
   title: string;
   excerpt: string | null;
   content: string | null;
-  type: 'post' | 'article' | 'event';
+  type: 'post' | 'article' | 'event' | 'banner' | 'landing_page';
   status: 'draft' | 'published' | 'archived';
   featured_image_url: string | null;
   published_at: number | null;
   metadata_json: string;
+  placement?: string | null;
+  expires_at?: number | null;
   created_at: string;
   updated_at: string;
 }

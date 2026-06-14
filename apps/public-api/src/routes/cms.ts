@@ -7,7 +7,7 @@ import { eq, and, desc, sql } from 'drizzle-orm';
 
 const app = new Hono<{ Bindings: Bindings }>();
 
-const VALID_TYPES = ['post', 'article', 'event'] as const;
+const VALID_TYPES = ['post', 'article', 'event', 'banner', 'landing_page'] as const;
 
 // GET all published CMS entries
 app.get('/', async (c) => {
@@ -23,10 +23,17 @@ app.get('/', async (c) => {
   const offset = (page - 1) * pageSize;
   
   try {
+    const placement = c.req.query('placement');
+
     let condition = eq(schema.cmsEntries.status, 'published');
     if (type) {
       condition = and(condition, eq(schema.cmsEntries.type, type)) as any;
     }
+    if (placement) {
+      condition = and(condition, eq(schema.cmsEntries.placement, placement)) as any;
+    }
+
+    const startTime = Date.now();
 
     const [entries, countResult] = await Promise.all([
       db.select({
@@ -37,6 +44,8 @@ app.get('/', async (c) => {
         featured_image_url: schema.cmsEntries.featured_image_url,
         published_at: schema.cmsEntries.published_at,
         metadata_json: schema.cmsEntries.metadata_json,
+        placement: schema.cmsEntries.placement,
+        expires_at: schema.cmsEntries.expires_at,
         created_at: schema.cmsEntries.created_at,
       })
       .from(schema.cmsEntries)
@@ -51,6 +60,9 @@ app.get('/', async (c) => {
       .where(condition)
       .get()
     ]);
+
+    const latency = Date.now() - startTime;
+    console.log(`[Telemetry] GET /cms latency: ${latency}ms (type: ${type || 'all'}, placement: ${placement || 'all'})`);
 
     const total = countResult?.count ?? 0;
 
