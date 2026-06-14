@@ -21,7 +21,7 @@ export default function AddToCartButton({ product, isVariable }: AddToCartButton
         name: product.name ?? product.title,
         price: parseInt(String(variation.sale_price ?? variation.regular_price), 10),
         quantity: 1,
-        image: product.images?.[0] || '',
+        image: product.images?.[0]?.url || '',
       });
     } else {
       // Simple product
@@ -34,7 +34,7 @@ export default function AddToCartButton({ product, isVariable }: AddToCartButton
         name: product.name ?? product.title,
         price: parseInt(String(product.prices?.sale_price ?? product.prices?.regular_price), 10),
         quantity: 1,
-        image: product.images?.[0] || '',
+        image: product.images?.[0]?.url || '',
       });
     }
     toggleCart();

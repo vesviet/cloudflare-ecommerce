@@ -48,12 +48,14 @@ vi.mock('@ecommerce/database', () => {
       orders: { id: 'orders' },
       orderItems: { id: 'orderItems' },
       customers: { id: 'customers' },
+      settings: { key: 'key', value: 'value', type: 'type' },
     },
     createDb: vi.fn().mockImplementation(() => {
       return {
         select: vi.fn().mockReturnThis(),
         from: vi.fn().mockReturnThis(),
         where: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
         all: vi.fn().mockResolvedValue([
           { id: '550e8400-e29b-41d4-a716-446655440000', parent_id: 'prod_1', stock_quantity: 5, is_purchasable: 1, regular_price: 1000 }
         ]),

@@ -45,7 +45,7 @@ vi.mock('@ecommerce/database', () => {
         all: vi.fn().mockResolvedValue([
           { 
             id: 'prod_1', 
-            images_json: '["/media/products/img1.jpg"]',
+            images_json: '[{"url":"/media/products/img1.jpg","alt_text":"Product Image"}]',
             secondary_categories: '["cat_1"]',
             variations: '[{"id": "var_1"}]'
           }
@@ -75,7 +75,7 @@ describe('Admin API: Products Controller', () => {
     expect(res.status).toBe(200);
     const data = await res.json() as any;
     expect(data.success).toBe(true);
-    expect(data.data[0].images).toEqual(['/media/products/img1.jpg']);
+    expect(data.data[0].images).toEqual([{ url: '/media/products/img1.jpg', alt_text: 'Product Image' }]);
     expect(data.data[0].secondary_categories).toEqual(['cat_1']);
     expect(data.data[0].variations).toEqual([{ id: 'var_1' }]);
   });

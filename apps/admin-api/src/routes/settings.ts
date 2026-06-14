@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { Env } from '../middleware/auth';
 import { eq } from 'drizzle-orm';
-import { createDb, settings } from '@ecommerce/database';
+import { createDb, schema } from '@ecommerce/database';
 import { z } from 'zod';
 
 const settingsRoutes = new Hono<Env>();
@@ -9,7 +9,7 @@ const settingsRoutes = new Hono<Env>();
 // GET /api/settings
 settingsRoutes.get('/', async (c) => {
   const db = createDb(c.env.DB);
-  const data = await db.select().from(settings);
+  const data = await db.select().from(schema.settings);
   return c.json({ success: true, data });
 });
 
@@ -34,7 +34,7 @@ settingsRoutes.put('/batch', async (c) => {
   if (items.length === 0) return c.json({ success: true });
 
   const queries = items.map(item => 
-    db.update(settings).set({ value: item.value, updated_at: new Date().toISOString() }).where(eq(settings.key, item.key))
+    db.update(schema.settings).set({ value: item.value, updated_at: new Date().toISOString() }).where(eq(schema.settings.key, item.key))
   );
 
   try {

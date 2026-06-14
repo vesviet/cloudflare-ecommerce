@@ -29,6 +29,34 @@
       "when": 1781401726701,
       "tag": "0003_dark_sharon_ventura",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1781425453484,
+      "tag": "0004_hot_baron_strucker",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1781425523404,
+      "tag": "0005_large_satana",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1781425560375,
+      "tag": "0006_migrate_data",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1781425560376,
+      "tag": "0007_cultured_thena",
+      "breakpoints": true
     }
   ]
 }

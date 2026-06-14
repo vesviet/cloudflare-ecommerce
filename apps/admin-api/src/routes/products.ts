@@ -12,26 +12,64 @@ const products = new Hono<{ Bindings: Bindings }>();
 products.get('/products', async (c) => {
   try {
     const db = createDb(c.env.DB);
+    // Rewritten query to fetch data from the new relational schema
+    // Note: SQLite JSON functions are used to aggregate the related items
     const results = await db.all<any>(sql`
       SELECT 
-        p.*,
-        (SELECT json_group_array(category_id) FROM product_categories WHERE product_id = p.id) as secondary_categories,
-        (SELECT CASE WHEN COUNT(v.id) > 0 THEN json_group_array(json_object(
-          'id', v.id, 'sku', v.sku, 'regular_price', v.regular_price, 
-          'sale_price', v.sale_price, 'stock', v.stock_quantity, 'is_purchasable', v.is_purchasable,
-          'attributes', v.attributes_json
-        )) ELSE '[]' END FROM products v WHERE v.parent_id = p.id AND v.deleted_at IS NULL AND v.is_purchasable = 1) as variations
+        p.id, p.slug, p.sku, p.title, p.description, p.type, p.status, p.is_purchasable, p.attributes_json,
+        p.weight, p.length, p.width, p.height, p.primary_category_id,
+        (
+          SELECT json_group_array(json_object('url', a.url, 'alt_text', a.alt_text))
+          FROM product_assets pa
+          JOIN assets a ON pa.asset_id = a.id
+          WHERE pa.product_id = p.id
+          ORDER BY pa.position ASC
+        ) as images_json,
+        (
+          SELECT json_group_array(cp.collection_id) 
+          FROM collection_products cp 
+          WHERE cp.product_id = p.id
+        ) as secondary_categories,
+        (
+          SELECT price FROM price_list_items pli WHERE pli.product_id = p.id LIMIT 1
+        ) as regular_price,
+        (
+          SELECT stock_quantity FROM inventory_levels il WHERE il.product_id = p.id LIMIT 1
+        ) as stock_quantity,
+        (
+          SELECT CASE WHEN COUNT(v.id) > 0 THEN json_group_array(json_object(
+            'id', v.id, 'sku', v.sku, 
+            'regular_price', (SELECT price FROM price_list_items vpli WHERE vpli.product_id = v.id LIMIT 1),
+            'stock', (SELECT stock_quantity FROM inventory_levels vil WHERE vil.product_id = v.id LIMIT 1),
+            'is_purchasable', v.is_purchasable,
+            'attributes', v.attributes_json
+          )) ELSE '[]' END 
+          FROM products v 
+          WHERE v.parent_id = p.id AND v.deleted_at IS NULL AND v.is_purchasable = 1
+        ) as variations
       FROM products p
       WHERE p.parent_id IS NULL AND p.deleted_at IS NULL
       ORDER BY p.created_at DESC
     `);
     
-    const formattedData = results.map((row: any) => ({
-      ...row,
-      images: row.images_json ? JSON.parse(row.images_json) : [],
-      secondary_categories: row.secondary_categories ? JSON.parse(row.secondary_categories) : [],
-      variations: row.variations ? JSON.parse(row.variations).filter((v: any) => v.id !== null) : [],
-    }));
+    const formattedData = results.map((row: any) => {
+      // images_json now contains actual asset objects { url, alt_text }
+      let images = [];
+      try { images = JSON.parse(row.images_json || '[]').filter((img: any) => img.url); } catch (e) {}
+      
+      let variations = [];
+      try { variations = JSON.parse(row.variations || '[]').filter((v: any) => v.id); } catch (e) {}
+
+      let secondaryCategories = [];
+      try { secondaryCategories = JSON.parse(row.secondary_categories || '[]').filter(Boolean); } catch (e) {}
+
+      return {
+        ...row,
+        images,
+        secondary_categories: secondaryCategories,
+        variations,
+      };
+    });
     
     return c.json({ success: true, data: formattedData });
   } catch (err: any) {
@@ -49,12 +87,15 @@ products.get('/products/search-sku', async (c) => {
     }
 
     const results = await db.all<any>(sql`
-      SELECT id, sku, title, regular_price, sale_price, stock_quantity as stock
-      FROM products
-      WHERE type = 'simple' 
-        AND parent_id IS NULL 
-        AND deleted_at IS NULL 
-        AND sku LIKE ${'%' + q + '%'}
+      SELECT 
+        p.id, p.sku, p.title,
+        (SELECT price FROM price_list_items pli WHERE pli.product_id = p.id LIMIT 1) as regular_price,
+        (SELECT stock_quantity FROM inventory_levels il WHERE il.product_id = p.id LIMIT 1) as stock
+      FROM products p
+      WHERE p.type = 'simple' 
+        AND p.parent_id IS NULL 
+        AND p.deleted_at IS NULL 
+        AND p.sku LIKE ${'%' + q + '%'}
       LIMIT 10
     `);
 
@@ -178,7 +219,6 @@ products.put('/products/:id', zValidator('form', productFormSchema), async (c) =
       try { secondary_categories = JSON.parse(body['secondary_categories'] as string); } catch(e){}
     }
 
-    // Only update images_json if the client sent data
     const finalImageUrls = (body['existing_images'] !== undefined || files.length > 0) ? imageUrls : undefined;
 
     const batchQueries = await ProductService.prepareUpsertProduct(db, {

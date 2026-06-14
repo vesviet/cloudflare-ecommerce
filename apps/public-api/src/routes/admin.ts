@@ -14,7 +14,7 @@ const admin = new Hono<{ Bindings: Bindings }>()
 admin.post('/orders/:id/refund', async (c) => {
   const orderId = c.req.param('id')
   const db = createDb(c.env.DB)
-  const stripe = new Stripe(c.env.STRIPE_SECRET_KEY, { apiVersion: '2024-06-20' })
+  const stripe = new Stripe(c.env.STRIPE_SECRET_KEY, { apiVersion: '2024-04-10' })
 
   try {
     const order = await db.select().from(schema.orders).where(eq(schema.orders.id, orderId)).get()

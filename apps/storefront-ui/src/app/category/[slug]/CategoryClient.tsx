@@ -24,7 +24,7 @@ export const CategoryClient = ({ products }: { products: any[] }) => {
         name: product.name,
         price: parseInt(variation.sale_price || variation.regular_price, 10),
         quantity: 1,
-        image: product.images?.[0] || '',
+        image: product.images?.[0]?.url || '',
       });
     } else {
       const variation = product.variations?.[0];
@@ -36,7 +36,7 @@ export const CategoryClient = ({ products }: { products: any[] }) => {
         name: product.name,
         price: parseInt(String(product.prices?.sale_price || product.prices?.regular_price), 10),
         quantity: 1,
-        image: product.images?.[0] || '',
+        image: product.images?.[0]?.url || '',
       });
     }
     toggleCart();
@@ -53,7 +53,7 @@ export const CategoryClient = ({ products }: { products: any[] }) => {
           <div key={product.id} className="glass glass-card" style={{ display: 'flex', flexDirection: 'column' }}>
             <div className="product-image">
               {product.images && product.images.length > 0 && (
-                <img src={product.images[0].startsWith('http') ? product.images[0] : `${API_BASE}${product.images[0]}`} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <img src={product.images[0]?.url?.startsWith('http') ? product.images[0].url : `${API_BASE}${product.images[0]?.url}`} alt={product.images[0]?.alt_text || product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               )}
             </div>
             <div style={{ fontSize: '0.8rem', color: 'var(--accent-color)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '8px' }}>

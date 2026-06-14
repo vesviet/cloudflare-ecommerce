@@ -21,7 +21,7 @@ webhook.post('/stripe', async (c) => {
     return c.json({ error: 'Missing Stripe-Signature header' }, 400)
   }
 
-  const stripe = new Stripe(c.env.STRIPE_SECRET_KEY, { apiVersion: '2024-06-20' })
+  const stripe = new Stripe(c.env.STRIPE_SECRET_KEY, { apiVersion: '2024-04-10' })
   let event: Stripe.Event
 
   try {
@@ -64,7 +64,7 @@ webhook.post('/stripe', async (c) => {
         ...InventoryService.getCommitDeductionQueries(db, order.id, orderItems),
         ...OrderService.getAdvanceOrderStatusQueries(db, order.id, 'processing'),
         db.insert(schema.auditLogs).values({
-          action: 'stripe_webhook_success',
+          id: crypto.randomUUID(), action: 'stripe_webhook_success',
           entity_type: 'order',
           entity_id: order.id,
           payload_json: JSON.stringify({ stripe_event_id: event.id, order_id: order.id, status: 'processing' })
@@ -104,7 +104,7 @@ webhook.post('/stripe', async (c) => {
           ...InventoryService.getRestockQueries(db, orderItems),
           ...OrderService.getAdvanceOrderStatusQueries(db, order.id, 'refunded'),
           db.insert(schema.auditLogs).values({
-            action: 'stripe_webhook_refund',
+            id: crypto.randomUUID(), action: 'stripe_webhook_refund',
             entity_type: 'order',
             entity_id: order.id,
             payload_json: JSON.stringify({ stripe_event_id: event.id, order_id: order.id, status: 'refunded' })

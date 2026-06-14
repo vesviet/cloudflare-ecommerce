@@ -13,27 +13,27 @@ jobs:
     name: Generate Dart & Swift SDKs
     runs-on: ubuntu-latest
     
-    # Needs permissions to push commit
     permissions:
       contents: write
+      pull-requests: write
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v4.0.3
         with:
           node-version: 22
 
       - name: Setup Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@99b8673bf64fbf146c43362d5eb1e33ae07c8727 # v4.2.2
         with:
           distribution: 'temurin'
           java-version: '17'
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v3
+        uses: pnpm/action-setup@fe02f34f77f8bf23d1da92eb4bc89ea11fb82e78 # v4.0.0
         with:
           version: 9
 
@@ -66,16 +66,11 @@ jobs:
             -o ./sdks/swift \
             --additional-properties=projectName=AuraApiSDK
 
-      - name: Commit and Push SDKs
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add ./sdks/
-          # Only commit if there are changes
-          if git diff --staged --quiet; then
-            echo "No changes in SDKs to commit."
-          else
-            git commit -m "chore: auto-generate API SDKs from latest contracts"
-            git push
-            echo "SDKs generated and pushed successfully!"
-          fi
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@c5a7806660adbe173f04e3e038b0ccdcd758773c # v6.1.0
+        with:
+          commit-message: 'chore: auto-generate API SDKs from latest contracts'
+          title: 'Automated SDK Update'
+          body: 'This PR contains auto-generated SDKs reflecting the latest OpenAPI spec changes.'
+          branch: 'auto/sdk-update'
+          delete-branch: true

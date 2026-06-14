@@ -26,7 +26,7 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
 
   const handleApply = async (e: React.FormEvent) => {
     e.preventDefault();
-    const input = e.currentTarget.elements.namedItem('coupon') as HTMLInputElement;
+    const input = (e.currentTarget as HTMLFormElement).elements.namedItem('coupon') as HTMLInputElement;
     if (input.value.trim()) {
       const res = await applyCoupon(input.value.trim());
       if (!res.success) alert(res.error);

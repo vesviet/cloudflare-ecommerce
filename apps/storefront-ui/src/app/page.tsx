@@ -56,8 +56,8 @@ export default async function Home() {
               <div className="product-image">
                 {product.images && product.images.length > 0 && (
                   <img 
-                    src={product.images[0].startsWith('http') ? product.images[0] : `${API_BASE}${product.images[0]}`} 
-                    alt={displayName} 
+                    src={product.images[0]?.url?.startsWith('http') ? product.images[0].url : `${API_BASE}${product.images[0]?.url}`} 
+                    alt={product.images[0]?.alt_text || displayName} 
                     style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
                     fetchPriority={index < 4 ? "high" : "auto"}
                     loading={index < 4 ? "eager" : "lazy"}

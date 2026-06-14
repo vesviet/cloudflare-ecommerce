@@ -25,7 +25,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   
   const title = product.name || product.title;
   const description = product.description || 'Premium product from Aura Store';
-  const images = product.images?.length > 0 ? [`${API_BASE}${product.images[0]}`] : [];
+  const images = product.images?.length > 0 && product.images[0]?.url ? [`${API_BASE}${product.images[0].url}`] : [];
 
   return {
     title,
@@ -58,7 +58,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     '@context': 'https://schema.org',
     '@type': 'Product',
     name: product.name || product.title,
-    image: product.images?.length > 0 ? `${API_BASE}${product.images[0]}` : '',
+    image: product.images?.length > 0 && product.images[0]?.url ? `${API_BASE}${product.images[0].url}` : '',
     description: product.description,
     sku: product.variations?.[0]?.sku || '',
     offers: {

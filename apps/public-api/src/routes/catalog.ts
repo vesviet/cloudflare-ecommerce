@@ -10,48 +10,69 @@ catalog.get('/', async (c) => {
     const db = createDb(c.env.DB);
     const categorySlug = c.req.query('category');
 
-    let productRows: any[];
+    let query: any;
     if (categorySlug) {
-      const query = sql`
+      query = sql`
         WITH RECURSIVE category_tree AS (
           SELECT id FROM categories WHERE slug = ${categorySlug}
           UNION ALL
           SELECT c.id FROM categories c
           INNER JOIN category_tree ct ON c.parent_id = ct.id
         )
-        SELECT DISTINCT p.* FROM products p
-        LEFT JOIN product_categories pc ON p.id = pc.product_id
+        SELECT DISTINCT 
+          p.*,
+          (SELECT price FROM price_list_items pli WHERE pli.product_id = p.id LIMIT 1) as regular_price,
+          (SELECT stock_quantity FROM inventory_levels il WHERE il.product_id = p.id LIMIT 1) as stock_quantity,
+          (
+            SELECT json_group_array(json_object('url', a.url, 'alt_text', a.alt_text))
+            FROM product_assets pa
+            JOIN assets a ON pa.asset_id = a.id
+            WHERE pa.product_id = p.id
+            ORDER BY pa.position ASC
+          ) as assets
+        FROM products p
+        LEFT JOIN collection_products cp ON p.id = cp.product_id
         WHERE p.status = 'published' AND p.parent_id IS NULL AND p.deleted_at IS NULL AND (
           p.primary_category_id IN (SELECT id FROM category_tree) OR
-          pc.category_id IN (SELECT id FROM category_tree)
+          cp.collection_id IN (SELECT id FROM category_tree)
         )
         ORDER BY p.created_at DESC
         LIMIT 20
       `;
-      productRows = await db.all<any>(query);
     } else {
-      productRows = await db.select()
-        .from(schema.products)
-        .where(and(
-          eq(schema.products.status, 'published'),
-          sql`${schema.products.parent_id} IS NULL`,
-          sql`${schema.products.deleted_at} IS NULL`
-        ))
-        .orderBy(sql`${schema.products.created_at} DESC`)
-        .limit(20)
-        .all();
+      query = sql`
+        SELECT 
+          p.*,
+          (SELECT price FROM price_list_items pli WHERE pli.product_id = p.id LIMIT 1) as regular_price,
+          (SELECT stock_quantity FROM inventory_levels il WHERE il.product_id = p.id LIMIT 1) as stock_quantity,
+          (
+            SELECT json_group_array(json_object('url', a.url, 'alt_text', a.alt_text))
+            FROM product_assets pa
+            JOIN assets a ON pa.asset_id = a.id
+            WHERE pa.product_id = p.id
+            ORDER BY pa.position ASC
+          ) as assets
+        FROM products p
+        WHERE p.status = 'published' AND p.parent_id IS NULL AND p.deleted_at IS NULL
+        ORDER BY p.created_at DESC
+        LIMIT 20
+      `;
     }
 
+    const productRows = await db.all<any>(query);
     const productIds = productRows.map(p => p.id);
+
     let allVariations: any[] = [];
     if (productIds.length > 0) {
-      allVariations = await db.select()
-        .from(schema.products)
-        .where(and(
-          inArray(schema.products.parent_id, productIds),
-          sql`${schema.products.deleted_at} IS NULL`
-        ))
-        .all();
+      allVariations = await db.all<any>(sql`
+        SELECT 
+          v.*,
+          (SELECT price FROM price_list_items pli WHERE pli.product_id = v.id LIMIT 1) as regular_price,
+          (SELECT stock_quantity FROM inventory_levels il WHERE il.product_id = v.id LIMIT 1) as stock_quantity
+        FROM products v
+        WHERE v.parent_id IN (${sql.join(productIds, sql`, `)})
+          AND v.deleted_at IS NULL
+      `);
     }
 
     const variationsByProductId = allVariations.reduce((acc: any, v: any) => {
@@ -59,7 +80,7 @@ catalog.get('/', async (c) => {
       if (!acc[v.parent_id]) acc[v.parent_id] = [];
       acc[v.parent_id].push({
         ...v,
-        stock: v.stock_quantity,
+        stock: v.stock_quantity || 0,
         attributes: v.attributes_json ? JSON.parse(v.attributes_json) : {}
       });
       return acc;
@@ -67,10 +88,13 @@ catalog.get('/', async (c) => {
 
     const enriched = productRows.map((product) => {
       const variations = variationsByProductId[product.id] || [];
+      let images = [];
+      try { images = JSON.parse(product.assets || '[]').filter((img: any) => img.url); } catch (e) {}
+
       return {
         ...product,
         name: product.title,
-        images: product.images_json ? JSON.parse(product.images_json) : [],
+        images,
         variations,
         prices: ProductService.buildPrices(product, variations),
       }
@@ -103,36 +127,46 @@ catalog.get('/:slug', async (c) => {
     const slug = c.req.param('slug');
     const db = createDb(c.env.DB);
 
-    const product = await db.select()
-      .from(schema.products)
-      .where(
-        and(
-          sql`${schema.products.slug} = ${slug} OR ${schema.products.id} = ${slug}`,
-          eq(schema.products.status, 'published')
-        )
-      )
-      .get();
+    const product = await db.get<any>(sql`
+      SELECT 
+        p.*,
+        (SELECT price FROM price_list_items pli WHERE pli.product_id = p.id LIMIT 1) as regular_price,
+        (SELECT stock_quantity FROM inventory_levels il WHERE il.product_id = p.id LIMIT 1) as stock_quantity,
+        (
+          SELECT json_group_array(json_object('url', a.url, 'alt_text', a.alt_text))
+          FROM product_assets pa
+          JOIN assets a ON pa.asset_id = a.id
+          WHERE pa.product_id = p.id
+          ORDER BY pa.position ASC
+        ) as assets
+      FROM products p
+      WHERE (p.slug = ${slug} OR p.id = ${slug}) AND p.status = 'published'
+    `);
 
     if (!product) return c.json({ success: false, error: 'Not found' }, 404);
 
-    const variations = (await db.select()
-      .from(schema.products)
-      .where(and(
-        eq(schema.products.parent_id, product.id),
-        sql`${schema.products.deleted_at} IS NULL`
-      ))
-      .all()).map(v => ({
-        ...v,
-        stock: v.stock_quantity,
-        attributes: v.attributes_json ? JSON.parse(v.attributes_json) : {}
-      }));
+    const variations = (await db.all<any>(sql`
+      SELECT 
+        v.*,
+        (SELECT price FROM price_list_items pli WHERE pli.product_id = v.id LIMIT 1) as regular_price,
+        (SELECT stock_quantity FROM inventory_levels il WHERE il.product_id = v.id LIMIT 1) as stock_quantity
+      FROM products v
+      WHERE v.parent_id = ${product.id} AND v.deleted_at IS NULL
+    `)).map(v => ({
+      ...v,
+      stock: v.stock_quantity || 0,
+      attributes: v.attributes_json ? JSON.parse(v.attributes_json) : {}
+    }));
+
+    let images = [];
+    try { images = JSON.parse(product.assets || '[]').filter((img: any) => img.url); } catch (e) {}
 
     return c.json({
       success: true,
       data: {
         ...product,
         name: product.title,
-        images: product.images_json ? JSON.parse(product.images_json) : [],
+        images,
         variations,
         prices: ProductService.buildPrices(product, variations),
       },

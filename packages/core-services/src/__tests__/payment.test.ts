@@ -26,7 +26,7 @@ describe('Core-Services: PaymentService', () => {
       get: vi.fn().mockResolvedValue(null)
     };
 
-    const result = await PaymentService.calculatePricing(mockDb as any, 2000, null, null, 999);
+    const result = await PaymentService.calculatePricing(mockDb as any, 2000, undefined, undefined, 999);
     
     expect(result.discountAmount).toBe(0);
     expect(result.shippingFeeCents).toBe(999);
@@ -47,7 +47,7 @@ describe('Core-Services: PaymentService', () => {
       })
     };
 
-    const result = await PaymentService.calculatePricing(mockDb as any, 2000, null, 'SAVE20', 999);
+    const result = await PaymentService.calculatePricing(mockDb as any, 2000, undefined, 'SAVE20', 999);
     
     expect(result.discountAmount).toBe(400); // 20% of 2000
     expect(result.shippingFeeCents).toBe(999);
@@ -66,7 +66,7 @@ describe('Core-Services: PaymentService', () => {
       })
     };
 
-    const result = await PaymentService.calculatePricing(mockDb as any, 2000, null, 'SAVE20', 999);
+    const result = await PaymentService.calculatePricing(mockDb as any, 2000, undefined, 'SAVE20', 999);
     expect(result.discountAmount).toBe(0);
   });
 

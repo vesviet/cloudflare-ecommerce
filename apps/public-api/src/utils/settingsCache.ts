@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { settings } from '@ecommerce/database';
+import { schema } from '@ecommerce/database';
 
 interface CacheEntry {
   value: string;
@@ -19,7 +19,7 @@ export async function getSetting(db: any, key: string, defaultValue: any = null)
   }
 
   // Cache miss or expired, fetch from D1
-  const result = await db.select().from(settings).where(eq(settings.key, key)).limit(1);
+  const result = await db.select().from(schema.settings).where(eq(schema.settings.key, key)).limit(1);
   if (result.length > 0) {
     const record = result[0];
     settingsCache.set(key, {

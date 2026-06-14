@@ -1,4 +1,4 @@
-import { eq, and, sql, inArray } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import { schema } from '@ecommerce/database';
 
 export class ProductService {
@@ -6,6 +6,7 @@ export class ProductService {
    * Helper: build a normalised `prices` object for any product row + its variations.
    */
   static buildPrices(product: any, variations: any[]) {
+    // This assumes variation prices and stock are now pulled from price_list_items and inventory_levels
     if (product.type === 'variable' && variations.length > 0) {
       const purchasable = variations.filter((v: any) => v.is_purchasable === 1)
       const prices = purchasable.length > 0 ? purchasable : variations
@@ -43,9 +44,9 @@ export class ProductService {
         slug: row.slug,
         type: row.type,
         description: row.description,
-        images: row.images_json ? JSON.parse(row.images_json) : [],
+        images: row.assets || [],
         is_purchasable: !!row.is_purchasable,
-        in_stock: !!row.in_stock,
+        in_stock: (row.stock_quantity || 0) > 0,
         prices: {
           currency_code: 'USD',
           currency_symbol: '$',
@@ -108,14 +109,8 @@ export class ProductService {
           sku: params.sku || null,
           title: params.name,
           description: null,
-          images_json: params.imageUrls ? JSON.stringify(params.imageUrls) : '[]',
           status: 'published',
           type: type || 'simple',
-          regular_price: params.regular_price || 0,
-          sale_price: params.sale_price || null,
-          stock_quantity: type === 'simple' ? (params.stock || 0) : 0,
-          manage_stock: 1,
-          in_stock: type === 'simple' ? ((params.stock || 0) > 0 ? 1 : 0) : 1,
           weight: type === 'simple' ? params.weight : null,
           length: type === 'simple' ? params.length : null,
           width: type === 'simple' ? params.width : null,
@@ -128,23 +123,77 @@ export class ProductService {
       if (params.name) updateData.title = params.name;
       if (params.sku !== undefined) updateData.sku = params.sku;
       if (params.type) updateData.type = params.type;
-      if (params.regular_price !== undefined) updateData.regular_price = params.regular_price;
-      if (params.sale_price !== undefined) updateData.sale_price = params.sale_price;
-      if (params.stock !== undefined && type === 'simple') {
-        updateData.stock_quantity = params.stock;
-        updateData.in_stock = params.stock > 0 ? 1 : 0;
-      }
       if (params.weight !== undefined && type === 'simple') updateData.weight = params.weight;
       if (params.length !== undefined && type === 'simple') updateData.length = params.length;
       if (params.width !== undefined && type === 'simple') updateData.width = params.width;
       if (params.height !== undefined && type === 'simple') updateData.height = params.height;
       if (params.primary_category_id !== undefined) updateData.primary_category_id = params.primary_category_id;
-      if (params.imageUrls && params.imageUrls.length > 0) {
-        updateData.images_json = JSON.stringify(params.imageUrls);
-      }
+      
       batchQueries.push(
         db.update(schema.products).set(updateData).where(eq(schema.products.id, productId))
       );
+    }
+
+    // Handle prices and inventory for simple product
+    if (type === 'simple') {
+      if (params.regular_price !== undefined) {
+        batchQueries.push(
+          db.delete(schema.priceListItems).where(eq(schema.priceListItems.product_id, productId))
+        );
+        batchQueries.push(
+          db.insert(schema.priceListItems).values({
+            id: crypto.randomUUID(),
+            price_list_id: 'pl_base',
+            product_id: productId,
+            price: params.regular_price || 0
+          })
+        );
+      }
+      
+      if (params.stock !== undefined) {
+        batchQueries.push(
+          db.delete(schema.inventoryLevels).where(eq(schema.inventoryLevels.product_id, productId))
+        );
+        batchQueries.push(
+          db.insert(schema.inventoryLevels).values({
+            id: crypto.randomUUID(),
+            location_id: 'loc_default',
+            product_id: productId,
+            stock_quantity: params.stock || 0
+          })
+        );
+      }
+    }
+
+    // Handle images / assets
+    if (params.imageUrls && params.imageUrls.length > 0) {
+      if (isUpdate) {
+        batchQueries.push(
+          db.delete(schema.productAssets).where(eq(schema.productAssets.product_id, productId))
+        );
+      }
+      for (let i = 0; i < params.imageUrls.length; i++) {
+        const url = params.imageUrls[i];
+        const assetId = crypto.randomUUID();
+        // Insert asset
+        batchQueries.push(
+          db.insert(schema.assets).values({
+            id: assetId,
+            r2_key: url,
+            url: url,
+            alt_text: params.name || 'Product Image'
+          })
+        );
+        // Link asset to product
+        batchQueries.push(
+          db.insert(schema.productAssets).values({
+            id: crypto.randomUUID(),
+            product_id: productId,
+            asset_id: assetId,
+            position: i
+          })
+        );
+      }
     }
 
     // Variations Handling
@@ -171,15 +220,13 @@ export class ProductService {
 
       for (let index = 0; index < variations.length; index++) {
         const v = variations[index];
+        const varId = v.id || crypto.randomUUID();
+        
         if (v.id) {
           batchQueries.push(
             db.update(schema.products)
               .set({
                 parent_id: productId,
-                regular_price: v.regular_price || 0,
-                sale_price: v.sale_price || null,
-                stock_quantity: v.stock || 0,
-                in_stock: (v.stock || 0) > 0 ? 1 : 0,
                 attributes_json: JSON.stringify(v.attributes || {}),
                 is_purchasable: 1,
                 deleted_at: null
@@ -190,26 +237,45 @@ export class ProductService {
               ))
           );
         } else {
-          const variationId = crypto.randomUUID();
           const varSku = v.sku || `SKU-${slug.toUpperCase()}-${index + 1}`;
           batchQueries.push(
             db.insert(schema.products).values({
-              id: variationId,
+              id: varId,
               parent_id: productId,
               slug: `${slug}-${index + 1}`,
               sku: varSku,
               title: `${params.name} - ${v.attributes ? Object.values(v.attributes).join(' ') : index + 1}`,
               type: 'simple',
-              regular_price: v.regular_price || 0,
-              sale_price: v.sale_price || null,
-              stock_quantity: v.stock || 0,
-              manage_stock: 1,
-              in_stock: (v.stock || 0) > 0 ? 1 : 0,
               is_purchasable: 1,
               attributes_json: JSON.stringify(v.attributes || {}),
             })
           );
         }
+
+        // Handle variations prices and inventory
+        batchQueries.push(
+          db.delete(schema.priceListItems).where(eq(schema.priceListItems.product_id, varId))
+        );
+        batchQueries.push(
+          db.insert(schema.priceListItems).values({
+            id: crypto.randomUUID(),
+            price_list_id: 'pl_base',
+            product_id: varId,
+            price: v.regular_price || 0
+          })
+        );
+
+        batchQueries.push(
+          db.delete(schema.inventoryLevels).where(eq(schema.inventoryLevels.product_id, varId))
+        );
+        batchQueries.push(
+          db.insert(schema.inventoryLevels).values({
+            id: crypto.randomUUID(),
+            location_id: 'loc_default',
+            product_id: varId,
+            stock_quantity: v.stock || 0
+          })
+        );
       }
     } else if (isUpdate && type === 'simple') {
       batchQueries.push(
@@ -217,19 +283,6 @@ export class ProductService {
           .set({ deleted_at: sql`CURRENT_TIMESTAMP`, is_purchasable: 0 })
           .where(eq(schema.products.parent_id, productId))
       );
-    }
-
-    // Categories Handling
-    batchQueries.push(db.delete(schema.productCategories).where(eq(schema.productCategories.product_id, productId)));
-    if (secondary_categories.length > 0) {
-      for (const catId of secondary_categories) {
-        batchQueries.push(
-          db.insert(schema.productCategories).values({
-            product_id: productId,
-            category_id: catId,
-          })
-        );
-      }
     }
 
     return batchQueries;

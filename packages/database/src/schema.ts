@@ -60,16 +60,7 @@ export const products = sqliteTable('products', {
   title: text('title').notNull(),
   short_description: text('short_description'),
   description: text('description'),
-  images_json: text('images_json').default('[]'),
   type: text('type').notNull().default('simple'), // simple, configurable, virtual
-  
-  regular_price: integer('regular_price'),
-  sale_price: integer('sale_price'),
-  
-  manage_stock: integer('manage_stock').default(1),
-  stock_quantity: integer('stock_quantity').notNull().default(0),
-  allow_backorders: integer('allow_backorders').default(0),
-  in_stock: integer('in_stock').notNull().default(1),
   
   weight: real('weight'),
   length: real('length'),
@@ -83,6 +74,7 @@ export const products = sqliteTable('products', {
   is_purchasable: integer('is_purchasable').notNull().default(1),
   status: text('status').default('draft'), // draft, published, archived
   primary_category_id: text('primary_category_id').references(() => categories.id, { onDelete: 'set null' }),
+  ai_sync_status: text('ai_sync_status').default('pending'), // pending, synced, failed
   
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
   updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
@@ -91,14 +83,93 @@ export const products = sqliteTable('products', {
   return {
     statusIdx: index('idx_products_status').on(table.status),
     parentIdIdx: index('idx_products_parent_id').on(table.parent_id),
-    skuIdx: index('idx_products_sku').on(table.sku),
   };
 });
 
-export const productCategories = sqliteTable('product_categories', {
+// --- PIM REFACTOR MODELS ---
+
+export const priceLists = sqliteTable('price_lists', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  type: text('type').notNull().default('base'), // base, b2b, sale
+  currency: text('currency').notNull().default('USD'),
+  created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+  updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const priceListItems = sqliteTable('price_list_items', {
+  id: text('id').primaryKey(),
+  price_list_id: text('price_list_id').notNull().references(() => priceLists.id, { onDelete: 'cascade' }),
+  product_id: text('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  price: integer('price').notNull(),
+  created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+}, (table) => {
+  return {
+    priceListProductIdx: index('idx_price_list_product').on(table.price_list_id, table.product_id),
+  };
+});
+
+export const locations = sqliteTable('locations', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  address: text('address'),
+  type: text('type').notNull().default('warehouse'), // warehouse, store
+  created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+  updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const inventoryLevels = sqliteTable('inventory_levels', {
+  id: text('id').primaryKey(),
+  location_id: text('location_id').notNull().references(() => locations.id, { onDelete: 'cascade' }),
+  product_id: text('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  stock_quantity: integer('stock_quantity').notNull().default(0),
+  updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+}, (table) => {
+  return {
+    locationProductIdx: index('idx_inventory_location_product').on(table.location_id, table.product_id),
+  };
+});
+
+export const collections = sqliteTable('collections', {
+  id: text('id').primaryKey(),
+  slug: text('slug').notNull().unique(),
+  name: text('name').notNull(),
+  description: text('description'),
+  created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+  updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const collectionRules = sqliteTable('collection_rules', {
+  id: text('id').primaryKey(),
+  collection_id: text('collection_id').notNull().references(() => collections.id, { onDelete: 'cascade' }),
+  field: text('field').notNull(), // e.g., 'price', 'category_id', 'tags'
+  operator: text('operator').notNull(), // 'equals', 'greater_than', 'contains'
+  value: text('value').notNull(),
+  created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const collectionProducts = sqliteTable('collection_products', {
+  id: text('id').primaryKey(),
+  collection_id: text('collection_id').notNull().references(() => collections.id, { onDelete: 'cascade' }),
+  product_id: text('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const assets = sqliteTable('assets', {
+  id: text('id').primaryKey(),
+  r2_key: text('r2_key').notNull().unique(),
+  url: text('url').notNull(),
+  alt_text: text('alt_text').notNull(),
+  mime_type: text('mime_type'),
+  size: integer('size'),
+  created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const productAssets = sqliteTable('product_assets', {
   id: text('id').primaryKey(),
   product_id: text('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
-  category_id: text('category_id').notNull().references(() => categories.id, { onDelete: 'cascade' }),
+  asset_id: text('asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
+  position: integer('position').default(0),
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
 });
 
@@ -141,6 +212,8 @@ export const orders = sqliteTable('orders', {
   shipping_address_json: text('shipping_address_json'),
   billing_address_json: text('billing_address_json'),
   tracking_number: text('tracking_number'),
+  session_id: text('session_id'),
+  payment_intent_id: text('payment_intent_id'),
   carrier_name: text('carrier_name'),
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
   updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
@@ -303,6 +376,8 @@ export const fulfillments = sqliteTable('fulfillments', {
   order_id: text('order_id').notNull().references(() => orders.id, { onDelete: 'cascade' }),
   status: text('status').default('processing'), // processing, shipped, delivered, cancelled
   tracking_number: text('tracking_number'),
+  session_id: text('session_id'),
+  payment_intent_id: text('payment_intent_id'),
   carrier: text('carrier'),
   shipped_at: text('shipped_at'),
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),

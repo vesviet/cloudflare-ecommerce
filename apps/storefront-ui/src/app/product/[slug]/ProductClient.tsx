@@ -42,7 +42,7 @@ export default function ProductClient({ product }: { product: any }) {
       name: product.name,
       price: parseInt(selectedVar.sale_price || selectedVar.regular_price, 10),
       quantity: 1,
-      image: product.images?.[0] || '',
+      image: product.images?.[0]?.url || '',
       attributes: selectedVar.attributes || {}
     });
     
@@ -64,11 +64,11 @@ export default function ProductClient({ product }: { product: any }) {
         {product.images && product.images.length > 0 ? (
           <div style={{ position: 'relative' }}>
             <div ref={galleryRef} style={{ display: 'flex', overflowX: 'auto', scrollSnapType: 'x mandatory', gap: '20px', paddingBottom: '10px', scrollbarWidth: 'none' }}>
-              {product.images.map((img: string, idx: number) => (
+              {product.images.map((img: {url: string, alt_text: string}, idx: number) => (
                 <div key={idx} className="glass" style={{ flex: '0 0 100%', scrollSnapAlign: 'start', padding: '20px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '500px', boxSizing: 'border-box' }}>
                   <img 
-                    src={img.startsWith('http') ? img : `${API_BASE}${img}`} 
-                    alt={`${product.name} ${idx + 1}`} 
+                    src={img.url.startsWith('http') ? img.url : `${API_BASE}${img.url}`} 
+                    alt={img.alt_text || `${product.name} ${idx + 1}`} 
                     style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '8px' }} 
                   />
                 </div>

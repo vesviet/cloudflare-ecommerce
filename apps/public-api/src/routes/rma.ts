@@ -70,7 +70,7 @@ rma.post('/', zValidator('json', rmaRequestSchema), async (c) => {
       // Execute Stripe refund if possible
       if (order.payment_intent_id && c.env.STRIPE_SECRET_KEY) {
         try {
-          const stripe = new Stripe(c.env.STRIPE_SECRET_KEY, { apiVersion: '2024-06-20' })
+          const stripe = new Stripe(c.env.STRIPE_SECRET_KEY, { apiVersion: '2024-04-10' })
           await stripe.refunds.create({
             payment_intent: order.payment_intent_id
           })
