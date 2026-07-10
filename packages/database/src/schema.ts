@@ -213,6 +213,7 @@ export const orders = sqliteTable('orders', {
   customer_id: text('customer_id').references(() => customers.id),
   guest_email: text('guest_email'),
   status: text('status').default('pending_payment'),
+  location_id: text('location_id').references(() => locations.id),
   total_amount: integer('total_amount').notNull(),
   shipping_fee: integer('shipping_fee').default(0),
   affiliate_id: text('affiliate_id'),
@@ -296,12 +297,14 @@ export const inventoryReservations = sqliteTable('inventory_reservations', {
   id: text('id').primaryKey(),
   order_id: text('order_id').notNull().references(() => orders.id, { onDelete: 'cascade' }),
   product_id: text('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  location_id: text('location_id').notNull().references(() => locations.id, { onDelete: 'cascade' }),
   quantity: integer('quantity').notNull(),
   expires_at: integer('expires_at').notNull(), // Unix timestamp for soft-lock expiration
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
 }, (table) => {
   return {
     productIdIdx: index('idx_inventory_reservations_product_id').on(table.product_id),
+    locationProductIdx: index('idx_inventory_reservations_location_product').on(table.location_id, table.product_id),
     expiresAtIdx: index('idx_inventory_reservations_expires_at').on(table.expires_at),
   };
 });
@@ -309,6 +312,7 @@ export const inventoryReservations = sqliteTable('inventory_reservations', {
 export const idempotencyKeys = sqliteTable('idempotency_keys', {
   id: text('id').primaryKey(),
   event_type: text('event_type').notNull(),
+  expires_at: integer('expires_at'),
   processed_at: text('processed_at').default(sql`CURRENT_TIMESTAMP`),
 });
 
@@ -396,33 +400,33 @@ export const wishlists = sqliteTable('wishlists', {
   };
 });
 
-export const fulfillments = sqliteTable('fulfillments', {
+export const shipments = sqliteTable('shipments', {
   id: text('id').primaryKey(),
   order_id: text('order_id').notNull().references(() => orders.id, { onDelete: 'cascade' }),
-  status: text('status').default('processing'), // processing, shipped, delivered, cancelled
+  status: text('status').default('pending'),
   tracking_number: text('tracking_number'),
-  session_id: text('session_id'),
-  payment_intent_id: text('payment_intent_id'),
-  carrier: text('carrier'),
+  carrier_name: text('carrier_name'),
+  label_r2_key: text('label_r2_key'),
   shipped_at: text('shipped_at'),
+  delivered_at: text('delivered_at'),
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
   updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
 }, (table) => {
   return {
-    orderIdIdx: index('idx_fulfillments_order_id').on(table.order_id),
+    orderIdIdx: index('idx_shipments_order_id').on(table.order_id),
   };
 });
 
-export const fulfillmentItems = sqliteTable('fulfillment_items', {
+export const shipmentItems = sqliteTable('shipment_items', {
   id: text('id').primaryKey(),
-  fulfillment_id: text('fulfillment_id').notNull().references(() => fulfillments.id, { onDelete: 'cascade' }),
+  shipment_id: text('shipment_id').notNull().references(() => shipments.id, { onDelete: 'cascade' }),
   order_item_id: text('order_item_id').notNull().references(() => orderItems.id, { onDelete: 'cascade' }),
   quantity: integer('quantity').notNull(),
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
 }, (table) => {
   return {
-    fulfillmentIdIdx: index('idx_fulfillment_items_fulfillment_id').on(table.fulfillment_id),
-    orderItemIdIdx: index('idx_fulfillment_items_order_item_id').on(table.order_item_id),
+    shipmentIdIdx: index('idx_shipment_items_shipment_id').on(table.shipment_id),
+    orderItemIdIdx: index('idx_shipment_items_order_item_id').on(table.order_item_id),
   };
 });
 

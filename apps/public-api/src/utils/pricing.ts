@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { schema } from '@ecommerce/database';
+import { localSchema as schema } from '@ecommerce/core-services';
 
 export const calculatePricing = async (
   db: any, 
@@ -21,20 +21,20 @@ export const calculatePricing = async (
         if (tags.includes('VIP')) {
           vipDiscount = Math.round(subTotalCents * 0.10);
         }
-      } catch(e) {}
+      } catch { /* ignore JSON parse error */ }
     }
   }
   
   let couponDiscount = 0;
   let couponRecord = null;
   if (coupon_code) {
-    couponRecord = await db.select().from(schema.coupons).where(eq(schema.coupons.code, coupon_code)).get();
-    if (couponRecord && couponRecord.is_active === 1) {
-      if (couponRecord.type === 'percent') {
+    couponRecord = await db.select().from(schema.promotions).where(eq(schema.promotions.code, coupon_code)).get();
+    if (couponRecord && couponRecord.status === 'active') {
+      if (couponRecord.type === 'percentage') {
         couponDiscount = Math.round(subTotalCents * (couponRecord.value / 100));
       } else if (couponRecord.type === 'fixed') {
         couponDiscount = couponRecord.value;
-      } else if (couponRecord.type === 'freeship') {
+      } else if (couponRecord.type === 'free_shipping') {
         shippingFeeCents = 0;
       }
     }

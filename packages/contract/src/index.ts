@@ -16,6 +16,7 @@ export const CheckoutSchema = z.object({
   email: z.string().email().optional(),
   customer_id: z.string().uuid().optional(),
   coupon_code: z.string().optional(),
+  location_id: z.string().optional(),
   address: z.object({
     fullname: z.string().optional(),
     address: z.string().optional(),
@@ -24,7 +25,7 @@ export const CheckoutSchema = z.object({
   shipping_address_json: z.record(z.any()).optional(),
   billing_address_json: z.record(z.any()).optional(),
   items: z.array(z.object({
-    variation_id: z.string().uuid(),
+    variation_id: z.string(),
     quantity: z.number().int().positive()
   })),
   affiliate_id: z.string().optional(),
@@ -32,6 +33,8 @@ export const CheckoutSchema = z.object({
   utm_medium: z.string().optional(),
   utm_campaign: z.string().optional(),
   accepts_marketing: z.boolean().optional(),
+  turnstileToken: z.string().optional(),
+  redeem_points: z.number().int().nonnegative().optional(),
 }).openapi('Checkout')
 
 

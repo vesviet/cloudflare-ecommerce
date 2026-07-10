@@ -6,7 +6,8 @@
   "dependencies": {
     "hono": "^4.1.0",
     "drizzle-orm": "^0.30.10",
-    "@ecommerce/database": "workspace:*"
+    "@ecommerce/database": "workspace:*",
+    "@ecommerce/core-services": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.0.0"

@@ -89,9 +89,11 @@ export class ProductService {
     primary_category_id?: string | null;
     secondary_categories?: string[];
     variations?: any[];
+    locationId?: string;
   }) {
     const { isUpdate, productId, type, variations = [], secondary_categories = [] } = params;
     const batchQueries: any[] = [];
+    const locationId = params.locationId || 'loc-1';
     
     // Core Product Update/Insert
     let slug = '';
@@ -152,12 +154,17 @@ export class ProductService {
       
       if (params.stock !== undefined) {
         batchQueries.push(
-          db.delete(schema.inventoryLevels).where(eq(schema.inventoryLevels.product_id, productId))
+          db.delete(schema.inventoryLevels).where(
+            and(
+              eq(schema.inventoryLevels.product_id, productId),
+              eq(schema.inventoryLevels.location_id, locationId)
+            )
+          )
         );
         batchQueries.push(
           db.insert(schema.inventoryLevels).values({
             id: crypto.randomUUID(),
-            location_id: 'loc_default',
+            location_id: locationId,
             product_id: productId,
             stock_quantity: params.stock || 0
           })
@@ -266,12 +273,17 @@ export class ProductService {
         );
 
         batchQueries.push(
-          db.delete(schema.inventoryLevels).where(eq(schema.inventoryLevels.product_id, varId))
+          db.delete(schema.inventoryLevels).where(
+            and(
+              eq(schema.inventoryLevels.product_id, varId),
+              eq(schema.inventoryLevels.location_id, locationId)
+            )
+          )
         );
         batchQueries.push(
           db.insert(schema.inventoryLevels).values({
             id: crypto.randomUUID(),
-            location_id: 'loc_default',
+            location_id: locationId,
             product_id: varId,
             stock_quantity: v.stock || 0
           })

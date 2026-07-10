@@ -39,6 +39,7 @@ vi.mock('@ecommerce/database', () => {
         update: vi.fn().mockReturnThis(),
         set: vi.fn().mockReturnThis(),
         delete: vi.fn().mockReturnThis(),
+        run: vi.fn().mockResolvedValue({ meta: { changes: 1 } }),
         batch: vi.fn().mockResolvedValue([{ success: true }]),
       }
     })

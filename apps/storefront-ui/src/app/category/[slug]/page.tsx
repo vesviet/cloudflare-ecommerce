@@ -8,7 +8,8 @@ async function getCategoryProducts(slug: string) {
   try {
     const res = await fetch(`${API_BASE}/api/products?category=${slug}`, { cache: 'no-store' });
     if (!res.ok) return [];
-    return await res.json();
+    const data = await res.json();
+    return Array.isArray(data) ? data : (data.data || []);
   } catch (err) {
     console.error('Failed to fetch category products', err);
     return [];

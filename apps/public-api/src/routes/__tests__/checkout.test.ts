@@ -35,6 +35,7 @@ vi.mock('@ecommerce/core-services', async () => {
     OrderService: {
       getCreateOrderQueries: vi.fn().mockReturnValue([]),
       getUpdateCustomerAttributionQueries: vi.fn().mockReturnValue([]),
+      processCheckout: vi.fn().mockResolvedValue({ success: true }),
     }
   };
 });
@@ -123,5 +124,30 @@ describe('Checkout API Unit Tests', () => {
       body: JSON.stringify({ items: [{ variation_id: '550e8400-e29b-41d4-a716-446655440000', quantity: 1 }] })
     }, mockEnv);
     expect(res.status).toBe(400);
+  });
+
+  it('P1: Fallback to Flat Rate when Carrier API and Tax API timeout', async () => {
+    // Mock fetch to simulate timeout
+    const fetchSpy = vi.spyOn(global, 'fetch').mockImplementation(async () => {
+      return new Promise((resolve, reject) => {
+        setTimeout(() => reject(new Error('Timeout')), 100); // Fast fail for test, but simulates catch block
+      });
+    });
+
+    const res = await checkout.request('/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: 'test@example.com',
+        items: [{ variation_id: '550e8400-e29b-41d4-a716-446655440000', quantity: 2 }],
+        address: { zipcode: '90210' }
+      })
+    }, mockEnv);
+
+    expect(res.status).toBe(200);
+    const data = await res.json() as any;
+    expect(data.success).toBe(true);
+
+    fetchSpy.mockRestore();
   });
 });

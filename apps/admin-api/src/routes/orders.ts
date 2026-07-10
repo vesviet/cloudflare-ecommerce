@@ -1,11 +1,12 @@
 import { Hono } from 'hono';
 import { eq, sql } from 'drizzle-orm';
-import { createDb, schema } from '@ecommerce/database';
+import { createDb } from '@ecommerce/database';
+import { localSchema } from '@ecommerce/core-services';
 import { Bindings } from '../types';
 import { requireRole } from '../middleware/auth';
 import { zValidator } from '@hono/zod-validator';
 import { fulfillSchema } from '@ecommerce/contract';
-import { PaymentService, InventoryService, OrderService } from '@ecommerce/core-services';
+import { PaymentService, OrderService, FulfillmentService } from '@ecommerce/core-services';
 
 const orders = new Hono<{ Bindings: Bindings }>();
 
@@ -13,8 +14,8 @@ orders.get('/orders', async (c) => {
   try {
     const db = createDb(c.env.DB);
     const results = await db.select()
-      .from(schema.orders)
-      .orderBy(sql`${schema.orders.created_at} DESC`)
+      .from(localSchema.orders)
+      .orderBy(sql`${localSchema.orders.created_at} DESC`)
       .all();
     return c.json({ success: true, data: results });
   } catch (err: any) {
@@ -28,8 +29,8 @@ orders.get('/orders/:id', async (c) => {
     const orderId = c.req.param('id');
     
     const order = await db.select()
-      .from(schema.orders)
-      .where(eq(schema.orders.id, orderId))
+      .from(localSchema.orders)
+      .where(eq(localSchema.orders.id, orderId))
       .get();
       
     if (!order) {
@@ -37,20 +38,37 @@ orders.get('/orders/:id', async (c) => {
     }
     
     const items = await db.select({
-      id: schema.orderItems.id,
-      order_id: schema.orderItems.order_id,
-      product_id: schema.orderItems.product_id,
-      quantity: schema.orderItems.quantity,
-      price_at_purchase: schema.orderItems.price_at_purchase,
-      sku: schema.products.sku,
-      product_title: schema.products.title,
+      id: localSchema.orderItems.id,
+      order_id: localSchema.orderItems.order_id,
+      product_id: localSchema.orderItems.product_id,
+      quantity: localSchema.orderItems.quantity,
+      price_at_purchase: localSchema.orderItems.price_at_purchase,
+      sku: localSchema.products.sku,
+      product_title: localSchema.products.title,
     })
-      .from(schema.orderItems)
-      .leftJoin(schema.products, eq(schema.orderItems.product_id, schema.products.id))
-      .where(eq(schema.orderItems.order_id, orderId))
+      .from(localSchema.orderItems)
+      .leftJoin(localSchema.products, eq(localSchema.orderItems.product_id, localSchema.products.id))
+      .where(eq(localSchema.orderItems.order_id, orderId))
       .all();
 
-    return c.json({ success: true, data: { ...order, items } });
+    let discounts: any[] = [];
+    if (order.applied_promotions_json) {
+      try {
+        const parsed = JSON.parse(order.applied_promotions_json);
+        if (Array.isArray(parsed)) {
+          discounts = parsed.map((p: any) => ({
+            id: p.id || p.coupon_id || "",
+            coupon_id: p.coupon_id || p.id || "",
+            discount_amount: p.discount_amount || 0,
+            coupon_code: p.coupon_code || p.code || "",
+          }));
+        }
+      } catch (e) {
+        console.error('Failed to parse applied_promotions_json', e);
+      }
+    }
+
+    return c.json({ success: true, data: { ...order, items, discounts } });
   } catch (err: any) {
     return c.json({ success: false, error: err.message }, 500);
   }
@@ -61,15 +79,15 @@ orders.post('/orders/:id/refund', requireRole(['superadmin', 'manager', 'support
   try {
     const db = createDb(c.env.DB);
 
-    const order = await db.select({ status: schema.orders.status, payment_intent_id: schema.orders.payment_intent_id })
-      .from(schema.orders)
-      .where(eq(schema.orders.id, orderId))
+    const order = await db.select({ status: localSchema.orders.status, payment_intent_id: localSchema.orders.payment_intent_id })
+      .from(localSchema.orders)
+      .where(eq(localSchema.orders.id, orderId))
       .get();
     
     if (!order) {
       return c.json({ success: false, error: 'Order not found' }, 404);
     }
-    if (!order.status || !['processing', 'completed'].includes(order.status)) {
+    if (!order.status || !['processing', 'shipped', 'completed'].includes(order.status)) {
       return c.json({ success: false, error: `Order cannot be refunded from status: ${order.status}` }, 400);
     }
 
@@ -81,20 +99,10 @@ orders.post('/orders/:id/refund', requireRole(['superadmin', 'manager', 'support
       }
     }
 
-    const items = await db.select({
-      product_id: schema.orderItems.product_id,
-      quantity: schema.orderItems.quantity,
-    })
-      .from(schema.orderItems)
-      .where(eq(schema.orderItems.order_id, orderId))
-      .all();
-
-    const batchQueries = [
-      ...OrderService.getAdvanceOrderStatusQueries(db, orderId, 'refunded'),
-      ...InventoryService.getRestockQueries(db, items),
-    ];
-
-    await db.batch(batchQueries as any);
+    const success = await OrderService.refundOrderAndRestock(db, c.env, orderId, order.status);
+    if (!success) {
+      return c.json({ success: false, error: 'Failed to refund and restock order' }, 500);
+    }
 
     return c.json({ success: true, message: `Refunded order ${orderId} successfully` });
   } catch (err: any) {
@@ -107,22 +115,101 @@ orders.post('/orders/:id/fulfill', requireRole(['superadmin', 'manager', 'suppor
   try {
     const { tracking_number, carrier_name, items } = c.req.valid('json');
 
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return c.json({ success: false, error: 'Fulfillment must contain at least one item' }, 400);
+    }
+
     const db = createDb(c.env.DB);
-    const order = await db.select({ status: schema.orders.status })
-      .from(schema.orders)
-      .where(eq(schema.orders.id, orderId))
+    const order = await db.select({ 
+      status: localSchema.orders.status,
+      guest_email: localSchema.orders.guest_email
+    })
+      .from(localSchema.orders)
+      .where(eq(localSchema.orders.id, orderId))
       .get();
     
     if (!order) {
       return c.json({ success: false, error: 'Order not found' }, 404);
     }
-    if (order.status !== 'processing') {
+
+    const allowedStatuses = ['processing', 'shipped'];
+
+    if (!allowedStatuses.includes(order.status || "")) {
       return c.json({ success: false, error: `Order cannot be fulfilled from status: ${order.status}` }, 400);
     }
 
-    const { queries, isFullyFulfilled } = await OrderService.prepareFulfillment(db, orderId, tracking_number, carrier_name, items);
+    const aggregatedMap = new Map<string, number>();
+    for (const item of items) {
+      const orderItemId = item.order_item_id;
+      const quantity = item.quantity;
+      aggregatedMap.set(orderItemId, (aggregatedMap.get(orderItemId) || 0) + quantity);
+    }
 
-    await db.batch(queries as any);
+    const mappedItems: { orderItemId: string; quantity: number }[] = [];
+    for (const [orderItemId, quantity] of aggregatedMap.entries()) {
+      mappedItems.push({ orderItemId, quantity });
+    }
+
+    // Fetch all database orderItems for the orderId
+    const dbOrderItems = await db.select()
+      .from(localSchema.orderItems)
+      .where(eq(localSchema.orderItems.order_id, orderId))
+      .all();
+
+    // Build a map of these items
+    const orderItemsMap = new Map<string, any>();
+    for (const item of dbOrderItems) {
+      orderItemsMap.set(item.id, item);
+    }
+
+    // Verify that every item in the incoming payload exists and belongs to the order
+    for (const item of mappedItems) {
+      if (!orderItemsMap.has(item.orderItemId)) {
+        return c.json({ success: false, error: `Item ${item.orderItemId} does not exist or does not belong to this order` }, 400);
+      }
+    }
+
+    // Fetch already fulfilled quantities for these items from the database
+    const shipmentItems = await db.select({
+      orderItemId: localSchema.shipmentItems.order_item_id,
+      fulfilledQuantity: sql<number>`coalesce(sum(${localSchema.shipmentItems.quantity}), 0)`
+    })
+      .from(localSchema.shipmentItems)
+      .innerJoin(localSchema.shipments, eq(localSchema.shipmentItems.shipment_id, localSchema.shipments.id))
+      .where(eq(localSchema.shipments.order_id, orderId))
+      .groupBy(localSchema.shipmentItems.order_item_id)
+      .all();
+
+    const fulfilledMap = new Map<string, number>();
+    for (const item of shipmentItems) {
+      fulfilledMap.set(item.orderItemId, Number(item.fulfilledQuantity));
+    }
+
+    // Check if incoming_payload_quantity > ordered_quantity - already_fulfilled_quantity
+    for (const item of mappedItems) {
+      const dbItem = orderItemsMap.get(item.orderItemId);
+      const orderedQty = dbItem.quantity;
+      const alreadyFulfilledQty = fulfilledMap.get(item.orderItemId) || 0;
+
+      if (item.quantity > orderedQty - alreadyFulfilledQty) {
+        return c.json({ success: false, error: 'Requested quantity exceeds remaining quantity to fulfill' }, 400);
+      }
+    }
+
+    const shipmentId = await FulfillmentService.createFulfillment(
+      db,
+      orderId,
+      mappedItems,
+      tracking_number,
+      carrier_name
+    );
+
+    await FulfillmentService.updateStatus(db, shipmentId, 'shipped');
+
+    await db.update(localSchema.orders)
+      .set({ status: 'shipped', updated_at: sql`CURRENT_TIMESTAMP` })
+      .where(eq(localSchema.orders.id, orderId))
+      .run();
 
     if (c.env.EVENT_QUEUE) {
       await c.env.EVENT_QUEUE.send({
@@ -130,11 +217,43 @@ orders.post('/orders/:id/fulfill', requireRole(['superadmin', 'manager', 'suppor
         orderId,
         trackingNumber: tracking_number,
         carrierName: carrier_name,
-        isPartial: !isFullyFulfilled
+        isPartial: false
       });
     }
 
-    return c.json({ success: true, message: `Order ${orderId} ${isFullyFulfilled ? 'completely' : 'partially'} fulfilled successfully` });
+    return c.json({ success: true, message: `Order ${orderId} completely fulfilled successfully` });
+  } catch (err: any) {
+    return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
+orders.get('/shipments/:id/label', requireRole(['superadmin', 'manager', 'support']), async (c) => {
+  try {
+    const shipmentId = c.req.param('id');
+    const db = createDb(c.env.DB);
+    
+    const shipment = await db.select({ label_r2_key: localSchema.shipments.label_r2_key })
+      .from(localSchema.shipments)
+      .where(eq(localSchema.shipments.id, shipmentId))
+      .get();
+      
+    if (!shipment || !shipment.label_r2_key) {
+      return c.json({ success: false, error: 'Label not found' }, 404);
+    }
+
+    // Proxy the R2 object directly through the worker (authenticated)
+    // @ts-expect-error - R2 bucket type mismatch in bindings
+    const object = await c.env.SHIPPING_LABELS_R2.get(shipment.label_r2_key);
+    
+    if (object === null) {
+      return c.json({ success: false, error: 'Object not found in R2' }, 404);
+    }
+
+    const headers = new Headers();
+    object.writeHttpMetadata(headers);
+    headers.set('etag', object.httpEtag);
+    
+    return new Response(object.body, { headers });
   } catch (err: any) {
     return c.json({ success: false, error: err.message }, 500);
   }

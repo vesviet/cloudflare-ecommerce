@@ -14,6 +14,7 @@ routes = [
 # Non-secret runtime config — secrets (STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, RESEND_API_KEY, JWT_SECRET)
 # must be set via: wrangler secret put <KEY>
 STOREFRONT_URL = "https://aura-shop.tanhdev.com"
+CF_TURNSTILE_SECRET_KEY = "1x0000000000000000000000000000000AA" # Dummy key for testing
 
 # RISK-01 FIX: CORS allowed origins — comma-separated list.
 # Production: set to your real domain.
@@ -43,16 +44,61 @@ binding = "CMS_R2"
 bucket_name = "cms"
 preview_bucket_name = "cms-bucket-preview"
 
+[[r2_buckets]]
+binding = "SHIPPING_LABELS_R2"
+bucket_name = "shipping-labels"
+preview_bucket_name = "shipping-labels-preview"
+
 [[queues.producers]]
 binding = "EVENT_QUEUE"
 queue = "ecommerce-events-prod"
 
+[[queues.producers]]
+binding = "CART_RECOVERY_QUEUE"
+queue = "cart-recovery-queue-prod"
+
+[[queues.producers]]
+binding = "STRIPE_WEBHOOK_QUEUE"
+queue = "stripe-webhook-prod"
+
+[[queues.producers]]
+binding = "CARRIER_WEBHOOK_QUEUE"
+queue = "carrier-webhook-prod"
+
 [[queues.consumers]]
 queue = "ecommerce-events-prod"
 max_batch_size = 10
-max_batch_timeout = 5
+max_batch_timeout = 1
 max_retries = 3
 dead_letter_queue = "ecommerce-events-dlq"
 
+[[queues.consumers]]
+queue = "stripe-webhook-prod"
+max_batch_size = 10
+max_batch_timeout = 1
+max_retries = 3
+dead_letter_queue = "stripe-webhook-dlq"
+
+[[queues.consumers]]
+queue = "carrier-webhook-prod"
+max_batch_size = 10
+max_batch_timeout = 1
+max_retries = 3
+dead_letter_queue = "carrier-webhook-dlq"
+
 [triggers]
-crons = ["*/5 * * * *", "0 * * * *"] # Every 5 minutes for inventory, Hourly for abandoned orders
+crons = ["*/5 * * * *", "0 * * * *", "0 0 * * *"] # Every 5 minutes (inventory), Hourly (abandoned), Daily (data tiering)
+
+[[unsafe.bindings]]
+name = "RATE_LIMITER"
+type = "ratelimit"
+namespace_id = "1001"
+simple = { limit = 5, period = 10 }
+
+[[durable_objects.bindings]]
+name = "INVENTORY_DO"
+class_name = "InventoryLockManagerDO"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["InventoryLockManagerDO"]

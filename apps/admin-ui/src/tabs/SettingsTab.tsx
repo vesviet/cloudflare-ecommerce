@@ -10,10 +10,6 @@ export const SettingsTab: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
 
-  useEffect(() => {
-    fetchSettings();
-  }, []);
-
   const fetchSettings = async () => {
     setLoading(true);
     try {
@@ -30,6 +26,9 @@ export const SettingsTab: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    fetchSettings();
+  }, []);
   const handleToggle = (key: string) => {
     setSettings(prev => prev.map(s => s.key === key ? { ...s, value: s.value === 'true' ? 'false' : 'true' } : s));
   };

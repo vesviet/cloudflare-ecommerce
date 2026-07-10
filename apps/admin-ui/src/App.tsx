@@ -18,6 +18,7 @@ const CustomersTab = lazy(() => import('./tabs/CustomersTab').then(module => ({ 
 const CmsTab = lazy(() => import('./tabs/CmsTab').then(module => ({ default: module.CmsTab })));
 const TeamTab = lazy(() => import('./tabs/TeamTab').then(module => ({ default: module.TeamTab })));
 const SettingsTab = lazy(() => import('./tabs/SettingsTab').then(module => ({ default: module.SettingsTab })));
+const PromotionsTab = lazy(() => import('./tabs/PromotionsTab').then(module => ({ default: module.PromotionsTab })));
 
 // Use environment variable if available, fallback to localhost for dev
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8788/api';
@@ -179,6 +180,11 @@ function App() {
                 <Route path="/team" element={
                   <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
                     <TeamTab API_BASE_URL={API_BASE_URL} addToast={addToast} />
+                  </motion.div>
+                } />
+                <Route path="/promotions" element={
+                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+                    <PromotionsTab API_BASE_URL={API_BASE_URL} addToast={addToast} />
                   </motion.div>
                 } />
                 <Route path="/settings" element={

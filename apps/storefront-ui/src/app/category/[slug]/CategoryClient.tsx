@@ -86,8 +86,8 @@ export const CategoryClient = ({ products }: { products: any[] }) => {
                   <button className="btn">Select Options</button>
                 </Link>
               ) : (
-                <button className="btn" disabled={!product.in_stock} onClick={() => handleAddToCart(product)}>
-                  {product.in_stock ? 'Add to Cart' : 'Out of Stock'}
+                <button className="btn" disabled={product.stock_quantity <= 0} onClick={() => handleAddToCart(product)}>
+                  {product.stock_quantity > 0 ? 'Add to Cart' : 'Out of Stock'}
                 </button>
               )}
             </div>

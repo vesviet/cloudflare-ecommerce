@@ -31,6 +31,11 @@ binding = "CMS_R2"
 bucket_name = "cms"
 preview_bucket_name = "cms-bucket-preview"
 
+[[r2_buckets]]
+binding = "SHIPPING_LABELS_R2"
+bucket_name = "shipping-labels"
+preview_bucket_name = "shipping-labels-preview"
+
 [[kv_namespaces]]
 binding = "CACHE_KV"
 id = "279b6209ce47468abc735e3f5c472be8"
@@ -43,5 +48,13 @@ queue = "ecommerce-events-prod"
 [[queues.consumers]]
 queue = "ecommerce-events-dlq"
 max_batch_size = 10
-max_batch_timeout = 5
+max_batch_timeout = 1
 max_retries = 1
+
+[[durable_objects.bindings]]
+name = "INVENTORY_DO"
+class_name = "InventoryLockManagerDO"
+script_name = "public-api-worker"
+
+[triggers]
+crons = ["0 0 * * *"] # Daily at midnight

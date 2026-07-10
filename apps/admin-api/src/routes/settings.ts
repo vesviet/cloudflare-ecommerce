@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { Env } from '../middleware/auth';
+import { requireRole, Env } from '../middleware/auth';
 import { eq } from 'drizzle-orm';
 import { createDb, schema } from '@ecommerce/database';
 import { z } from 'zod';
@@ -14,18 +14,19 @@ settingsRoutes.get('/', async (c) => {
 });
 
 // PUT /api/settings/batch
-settingsRoutes.put('/batch', async (c) => {
+settingsRoutes.put('/batch', requireRole(['superadmin', 'manager']), async (c) => {
   const db = createDb(c.env.DB);
+  // eslint-disable-next-line no-restricted-syntax
   const body = await c.req.json();
   
-  const schema = z.object({
+  const payloadSchema = z.object({
     settings: z.array(z.object({
       key: z.string(),
       value: z.string()
     }))
   });
 
-  const parsed = schema.safeParse(body);
+  const parsed = payloadSchema.safeParse(body);
   if (!parsed.success) {
     return c.json({ success: false, error: 'Invalid payload' }, 400);
   }

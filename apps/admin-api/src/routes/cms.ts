@@ -18,7 +18,7 @@ app.get('/', async (c) => {
   const db = createDb(c.env.DB);
   const type = c.req.query('type');
   
-  let query = db.select().from(schema.cmsEntries).orderBy(desc(schema.cmsEntries.created_at)).limit(200);
+  const query = db.select().from(schema.cmsEntries).orderBy(desc(schema.cmsEntries.created_at)).limit(200);
   
   if (type) {
     // We can't easily chain .where() conditionally without building the query
@@ -57,12 +57,12 @@ app.post('/', requireRole(['superadmin', 'manager', 'editor']), zValidator('json
       title: body.title,
       slug,
       excerpt: body.excerpt || null,
-      content: body.content || null,
+      content: body.content_json || null,
       type: body.type || 'post',
       status: body.status || 'draft',
-      featured_image_url: body.featured_image_url || null,
-      published_at: body.published_at || null,
-      metadata_json: body.metadata_json || '{}',
+      featured_image_url: body.featured_image || null,
+      published_at: null,
+      metadata_json: JSON.stringify({ meta_title: (body as any).meta_title, meta_description: (body as any).meta_description }),
       placement: body.placement || null,
       expires_at: body.expires_at || null,
     });
@@ -91,12 +91,13 @@ app.put('/:id', requireRole(['superadmin', 'manager', 'editor']), zValidator('js
     if (body.title !== undefined) updateData.title = body.title;
     if (body.slug !== undefined) updateData.slug = body.slug;
     if (body.excerpt !== undefined) updateData.excerpt = body.excerpt;
-    if (body.content !== undefined) updateData.content = body.content;
+    if (body.content_json !== undefined) updateData.content = body.content_json;
     if (body.type !== undefined) updateData.type = body.type;
     if (body.status !== undefined) updateData.status = body.status;
-    if (body.featured_image_url !== undefined) updateData.featured_image_url = body.featured_image_url;
-    if (body.published_at !== undefined) updateData.published_at = body.published_at;
-    if (body.metadata_json !== undefined) updateData.metadata_json = body.metadata_json;
+    if (body.featured_image !== undefined) updateData.featured_image_url = body.featured_image;
+    if ((body as any).meta_title !== undefined || (body as any).meta_description !== undefined) {
+      updateData.metadata_json = JSON.stringify({ meta_title: (body as any).meta_title, meta_description: (body as any).meta_description });
+    }
     if (body.placement !== undefined) updateData.placement = body.placement;
     if (body.expires_at !== undefined) updateData.expires_at = body.expires_at;
 

@@ -7,7 +7,8 @@ const catalog = new Hono<{ Bindings: { DB: D1Database; CACHE_KV: KVNamespace } }
 catalog.get('/', async (c) => {
   try {
     const categorySlug = c.req.query('category') || '';
-    
+    const ua = c.req.header('user-agent') || '';
+    console.log(`[Catalog GET] Request User-Agent: "${ua}"`);
     // 1. Get current cache generation
     const generation = await CacheService.getGeneration(c.env);
     const queryParams = { category: categorySlug };
@@ -31,7 +32,8 @@ catalog.get('/', async (c) => {
     c.header('X-Cache', 'MISS');
     return c.json({ success: true, data });
   } catch (err: any) {
-    return c.json({ success: false, error: err.message }, 500);
+    console.error('Catalog get list error:', err);
+    return c.json({ success: false, error: err.message, stack: err.stack }, 500);
   }
 });
 

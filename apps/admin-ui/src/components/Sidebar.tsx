@@ -12,7 +12,8 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  Gift
 } from 'lucide-react';
 import { cn } from './ui/GlassCard';
 
@@ -28,6 +29,7 @@ const NAV_ITEMS = [
   { id: 'categories', path: '/categories', label: 'Categories', roles: ['superadmin', 'manager', 'editor'], icon: Tags },
   { id: 'customers', path: '/customers', label: 'Customers', roles: ['superadmin', 'manager', 'support'], icon: Users },
   { id: 'cms', path: '/cms', label: 'Content (CMS)', roles: ['superadmin', 'manager', 'editor'], icon: FileText },
+  { id: 'promotions', path: '/promotions', label: 'Promotions', roles: ['superadmin', 'manager'], icon: Gift },
   { id: 'team', path: '/team', label: 'Team', roles: ['superadmin'], icon: Shield },
   { id: 'settings', path: '/settings', label: 'Settings', roles: ['superadmin', 'manager'], icon: Settings },
 ];

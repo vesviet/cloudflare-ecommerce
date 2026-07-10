@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../../store/authStore';
+import { useWishlistStore } from '../../store/wishlistStore';
 import { useRouter } from 'next/navigation';
 
 export default function MyAccount() {
@@ -66,6 +67,7 @@ export default function MyAccount() {
 
       if (data.success) {
         setAuth(data.customer);
+        useWishlistStore.getState().syncWithServer();
         router.push('/dashboard');
       } else {
         setStatus('error');

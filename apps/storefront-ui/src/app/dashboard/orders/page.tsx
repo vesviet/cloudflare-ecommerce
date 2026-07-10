@@ -11,6 +11,12 @@ export default function OrdersPage() {
   const { isAuthenticated } = useAuthStore();
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // RMA Modal state
+  const [selectedOrder, setSelectedOrder] = useState<string | null>(null);
+  const [rmaReason, setRmaReason] = useState('');
+  const [rmaError, setRmaError] = useState('');
+  const [rmaSuccess, setRmaSuccess] = useState('');
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -54,12 +60,73 @@ export default function OrdersPage() {
                   <span style={{ padding: '4px 10px', background: 'rgba(255,255,255,0.07)', borderRadius: '20px', fontSize: '0.82rem', textTransform: 'capitalize', border: '1px solid rgba(255,255,255,0.1)' }}>
                     {order.status.replace(/_/g, ' ')}
                   </span>
+                  {(order.status === 'completed' || order.status === 'delivered') && (
+                    <button 
+                      onClick={() => { setSelectedOrder(order.id); setRmaReason(''); setRmaError(''); setRmaSuccess(''); }}
+                      style={{ marginTop: '8px', padding: '4px 8px', fontSize: '0.8rem', background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '4px', cursor: 'pointer', color: 'var(--text-color)' }}>
+                      Request Return
+                    </button>
+                  )}
                 </td>
-                <td style={{ padding: '16px 0', textAlign: 'right', fontWeight: 600 }}>${(order.total_amount / 100).toFixed(2)}</td>
+                <td style={{ padding: '16px 0', textAlign: 'right', fontWeight: 600, verticalAlign: 'top' }}>${(order.total_amount / 100).toFixed(2)}</td>
               </tr>
             ))}
           </tbody>
         </table>
+      )}
+
+      {selectedOrder && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#111', padding: '30px', borderRadius: '12px', width: '90%', maxWidth: '400px', border: '1px solid rgba(255,255,255,0.1)' }}>
+            <h3 style={{ marginBottom: '16px' }}>Request Return (RMA)</h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '16px' }}>
+              Order #{selectedOrder.slice(0,8).toUpperCase()}
+            </p>
+            {rmaError && <div style={{ color: '#ff4d4f', fontSize: '0.9rem', marginBottom: '16px' }}>{rmaError}</div>}
+            {rmaSuccess ? (
+              <div>
+                <div style={{ color: '#52c41a', fontSize: '0.9rem', marginBottom: '16px' }}>{rmaSuccess}</div>
+                <button onClick={() => setSelectedOrder(null)} className="btn" style={{ width: '100%' }}>Close</button>
+              </div>
+            ) : (
+              <div>
+                <textarea 
+                  placeholder="Reason for return..." 
+                  value={rmaReason}
+                  onChange={(e) => setRmaReason(e.target.value)}
+                  style={{ width: '100%', height: '80px', padding: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'var(--text-color)', marginBottom: '16px' }}
+                />
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button onClick={() => setSelectedOrder(null)} style={{ flex: 1, padding: '10px', background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '6px', cursor: 'pointer', color: 'var(--text-color)' }}>Cancel</button>
+                  <button 
+                    onClick={async () => {
+                      if (rmaReason.length < 5) return setRmaError('Reason must be at least 5 characters');
+                      setRmaError('');
+                      try {
+                        const res = await fetch(`${API_BASE}/rma`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ order_id: selectedOrder, customer_id: useAuthStore.getState().customer?.id, reason: rmaReason }),
+                          credentials: 'include'
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                          setRmaSuccess(`Return requested successfully! Status: ${data.status}`);
+                          // optionally refresh orders
+                          setOrders(orders.map(o => o.id === selectedOrder ? { ...o, status: data.status === 'refunded' ? 'refunded' : o.status } : o));
+                        } else {
+                          setRmaError(data.error || 'Failed to request return');
+                        }
+                      } catch (e: any) {
+                        setRmaError(e.message);
+                      }
+                    }}
+                    className="btn" style={{ flex: 1 }}>Submit</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

@@ -1,0 +1,1 @@
+DELETE FROM order_items WHERE order_id = '7e212db9-1190-467c-b6ab-2f78edc4b127';

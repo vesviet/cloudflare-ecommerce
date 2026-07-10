@@ -5,6 +5,7 @@ import { eq, sql } from 'drizzle-orm';
 import { zValidator } from '@hono/zod-validator';
 import { categorySchema, updateCategorySchema } from '@ecommerce/contract';
 import { CategoryService } from '@ecommerce/core-services';
+import { requireRole } from '../middleware/auth';
 
 const app = new Hono<{ Bindings: Bindings }>();
 
@@ -30,7 +31,7 @@ app.get('/:id', async (c) => {
   return c.json({ success: true, data: cat });
 });
 
-app.post('/', zValidator('json', categorySchema), async (c) => {
+app.post('/', requireRole(['superadmin', 'manager', 'editor']), zValidator('json', categorySchema), async (c) => {
   const body = c.req.valid('json');
   const db = createDb(c.env.DB);
   
@@ -55,7 +56,7 @@ app.post('/', zValidator('json', categorySchema), async (c) => {
   }
 });
 
-app.put('/:id', zValidator('json', updateCategorySchema), async (c) => {
+app.put('/:id', requireRole(['superadmin', 'manager', 'editor']), zValidator('json', updateCategorySchema), async (c) => {
   const id = c.req.param('id');
   const body = c.req.valid('json');
   const db = createDb(c.env.DB);
@@ -88,7 +89,7 @@ app.put('/:id', zValidator('json', updateCategorySchema), async (c) => {
   }
 });
 
-app.delete('/:id', async (c) => {
+app.delete('/:id', requireRole(['superadmin', 'manager', 'editor']), async (c) => {
   const id = c.req.param('id');
   const db = createDb(c.env.DB);
   

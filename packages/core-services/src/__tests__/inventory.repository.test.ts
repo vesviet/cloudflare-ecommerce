@@ -24,7 +24,7 @@ describe('InventoryRepository', () => {
       expect(mockDb.prepare).toHaveBeenCalledWith(
         expect.stringContaining('UPDATE inventory_levels SET stock_quantity = stock_quantity - ?')
       );
-      expect(mockDb.bind).toHaveBeenCalledWith(2, 'prod-1', 2);
+      expect(mockDb.bind).toHaveBeenCalledWith(2, 'prod-1', 'loc-1', 2);
     });
 
     it('returns false if out of stock (0 rows returned)', async () => {
@@ -48,7 +48,7 @@ describe('InventoryRepository', () => {
       expect(mockDb.prepare).toHaveBeenCalledWith(
         expect.stringContaining('UPDATE inventory_levels SET stock_quantity = stock_quantity + ?')
       );
-      expect(mockDb.bind).toHaveBeenCalledWith(2, 'prod-1');
+      expect(mockDb.bind).toHaveBeenCalledWith(2, 'prod-1', 'loc-1');
     });
   });
 });

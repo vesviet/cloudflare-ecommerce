@@ -12,7 +12,19 @@ vi.mock('@ecommerce/core-services', async () => {
     },
     OrderService: {
       getAdvanceOrderStatusQueries: vi.fn().mockReturnValue([]),
-      prepareFulfillment: vi.fn().mockResolvedValue({ queries: [], isFullyFulfilled: true })
+      prepareFulfillment: vi.fn().mockResolvedValue({ queries: [], isFullyFulfilled: true }),
+      refundOrderAndRestock: vi.fn().mockResolvedValue(true)
+    },
+    FulfillmentService: {
+      createFulfillment: vi.fn().mockResolvedValue('ship_123'),
+      updateStatus: vi.fn().mockResolvedValue(true)
+    },
+    localSchema: {
+      orders: { id: 'orders', status: 'status', payment_intent_id: 'pi' },
+      orderItems: { id: 'orderItems', order_id: 'order_id' },
+      products: { id: 'products' },
+      shipments: { id: 'shipments', label_r2_key: 'label_r2_key' },
+      shipmentItems: { id: 'shipmentItems', order_item_id: 'order_item_id', quantity: 'quantity' }
     }
   };
 });
@@ -38,8 +50,14 @@ vi.mock('@ecommerce/database', () => {
         where: vi.fn().mockReturnThis(),
         leftJoin: vi.fn().mockReturnThis(),
         get: vi.fn().mockResolvedValue(mockOrder),
-        all: vi.fn().mockResolvedValue([]),
-        batch: vi.fn().mockResolvedValue([{ success: true }])
+        all: vi.fn().mockResolvedValue([{ id: 'item_1', quantity: 10, orderItemId: 'item_1', fulfilledQuantity: 0 }]),
+        batch: vi.fn().mockResolvedValue([{ success: true }]),
+        insert: vi.fn().mockReturnThis(),
+        values: vi.fn().mockReturnThis(),
+        update: vi.fn().mockReturnThis(),
+        set: vi.fn().mockReturnThis(),
+        run: vi.fn().mockResolvedValue({ success: true }),
+        execute: vi.fn().mockResolvedValue({ success: true })
       }
     })
   }
@@ -62,13 +80,14 @@ describe('Admin API: Orders Controller', () => {
 
   it('POST /orders/:id/refund: refunds and restocks', async () => {
     const res = await orders.request('/orders/order_1/refund', { method: 'POST' }, mockEnv);
-    expect(res.status).toBe(200);
     const data = await res.json() as any;
+    if (!data.success) console.log('REFUND ERR:', JSON.stringify(data));
+    expect(res.status).toBe(200);
     expect(data.success).toBe(true);
   });
 
   it('POST /orders/:id/refund: rejects invalid status', async () => {
-    mockOrder.status = 'shipped'; // Temporarily change mock
+    mockOrder.status = 'cancelled'; // Temporarily change mock
     const res = await orders.request('/orders/order_1/refund', { method: 'POST' }, mockEnv);
     expect(res.status).toBe(400);
     mockOrder.status = 'processing'; // Restore
@@ -78,11 +97,16 @@ describe('Admin API: Orders Controller', () => {
     const res = await orders.request('/orders/order_1/fulfill', { 
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tracking_number: '12345', carrier_name: 'UPS' })
+      body: JSON.stringify({ 
+        tracking_number: '12345', 
+        carrier_name: 'UPS',
+        items: [{ order_item_id: 'item_1', quantity: 1 }]
+      })
     }, mockEnv);
     
-    expect(res.status).toBe(200);
     const data = await res.json() as any;
+    if (!data.success) console.log('FULFILL ERR:', JSON.stringify(data));
+    expect(res.status).toBe(200);
     expect(data.success).toBe(true);
     expect(mockEnv.EVENT_QUEUE.send).toHaveBeenCalledWith(expect.objectContaining({
       type: 'ORDER_SHIPPED'

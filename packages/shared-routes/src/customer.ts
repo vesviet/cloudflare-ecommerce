@@ -1,9 +1,10 @@
 import { Hono } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { eq, and, sql } from 'drizzle-orm';
-import { createDb, schema } from '@ecommerce/database';
+import { createDb } from '@ecommerce/database';
+import { localSchema as schema } from '@ecommerce/core-services';
 import { hashPassword, verifyPassword, signJWT, verifyJWT } from '@ecommerce/database';
-
+import { WishlistService } from '@ecommerce/core-services';
 type Bindings = {
   DB: D1Database;
   JWT_SECRET: string;
@@ -216,6 +217,42 @@ customerApp.get('/customer/orders/:id', async (c) => {
     return c.json({ success: false, error: err.message }, 500);
   }
 });
+
+// Customer Loyalty Route
+customerApp.get('/customer/loyalty', async (c) => {
+  try {
+    const payload = c.get('jwtPayload') as any;
+    const customerId = payload.customer_id;
+    const db = createDb(c.env.DB);
+    
+    // Fetch balance
+    const customer = await db.select({ loyalty_points_balance: schema.customers.loyalty_points_balance })
+      .from(schema.customers)
+      .where(eq(schema.customers.id, customerId))
+      .get();
+      
+    if (!customer) return c.json({ success: false, error: 'Customer not found' }, 404);
+    
+    // Fetch history
+    const history = await db.select()
+      .from(schema.loyaltyLedgers)
+      .where(eq(schema.loyaltyLedgers.customer_id, customerId))
+      .orderBy(sql`${schema.loyaltyLedgers.created_at} DESC`)
+      .limit(50)
+      .all();
+      
+    return c.json({ 
+      success: true, 
+      data: {
+        balance: customer.loyalty_points_balance || 0,
+        history
+      }
+    });
+  } catch (err: any) {
+    return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
 
 // Customer Addresses CRUD
 customerApp.get('/customer/addresses', async (c) => {
@@ -432,6 +469,74 @@ customerApp.delete('/customer/addresses/:id', async (c) => {
     await c.env.CACHE_KV.delete(`user_addresses_${customerId}`);
 
     return c.json({ success: true, message: 'Address deleted' });
+  } catch (err: any) {
+    return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
+// Customer Wishlist Routes
+customerApp.get('/customer/wishlist', async (c) => {
+  try {
+    const payload = c.get('jwtPayload') as any;
+    const customerId = payload.customer_id;
+    const db = createDb(c.env.DB);
+    
+    const items = await WishlistService.getWishlist(db, customerId);
+    
+    // Set cache control for edge so it isn't cached aggressively, but browser can cache briefly
+    c.header('Cache-Control', 'private, max-age=60');
+    return c.json({ success: true, data: items });
+  } catch (err: any) {
+    return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
+customerApp.post('/customer/wishlist', async (c) => {
+  try {
+    const payload = c.get('jwtPayload') as any;
+    const customerId = payload.customer_id;
+    const { productId } = await c.req.json();
+    
+    if (!productId) return c.json({ success: false, error: 'Product ID is required' }, 400);
+
+    const db = createDb(c.env.DB);
+    const item = await WishlistService.addItem(db, customerId, productId);
+    
+    return c.json({ success: true, data: item });
+  } catch (err: any) {
+    return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
+customerApp.delete('/customer/wishlist/:productId', async (c) => {
+  try {
+    const payload = c.get('jwtPayload') as any;
+    const customerId = payload.customer_id;
+    const productId = c.req.param('productId');
+    
+    const db = createDb(c.env.DB);
+    await WishlistService.removeItem(db, customerId, productId);
+    
+    return c.json({ success: true, message: 'Item removed from wishlist' });
+  } catch (err: any) {
+    return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
+customerApp.post('/customer/wishlist/merge', async (c) => {
+  try {
+    const payload = c.get('jwtPayload') as any;
+    const customerId = payload.customer_id;
+    const { productIds } = await c.req.json();
+    
+    if (!productIds || !Array.isArray(productIds)) {
+      return c.json({ success: false, error: 'productIds array is required' }, 400);
+    }
+
+    const db = createDb(c.env.DB);
+    const items = await WishlistService.mergeWishlist(db, customerId, productIds);
+    
+    return c.json({ success: true, data: items });
   } catch (err: any) {
     return c.json({ success: false, error: err.message }, 500);
   }

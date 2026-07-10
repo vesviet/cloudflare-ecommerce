@@ -3,7 +3,7 @@
 import React, { useEffect } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { useRouter, usePathname } from 'next/navigation';
-import { LogOut, Package, MapPin, User as UserIcon } from 'lucide-react';
+import { LogOut, Package, MapPin, User as UserIcon, Star } from 'lucide-react';
 import Link from 'next/link';
 
 const API_BASE = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787'}/api`;
@@ -45,6 +45,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {([
               ['/dashboard/orders', Package, 'Order History'], 
               ['/dashboard/addresses', MapPin, 'Address Book'], 
+              ['/dashboard/loyalty', Star, 'Loyalty Program'],
               ['/dashboard/profile', UserIcon, 'Profile Settings']
             ] as const).map(([href, Icon, label]) => {
               const isActive = pathname.startsWith(href);

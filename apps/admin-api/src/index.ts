@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { Bindings } from './types';
-import { eq, sql, and, inArray } from 'drizzle-orm';
+
 import { createDb, schema } from '@ecommerce/database';
 import metricsRoutes from './routes/metrics';
 import ordersRoutes from './routes/orders';
@@ -10,11 +10,13 @@ import productsRoutes from './routes/products';
 import checkoutRoutes from './routes/checkout';
 import categoriesRoutes from './routes/categories';
 import cmsRoutes from './routes/cms';
+import couponsRoutes from './routes/coupons';
 import { mediaRouter as mediaRoutes } from '@ecommerce/shared-routes';
 import adminUsersRoutes from './routes/adminUsers';
 import settingsRoutes from './routes/settings';
 
 import { adminAuth, type Env } from './middleware/auth';
+import { runCartCleanup } from './workers/cart-cleanup.cron';
 
 const app = new Hono<Env>().basePath('/api');
 
@@ -49,6 +51,7 @@ app.route('/', productsRoutes);
 app.route('/', checkoutRoutes);
 app.route('/categories', categoriesRoutes);
 app.route('/cms', cmsRoutes);
+app.route('/coupons', couponsRoutes);
 app.route('/media', mediaRoutes);
 app.route('/admin-users', adminUsersRoutes);
 app.route('/settings', settingsRoutes);
@@ -74,6 +77,14 @@ export default {
     if (queries.length > 0) {
       await db.batch(queries as any);
       console.log(`[DLQ Consumer] Logged ${queries.length} failed jobs to D1.`);
+    }
+  },
+  async scheduled(event: any, env: Bindings, _ctx: any): Promise<void> {
+    console.log(`[Cron Admin] Triggered cron=${event.cron} at ${new Date().toISOString()}`);
+    const db = createDb(env.DB);
+    
+    if (event.cron === '0 0 * * *') {
+      await runCartCleanup(db);
     }
   }
 };

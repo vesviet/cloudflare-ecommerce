@@ -102,4 +102,23 @@ export interface OrderData {
   created_at: string;
   updated_at: string;
   items?: OrderItemData[];
+  discounts?: { id: string; coupon_id: string | null; discount_amount: number; coupon_code: string | null; }[];
+}
+
+export interface CouponData {
+  id: string;
+  code: string;
+  type: string;
+  value: number;
+  max_uses: number | null;
+  uses: number;
+  expires_at: number | null;
+  is_active: number;
+  description: string | null;
+  min_order_amount: number;
+  starts_at: number | null;
+  created_by: string | null;
+  updated_at: string;
+  created_at: string;
+  applied_orders_count?: number;
 }

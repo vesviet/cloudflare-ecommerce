@@ -2,11 +2,13 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ShoppingBag, Search, User } from 'lucide-react';
+import { ShoppingBag, Search, User, Heart } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
+import { useWishlistStore } from '../store/wishlistStore';
 import CartDrawer from './CartDrawer';
 import { useRouter } from 'next/navigation';
+import { SearchAutocomplete } from './SearchAutocomplete';
 
 interface Category {
   id: string;
@@ -21,14 +23,21 @@ export default function Header() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [showCategories, setShowCategories] = useState(false);
   const { items, toggleCart } = useCartStore();
+  const { items: wishlistItems, fetchFromServer } = useWishlistStore();
   const { isAuthenticated } = useAuthStore();
   const router = useRouter();
   
   const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => { 
+    setMounted(true); 
+    if (isAuthenticated) {
+      fetchFromServer();
+    }
+  }, [isAuthenticated]);
   
   // Calculate total items (only after hydration to prevent mismatch)
   const itemCount = mounted ? items.reduce((total, item) => total + item.quantity, 0) : 0;
+  const wishlistCount = mounted ? wishlistItems.length : 0;
   
   // Handle scroll for sticky header styling
   useEffect(() => {
@@ -43,7 +52,10 @@ export default function Header() {
 
   useEffect(() => {
     fetch(`${apiBase}/api/categories`)
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error('Network response was not ok');
+        return res.json();
+      })
       .then(data => {
         if (data.success) {
           setCategories(data.data || []);
@@ -114,20 +126,53 @@ export default function Header() {
             )}
           </div>
 
-          <Link href="/about" style={{ fontWeight: 500, color: 'var(--text-muted)' }}>Story</Link>
+          <Link href="/" style={{ fontWeight: 500, color: 'var(--text-muted)' }}>Story</Link>
           <Link href="/blog" style={{ fontWeight: 500, color: 'var(--text-muted)' }}>Blog</Link>
           <Link href="/events" style={{ fontWeight: 500, color: 'var(--text-muted)' }}>Events</Link>
           
-          <div style={{ display: 'flex', gap: '20px', alignItems: 'center', marginLeft: '20px' }}>
-            <button style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>
-              <Search size={20} />
-            </button>
+          <div style={{ display: 'flex', gap: '20px', alignItems: 'center', marginLeft: '20px', flex: 1, justifyContent: 'flex-end' }}>
+            <SearchAutocomplete />
             <button 
               onClick={() => router.push(isAuthenticated ? '/dashboard' : '/my-account')}
               style={{ background: 'none', border: 'none', color: isAuthenticated ? 'var(--accent-color)' : '#fff', cursor: 'pointer' }}
               title={isAuthenticated ? 'My Dashboard' : 'Log In'}
             >
               <User size={20} />
+            </button>
+            <button 
+              onClick={() => router.push('/wishlist')}
+              style={{ 
+                background: 'none', 
+                border: 'none', 
+                color: '#fff', 
+                cursor: 'pointer', 
+                position: 'relative' 
+              }}
+              title="My Wishlist"
+            >
+              <Heart size={20} />
+              {wishlistCount > 0 && (
+                <span 
+                  style={{
+                    position: 'absolute',
+                    top: '-8px',
+                    right: '-8px',
+                    background: 'var(--accent-color)',
+                    color: '#fff',
+                    fontSize: '11px',
+                    fontWeight: 'bold',
+                    width: '18px',
+                    height: '18px',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 0 10px var(--accent-glow)'
+                  }}
+                >
+                  {wishlistCount}
+                </span>
+              )}
             </button>
             <button 
               onClick={toggleCart}

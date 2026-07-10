@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
 export const adminUserSchema = z.object({
-  email: z.string().email("Invalid email"),
-  name: z.string().min(1, "Name is required"),
+  email: z.string().email("Invalid email").max(255),
+  name: z.string().min(1, "Name is required").max(255),
   role: z.enum(['superadmin', 'manager', 'support', 'editor']),
 });
 
@@ -11,8 +11,8 @@ export const adminUserStatusSchema = z.object({
 });
 
 export const categorySchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  slug: z.string().min(1, "Slug is required"),
+  name: z.string().min(1, "Name is required").max(255),
+  slug: z.string().min(1, "Slug is required").max(255),
   description: z.string().optional().nullable(),
   parent_id: z.string().optional().nullable(),
   image_url: z.string().optional().nullable(),
@@ -42,8 +42,8 @@ export const checkoutSchema = z.object({
 });
 
 export const cmsSchema = z.object({
-  title: z.string().min(1, "Title is required"),
-  slug: z.string().min(1, "Slug is required"),
+  title: z.string().min(1, "Title is required").max(255),
+  slug: z.string().min(1, "Slug is required").max(255),
   type: z.enum(['post', 'page', 'block', 'banner', 'landing_page']),
   status: z.enum(['published', 'draft', 'archived']).optional(),
   content_json: z.string().optional(),
@@ -70,11 +70,11 @@ export const updateCmsSchema = z.object({
 });
 
 export const customerSchema = z.object({
-  email: z.string().email("Invalid email format").optional(),
-  password: z.string().min(8, "Password must be at least 8 characters").optional(),
-  first_name: z.string().optional().nullable(),
-  last_name: z.string().optional().nullable(),
-  phone: z.string().optional().nullable(),
+  email: z.string().email("Invalid email format").max(255).optional(),
+  password: z.string().min(8, "Password must be at least 8 characters").max(255).optional(),
+  first_name: z.string().max(100).optional().nullable(),
+  last_name: z.string().max(100).optional().nullable(),
+  phone: z.string().max(20).optional().nullable(),
   status: z.string().optional(),
   dob: z.string().optional().nullable(),
   gender: z.string().optional(),
@@ -99,8 +99,8 @@ export const fulfillSchema = z.object({
 });
 
 export const productFormSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  sku: z.string().min(3, "SKU is required and must be at least 3 characters"),
+  name: z.string().min(1, "Name is required").max(255),
+  sku: z.string().min(3, "SKU is required and must be at least 3 characters").max(100),
   type: z.enum(['simple', 'configurable', 'virtual']).optional(),
   regular_price: z.string().optional(),
   sale_price: z.string().optional().nullable(),

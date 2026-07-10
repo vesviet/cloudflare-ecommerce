@@ -1,12 +1,17 @@
 import { describe, it, expect, vi } from 'vitest';
 import products from '../products';
 
+// Mock Auth Middleware
+vi.mock('../../middleware/auth', () => ({
+  requireRole: () => async (c: any, next: any) => await next()
+}));
+
 // Mock R2 stream
 class MockStream {}
 
 // Mock global Request/File for vitest node environment if needed
 if (typeof File === 'undefined') {
-  global.File = class File {
+  (global as any).File = class File {
     size: number;
     type: string;
     name: string;
@@ -26,6 +31,10 @@ vi.mock('@ecommerce/core-services', async () => {
   return {
     ProductService: {
       prepareUpsertProduct: vi.fn().mockResolvedValue([{ success: true }])
+    },
+    CacheService: {
+      invalidateCatalogCache: vi.fn().mockResolvedValue(true),
+      invalidateProductCache: vi.fn().mockResolvedValue(true)
     }
   };
 });
@@ -70,6 +79,10 @@ describe('Admin API: Products Controller', () => {
     } as any
   };
 
+  const mockCtx = {
+    waitUntil: vi.fn()
+  };
+
   it('GET /products: formats JSON fields correctly', async () => {
     const res = await products.request('/products', { method: 'GET' }, mockEnv);
     expect(res.status).toBe(200);
@@ -85,7 +98,7 @@ describe('Admin API: Products Controller', () => {
     const res = await products.request('/products', { 
       method: 'POST',
       body: formData 
-    }, mockEnv);
+    }, mockEnv, mockCtx as any);
     
     expect(res.status).toBe(400);
     const data = await res.json() as any;
@@ -103,7 +116,7 @@ describe('Admin API: Products Controller', () => {
     const res = await products.request('/products', { 
       method: 'POST',
       body: formData 
-    }, mockEnv);
+    }, mockEnv, mockCtx as any);
     
     const data = await res.json() as any;
     if (!data.success) console.log('POST ERR:', JSON.stringify(data));
@@ -121,7 +134,7 @@ describe('Admin API: Products Controller', () => {
     const res = await products.request('/products/prod_1', { 
       method: 'PUT',
       body: formData 
-    }, mockEnv);
+    }, mockEnv, mockCtx as any);
     
     const data = await res.json() as any;
     if (!data.success) console.log('PUT ERR:', JSON.stringify(data));

@@ -2,14 +2,37 @@
 
 import React, { useState, useRef } from 'react';
 import { useCartStore } from '../../../store/cartStore';
+import { useWishlistStore } from '../../../store/wishlistStore';
 import { ProductSwatches } from './ProductSwatches';
+import { ReviewList } from '../../../components/product/ReviewList';
+import { ReviewFormModal } from '../../../components/product/ReviewFormModal';
+import { Heart } from 'lucide-react';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
 
 export default function ProductClient({ product }: { product: any }) {
   const [selectedVariationId, setSelectedVariationId] = useState<string>('');
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [reviewKey, setReviewKey] = useState(0); // To force re-render on new review
   const { addItem, toggleCart } = useCartStore();
+  const { isInWishlist, addItem: addWishlistItem, removeItem: removeWishlistItem } = useWishlistStore();
   const galleryRef = useRef<HTMLDivElement>(null);
+
+  const isWished = isInWishlist(product.id);
+
+  const toggleWishlist = () => {
+    if (isWished) {
+      removeWishlistItem(product.id);
+    } else {
+      addWishlistItem({
+        productId: product.id,
+        name: product.name,
+        price: product.prices?.sale_price || product.prices?.regular_price || 0,
+        slug: product.slug,
+        imageUrl: product.images?.[0]?.url
+      });
+    }
+  };
 
   const scrollGallery = (dir: 'left' | 'right') => {
     if (galleryRef.current) {
@@ -54,7 +77,7 @@ export default function ProductClient({ product }: { product: any }) {
     ? (selectedVariation.sale_price || selectedVariation.regular_price) 
     : (product.prices.sale_price || product.prices.regular_price);
   
-  const inStock = selectedVariation ? selectedVariation.stock > 0 : product.in_stock;
+  const inStock = selectedVariation ? selectedVariation.stock_quantity > 0 : product.stock_quantity > 0;
 
   return (
     <div className="product-detail-container" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px', marginTop: '40px' }}>
@@ -124,14 +147,68 @@ export default function ProductClient({ product }: { product: any }) {
           />
         )}
 
-        <button 
-          className="btn" 
-          disabled={!inStock || (isVariable && !selectedVariationId)}
-          onClick={handleAddToCart}
-          style={{ padding: '20px', fontSize: '1.2rem', marginTop: 'auto' }}
-        >
-          {!inStock ? 'Out of Stock' : (isVariable && !selectedVariationId ? 'Select an Option' : 'Add to Cart')}
-        </button>
+        <div style={{ display: 'flex', gap: '20px', marginTop: 'auto' }}>
+          <button 
+            className="btn" 
+            disabled={!inStock || (isVariable && !selectedVariationId)}
+            onClick={handleAddToCart}
+            style={{ flex: 1, padding: '20px', fontSize: '1.2rem' }}
+          >
+            {!inStock ? 'Out of Stock' : (isVariable && !selectedVariationId ? 'Select an Option' : 'Add to Cart')}
+          </button>
+          
+          <button
+            onClick={toggleWishlist}
+            style={{
+              padding: '0 25px',
+              background: isWished ? 'rgba(255, 88, 88, 0.1)' : 'rgba(255, 255, 255, 0.05)',
+              border: `1px solid ${isWished ? 'rgba(255, 88, 88, 0.3)' : 'var(--glass-border)'}`,
+              color: isWished ? '#ff5858' : 'white',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 0.2s ease'
+            }}
+            title={isWished ? 'Remove from Wishlist' : 'Add to Wishlist'}
+          >
+            <Heart size={24} fill={isWished ? '#ff5858' : 'none'} />
+          </button>
+        </div>
+      </div>
+
+      {/* Reviews Section - Full Width below */}
+      <div style={{ gridColumn: '1 / -1', marginTop: '60px', paddingTop: '40px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+          <h2 style={{ fontSize: '1.8rem', margin: 0 }}>Customer Reviews</h2>
+          <button 
+            onClick={() => setIsReviewModalOpen(true)}
+            style={{ 
+              background: 'transparent', 
+              border: '1px solid var(--accent-color)', 
+              color: 'var(--accent-color)', 
+              padding: '10px 20px', 
+              borderRadius: '8px', 
+              cursor: 'pointer',
+              fontWeight: 500
+            }}
+          >
+            Write a Review
+          </button>
+        </div>
+        
+        <ReviewList key={reviewKey} productId={product.id} />
+        
+        <ReviewFormModal 
+          productId={product.id} 
+          isOpen={isReviewModalOpen} 
+          onClose={() => setIsReviewModalOpen(false)} 
+          onSuccess={() => {
+            setIsReviewModalOpen(false);
+            setReviewKey(prev => prev + 1);
+          }} 
+        />
       </div>
     </div>
   );

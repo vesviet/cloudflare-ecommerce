@@ -116,7 +116,7 @@ customers.put('/customers/:id', requireRole(['superadmin', 'manager']), zValidat
   }
 });
 
-customers.post('/customers', zValidator('json', customerSchema), async (c) => {
+customers.post('/customers', requireRole(['superadmin', 'manager']), zValidator('json', customerSchema), async (c) => {
   try {
     const db = createDb(c.env.DB);
     const { 

@@ -9,6 +9,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
 
 export default function CartDrawer() {
   const { items, isCartOpen, toggleCart, removeItem, updateQuantity, getCartTotal, coupon, applyCoupon, removeCoupon, getCartSubtotal, getDiscountAmount } = useCartStore();
+  const [couponError, setCouponError] = React.useState('');
 
   // Prevent background scrolling when cart is open
   useEffect(() => {
@@ -100,16 +101,16 @@ export default function CartDrawer() {
                         </div>
                       )}
                     </div>
-                    <button onClick={() => removeItem(item.id)} style={{ background: 'none', border: 'none', color: 'var(--accent-red, #ff5858)', cursor: 'pointer', padding: 0 }}>
+                    <button onClick={() => removeItem(item.id)} aria-label="Remove item" style={{ background: 'none', border: 'none', color: 'var(--accent-red, #ff5858)', cursor: 'pointer', padding: 0 }}>
                       <Trash2 size={16} />
                     </button>
                   </div>
                   
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(0,0,0,0.3)', padding: '4px 8px', borderRadius: '4px' }}>
-                      <button onClick={() => updateQuantity(item.id, Math.max(1, item.quantity - 1))} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 0, display: 'flex' }}><Minus size={14} /></button>
-                      <span style={{ fontSize: '14px', width: '20px', textAlign: 'center' }}>{item.quantity}</span>
-                      <button onClick={() => updateQuantity(item.id, item.quantity + 1)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 0, display: 'flex' }}><Plus size={14} /></button>
+                      <button onClick={() => updateQuantity(item.id, Math.max(1, item.quantity - 1))} aria-label="Decrease quantity" style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 0, display: 'flex' }}><Minus size={14} /></button>
+                      <span aria-live="polite" style={{ fontSize: '14px', width: '20px', textAlign: 'center' }}>{item.quantity}</span>
+                      <button onClick={() => updateQuantity(item.id, item.quantity + 1)} aria-label="Increase quantity" style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 0, display: 'flex' }}><Plus size={14} /></button>
                     </div>
                     <div style={{ fontWeight: 600, color: 'var(--accent-color)' }}>
                       {formatCurrency(item.price * item.quantity)}
@@ -132,23 +133,27 @@ export default function CartDrawer() {
                     <span style={{ color: '#4ade80', fontWeight: 600 }}>{coupon?.code}</span>
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Applied</span>
                   </div>
-                  <button onClick={() => removeCoupon()} style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', display: 'flex' }}><X size={16} /></button>
+                  <button onClick={() => removeCoupon()} aria-label="Remove coupon" style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', display: 'flex' }}><X size={16} /></button>
                 </div>
               ) : (
                 <form 
                   onSubmit={async (e) => {
                     e.preventDefault();
+                    setCouponError('');
                     const input = e.currentTarget.elements.namedItem('coupon') as HTMLInputElement;
                     if (input.value.trim()) {
                       const res = await applyCoupon(input.value.trim());
-                      if (!res.success) alert(res.error);
+                      if (!res.success) setCouponError(res.error || 'Invalid coupon');
                       else input.value = '';
                     }
                   }}
-                  style={{ display: 'flex', gap: '8px' }}
+                  style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}
                 >
-                  <input type="text" name="coupon" placeholder="Discount code" style={{ flex: 1, padding: '10px 14px', borderRadius: '8px', background: 'rgba(0,0,0,0.45)', color: 'white', border: '1px solid rgba(255,255,255,0.12)', outline: 'none' }} />
-                  <button type="submit" className="btn" style={{ padding: '0 16px' }}>Apply</button>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input type="text" name="coupon" aria-label="Discount code" placeholder="Discount code" style={{ flex: 1, padding: '10px 14px', borderRadius: '8px', background: 'rgba(0,0,0,0.45)', color: 'white', border: '1px solid rgba(255,255,255,0.12)', outline: 'none' }} />
+                    <button type="submit" aria-label="Apply discount code" className="btn" style={{ padding: '0 16px' }}>Apply</button>
+                  </div>
+                  {couponError && <span role="alert" style={{ color: '#f87171', fontSize: '0.85rem' }}>{couponError}</span>}
                 </form>
               )}
             </div>

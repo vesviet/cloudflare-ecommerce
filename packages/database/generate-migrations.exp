@@ -1,0 +1,10 @@
+#!/usr/bin/expect -f
+set timeout 30
+spawn npx drizzle-kit generate:sqlite
+expect {
+    -re "created or renamed|table created|Is " {
+        send "\r"
+        exp_continue
+    }
+    eof
+}

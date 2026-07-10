@@ -30,7 +30,13 @@ export const adminAuth = createMiddleware<Env>(async (c, next) => {
     return next();
   }
 
-  const isLocalDev = c.env.LOCAL_DEV === 'true';
+  const isLocalDev = c.env.LOCAL_DEV === 'true' && c.env.ENVIRONMENT === 'local';
+
+  // Guard against spoofing dev headers in non-local environments
+  if (c.env.ENVIRONMENT !== 'local' && c.req.header('X-Local-Admin-Email')) {
+    return c.json({ success: false, error: 'Access Denied: Local Development Headers Not Allowed in Non-Local Environments' }, 401);
+  }
+
   let email = '';
 
   if (isLocalDev) {

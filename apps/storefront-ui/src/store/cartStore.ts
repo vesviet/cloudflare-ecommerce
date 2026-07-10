@@ -25,6 +25,7 @@ interface CartState {
   getDiscountAmount: () => number;
   applyCoupon: (code: string) => Promise<{ success: boolean; error?: string }>;
   removeCoupon: () => void;
+  syncCart: () => Promise<void>;
 }
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
@@ -35,24 +36,36 @@ export const useCartStore = create<CartState>()(
       items: [],
       isCartOpen: false,
       coupon: null,
-      addItem: (item) => set((state) => {
-        const existingItem = state.items.find(i => i.id === item.id);
-        if (existingItem) {
-          return {
-            items: state.items.map(i => 
-              i.id === item.id ? { ...i, quantity: i.quantity + item.quantity } : i
-            )
+      addItem: (item) => {
+        set((state) => {
+          const existingItem = state.items.find(i => i.id === item.id);
+          if (existingItem) {
+            return {
+              items: state.items.map(i => 
+                i.id === item.id ? { ...i, quantity: i.quantity + item.quantity } : i
+              )
+            }
           }
-        }
-        return { items: [...state.items, item] }
-      }),
-      removeItem: (id) => set((state) => ({
-        items: state.items.filter(i => i.id !== id)
-      })),
-      updateQuantity: (id, quantity) => set((state) => ({
-        items: state.items.map(i => i.id === id ? { ...i, quantity } : i)
-      })),
-      clearCart: () => set({ items: [], coupon: null }),
+          return { items: [...state.items, item] }
+        });
+        get().syncCart();
+      },
+      removeItem: (id) => {
+        set((state) => ({
+          items: state.items.filter(i => i.id !== id)
+        }));
+        get().syncCart();
+      },
+      updateQuantity: (id, quantity) => {
+        set((state) => ({
+          items: state.items.map(i => i.id === id ? { ...i, quantity } : i)
+        }));
+        get().syncCart();
+      },
+      clearCart: () => {
+        set({ items: [], coupon: null });
+        get().syncCart();
+      },
       toggleCart: () => set((state) => ({ isCartOpen: !state.isCartOpen })),
       getCartSubtotal: () => {
         return get().items.reduce((total, item) => total + (item.price * item.quantity), 0);
@@ -75,10 +88,12 @@ export const useCartStore = create<CartState>()(
       },
       applyCoupon: async (code: string) => {
         try {
+          const subTotalCents = get().getCartSubtotal();
           const res = await fetch(`${API_BASE}/api/cart/coupon`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ cart_id: 'draft', coupon_code: code }),
+            body: JSON.stringify({ cart_id: 'draft', coupon_code: code, subTotalCents }),
+            credentials: 'include',
           });
           const data = await res.json();
           if (data.success && data.coupon) {
@@ -91,7 +106,31 @@ export const useCartStore = create<CartState>()(
           return { success: false, error: err.message || 'Failed to apply coupon' };
         }
       },
-      removeCoupon: () => set({ coupon: null })
+      removeCoupon: () => set({ coupon: null }),
+      syncCart: async () => {
+        try {
+          // get guestSessionId from local storage or generate one
+          let guestSessionId = localStorage.getItem('guest_session_id');
+          if (!guestSessionId) {
+            guestSessionId = 'guest_' + Math.random().toString(36).substring(2, 15);
+            localStorage.setItem('guest_session_id', guestSessionId);
+          }
+
+          const items = get().items.map(i => ({
+            productId: i.product_id,
+            quantity: i.quantity
+          }));
+
+          await fetch(`${API_BASE}/api/cart/sync`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items, guestSessionId }),
+            credentials: 'include',
+          });
+        } catch (e) {
+          console.error('Failed to sync cart', e);
+        }
+      }
     }),
     {
       name: 'aura-cart-storage',

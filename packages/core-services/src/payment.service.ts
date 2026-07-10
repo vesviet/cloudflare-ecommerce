@@ -2,69 +2,44 @@ import Stripe from 'stripe';
 import { eq } from 'drizzle-orm';
 import { schema } from '@ecommerce/database';
 
+import { PromotionEngine } from './promotion.engine';
+
 export class PaymentService {
   /**
    * Calculates discounts, coupons, and final pricing.
+   * Now acting as a backward-compatible facade for PromotionEngine.
    */
   static async calculatePricing(
     db: any, 
     subTotalCents: number, 
     customer_id?: string, 
     coupon_code?: string, 
-    baseShippingCents: number = 999
+    baseShippingCents: number = 999,
+    redeemPoints?: number
   ) {
-    let discountAmount = 0;
-    let appliedCouponId: string | null = null;
-    let shippingFeeCents = baseShippingCents;
-    
-    let vipDiscount = 0;
-    if (customer_id) {
-      const customerRecord = await db.select().from(schema.customers).where(eq(schema.customers.id, customer_id)).get();
-      if (customerRecord && customerRecord.tags_json) {
-        try {
-          const tags = JSON.parse(customerRecord.tags_json);
-          if (tags.includes('VIP')) {
-            vipDiscount = Math.round(subTotalCents * 0.10);
-          }
-        } catch(e) {}
-      }
-    }
-    
-    let couponDiscount = 0;
-    let couponRecord = null;
-    if (coupon_code) {
-      couponRecord = await db.select().from(schema.coupons).where(eq(schema.coupons.code, coupon_code)).get();
-      if (couponRecord && couponRecord.is_active === 1) {
-        if (couponRecord.type === 'percent') {
-          couponDiscount = Math.round(subTotalCents * (couponRecord.value / 100));
-        } else if (couponRecord.type === 'fixed') {
-          couponDiscount = couponRecord.value;
-        } else if (couponRecord.type === 'freeship') {
-          shippingFeeCents = 0;
-        }
-      }
-    }
-    
-    if (couponDiscount > vipDiscount) {
-      discountAmount = couponDiscount;
-      appliedCouponId = couponRecord ? couponRecord.id : null;
-    } else {
-      discountAmount = vipDiscount;
-    }
-    
-    discountAmount = Math.min(discountAmount, subTotalCents);
-    const totalAmountCents = subTotalCents - discountAmount + shippingFeeCents;
-    
+    const res = await PromotionEngine.evaluate({
+      db,
+      subTotalCents,
+      customer_id,
+      coupon_code,
+      base_shipping_cents: baseShippingCents,
+      redeem_points: redeemPoints
+    });
+
     return {
-      discountAmount,
-      appliedCouponId,
-      shippingFeeCents,
-      totalAmountCents
+      discountAmount: res.discount_amount,
+      appliedCouponId: res.applied_coupon_id,
+      shippingFeeCents: res.shipping_fee_cents,
+      taxAmountCents: res.tax_amount_cents,
+      totalAmountCents: res.total_amount_cents,
+      loyaltyPointsApplied: res.loyalty_points_applied,
+      couponError: res.coupon_error
     };
   }
 
   /**
    * Creates a Stripe Checkout Session.
+   * S3-B (I-14): Accepts optional priceRequested per item for drift detection logging.
    */
   static async createStripeSession(
     stripeSecretKey: string,
@@ -74,6 +49,7 @@ export class PaymentService {
     subTotal: number,
     discountAmount: number,
     shippingFeeCents: number,
+    taxAmountCents: number,
     email?: string,
     stripeCustomerId?: string,
     metadataOverrides?: Record<string, string>
@@ -83,14 +59,21 @@ export class PaymentService {
     const adjustedSubtotal = subTotal - discountAmount;
     const ratio = subTotal > 0 ? adjustedSubtotal / subTotal : 1;
     
-    const stripeLineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = validItems.map(item => ({
-      price_data: {
-        currency: 'usd',
-        product_data: { name: item.name },
-        unit_amount: Math.max(0, Math.round(item.price * ratio)),
-      },
-      quantity: item.quantity,
-    }));
+    const stripeLineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = validItems.map(item => {
+      // S3-B FIX (I-14): Log price drift if client sent price_requested and it differs from current price
+      if (item.price_requested !== undefined && item.price_requested !== item.price) {
+        const driftPct = Math.abs(item.price - item.price_requested) / Math.max(item.price_requested, 1) * 100;
+        console.warn(`[Checkout] Price drift detected: variation=${item.variation_id} requested=${item.price_requested} current=${item.price} drift=${driftPct.toFixed(1)}%`);
+      }
+      return {
+        price_data: {
+          currency: 'usd',
+          product_data: { name: item.name },
+          unit_amount: Math.max(0, Math.round(item.price * ratio)),
+        },
+        quantity: item.quantity,
+      };
+    });
 
     if (shippingFeeCents > 0) {
       stripeLineItems.push({
@@ -98,6 +81,17 @@ export class PaymentService {
           currency: 'usd',
           product_data: { name: 'Standard Shipping' },
           unit_amount: shippingFeeCents,
+        },
+        quantity: 1,
+      });
+    }
+
+    if (taxAmountCents > 0) {
+      stripeLineItems.push({
+        price_data: {
+          currency: 'usd',
+          product_data: { name: 'Taxes' },
+          unit_amount: taxAmountCents,
         },
         quantity: 1,
       });

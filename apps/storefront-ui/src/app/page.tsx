@@ -2,6 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 import AddToCartButton from '../components/AddToCartButton';
 import Banner from '../components/Banner';
+import ImageFallback from '../components/ImageFallback';
 
 // Using the same API_BASE resolution as before.
 // In Next.js SSR, we might need a absolute URL, so NEXT_PUBLIC_API_URL must be an absolute URL.
@@ -54,7 +55,7 @@ export default async function Home() {
           return (
             <div key={product.id} className="glass glass-card" style={{ display: 'flex', flexDirection: 'column' }}>
               <div className="product-image">
-                {product.images && product.images.length > 0 && (
+                {product.images && product.images.length > 0 ? (
                   <img 
                     src={product.images[0]?.url?.startsWith('http') ? product.images[0].url : `${API_BASE}${product.images[0]?.url}`} 
                     alt={product.images[0]?.alt_text || displayName} 
@@ -62,6 +63,8 @@ export default async function Home() {
                     fetchPriority={index < 4 ? "high" : "auto"}
                     loading={index < 4 ? "eager" : "lazy"}
                   />
+                ) : (
+                  <ImageFallback text="No image available" />
                 )}
               </div>
               <div style={{ fontSize: '0.8rem', color: 'var(--accent-color)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '8px' }}>

@@ -4,12 +4,20 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "playwright test",
+    "test:sl06": "playwright test tests/sl06-inventory-do-sync.spec.ts",
+    "test:sl07": "playwright test tests/sl07-fulfillment.spec.ts",
+    "test:sl08": "playwright test tests/sl08-stripe-webhook.spec.ts",
+    "test:comb": "playwright test tests/combinations-realworld.spec.ts",
+    "typecheck": "tsc --noEmit"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@playwright/test": "^1.60.0"
+    "@playwright/test": "^1.60.0",
+    "@types/node": "^26.1.1",
+    "stripe": "^22.3.0",
+    "typescript": "^6.0.3"
   }
 }

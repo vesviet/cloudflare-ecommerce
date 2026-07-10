@@ -25,8 +25,9 @@ checkout.post('/', zValidator('json', CheckoutSchema), async (c) => {
     const {
       items, affiliate_id, address, shipping_address_json, billing_address_json,
       customer_id, email, utm_source, utm_medium, utm_campaign,
-      accepts_marketing, coupon_code
+      accepts_marketing, coupon_code, location_id
     } = body
+    const locationId = location_id || 'loc-1';
 
     const db = createDb(c.env.DB)
 
@@ -62,11 +63,31 @@ checkout.post('/', zValidator('json', CheckoutSchema), async (c) => {
 
     // We no longer soft-lock. We still use validateAndReserveInventory to validate prices and compute subTotal.
     // The name `validateAndReserveInventory` might be old, but we will ignore the soft-lock part since we don't execute those queries anymore.
-    const { validItems, subTotal } = await InventoryService.validateAndReserveInventory(db, items);
+    let validItems: any[] = [];
+    let subTotal = 0;
+    let discountAmount = 0;
+    let appliedCouponId: string | null | undefined;
+    let shippingFeeCents = baseShippingCents;
+    let taxAmountCents = 0;
+    let totalAmountCents = 0;
 
-    const { discountAmount, appliedCouponId, shippingFeeCents, totalAmountCents } = await PaymentService.calculatePricing(
-      db, subTotal, customer_id, coupon_code, baseShippingCents
-    );
+    try {
+      const invRes = await InventoryService.validateAndReserveInventory(db, items, locationId);
+      validItems = invRes.validItems;
+      subTotal = invRes.subTotal;
+
+      const pricingRes = await PaymentService.calculatePricing(
+        db, subTotal, customer_id, coupon_code, baseShippingCents
+      );
+      discountAmount = pricingRes.discountAmount;
+      appliedCouponId = pricingRes.appliedCouponId;
+      shippingFeeCents = pricingRes.shippingFeeCents;
+      taxAmountCents = pricingRes.taxAmountCents;
+      totalAmountCents = pricingRes.totalAmountCents;
+    } catch (valErr: any) {
+      console.error(`[Checkout] Validation/Pricing failed:`, valErr.message);
+      return c.json({ success: false, error: valErr.message || 'Inventory allocation failed.' }, 400);
+    }
     
     let stripeCustomerId: string | undefined
     let customer: any = null;
@@ -87,7 +108,7 @@ checkout.post('/', zValidator('json', CheckoutSchema), async (c) => {
 
     // Process Checkout via Two-Phase Commit Orchestrator
     try {
-      await OrderService.processCheckout(db, c.env.DB, {
+      await OrderService.processCheckout(db, c.env, {
         orderId,
         customerId: customer_id,
         email,
@@ -101,7 +122,8 @@ checkout.post('/', zValidator('json', CheckoutSchema), async (c) => {
         billingAddressJson: billing_address_json,
         validItems,
         discountAmount,
-        appliedCouponId
+        appliedCouponId,
+        locationId
       });
     } catch (orderErr: any) {
       console.error(`[Checkout] Order creation/inventory failed for ${orderId}:`, orderErr.message);
@@ -118,6 +140,7 @@ checkout.post('/', zValidator('json', CheckoutSchema), async (c) => {
         subTotal,
         discountAmount,
         shippingFeeCents,
+        taxAmountCents || 0,
         email,
         stripeCustomerId,
         {
@@ -139,7 +162,7 @@ checkout.post('/', zValidator('json', CheckoutSchema), async (c) => {
       
       // If Stripe fails, we must rollback the order and inventory
       // We can use the orchestrator's cancellation method
-      c.executionCtx.waitUntil(OrderService.cancelOrderAndRestock(db, c.env.DB, orderId));
+      c.executionCtx.waitUntil(OrderService.cancelOrderAndRestock(db, c.env, orderId));
 
       return c.json({ success: false, error: 'Payment gateway error. Please try again.' }, 500)
     }

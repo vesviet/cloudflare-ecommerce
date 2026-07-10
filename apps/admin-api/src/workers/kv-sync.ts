@@ -26,7 +26,7 @@ export const syncCategoryFiltersToKV = async (env: Bindings) => {
       let attrs: any;
       try {
         attrs = JSON.parse(row.attributes_json);
-      } catch (e) {
+      } catch {
         continue;
       }
       

@@ -1,0 +1,1 @@
+DELETE FROM inventory_levels WHERE product_id = 'prod-rea-t4-04';

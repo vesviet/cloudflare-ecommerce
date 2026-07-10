@@ -1,5 +1,5 @@
 import { eq, and, sql } from 'drizzle-orm';
-import { schema } from '@ecommerce/database';
+import * as localSchema from './local-schema';
 
 export class OrderRepository {
   /**
@@ -21,15 +21,20 @@ export class OrderRepository {
     validItems: any[];
     discountAmount: number;
     appliedCouponId?: string | null;
+    taxAmountCents?: number;
+    taxLinesJson?: any;
+    shippingLinesJson?: any;
+    locationId?: string;
   }): Promise<void> {
     const batchQueries: any[] = [];
 
     batchQueries.push(
-      db.insert(schema.orders).values({
+      db.insert(localSchema.orders).values({
         id: orderData.orderId,
         customer_id: orderData.customerId || null,
         guest_email: orderData.customerId ? null : orderData.email,
         status: 'pending_payment',
+        location_id: orderData.locationId || null,
         total_amount: orderData.totalAmount,
         shipping_fee: orderData.shippingFeeCents,
         affiliate_id: orderData.affiliateId || null,
@@ -38,34 +43,26 @@ export class OrderRepository {
         utm_campaign: orderData.utmCampaign || null,
         shipping_address_json: orderData.shippingAddressJson ? JSON.stringify(orderData.shippingAddressJson) : null,
         billing_address_json: orderData.billingAddressJson ? JSON.stringify(orderData.billingAddressJson) : null,
+        discount_amount: orderData.discountAmount || 0,
+        tax_amount: orderData.taxAmountCents || 0,
+        applied_promotions_json: orderData.appliedCouponId ? JSON.stringify([{
+          coupon_id: orderData.appliedCouponId,
+          discount_amount: orderData.discountAmount || 0,
+        }]) : '[]',
+        shipping_lines_json: orderData.shippingLinesJson ? JSON.stringify(orderData.shippingLinesJson) : null,
+        tax_lines_json: orderData.taxLinesJson ? JSON.stringify(orderData.taxLinesJson) : null,
       })
     );
 
     for (const item of orderData.validItems) {
       batchQueries.push(
-        db.insert(schema.orderItems).values({
+        db.insert(localSchema.orderItems).values({
           id: crypto.randomUUID(),
           order_id: orderData.orderId,
           product_id: item.variation_id,
           quantity: item.quantity,
           price_at_purchase: item.price,
         })
-      );
-    }
-
-    if (orderData.discountAmount > 0 && orderData.appliedCouponId) {
-      batchQueries.push(
-        db.insert(schema.orderDiscounts).values({
-          id: crypto.randomUUID(),
-          order_id: orderData.orderId,
-          coupon_id: orderData.appliedCouponId,
-          discount_amount: orderData.discountAmount,
-        })
-      );
-      batchQueries.push(
-        db.update(schema.coupons)
-          .set({ uses: sql`uses + 1` })
-          .where(eq(schema.coupons.id, orderData.appliedCouponId))
       );
     }
 
@@ -78,9 +75,9 @@ export class OrderRepository {
    * Returns false if status was already changed (e.g. race condition between webhook and cron).
    */
   static async updateOrderStatus(db: any, orderId: string, oldStatus: string, newStatus: string): Promise<boolean> {
-    const result = await db.update(schema.orders)
+    const result = await db.update(localSchema.orders)
       .set({ status: newStatus, updated_at: sql`CURRENT_TIMESTAMP` })
-      .where(and(eq(schema.orders.id, orderId), eq(schema.orders.status, oldStatus)))
+      .where(and(eq(localSchema.orders.id, orderId), eq(localSchema.orders.status, oldStatus)))
       .run();
 
     // In D1/SQLite via Drizzle, meta.changes gives rows affected.
@@ -89,11 +86,12 @@ export class OrderRepository {
 
   static async getOrderItems(db: any, orderId: string): Promise<{ product_id: string; quantity: number }[]> {
     return db.select({
-      product_id: schema.orderItems.product_id,
-      quantity: schema.orderItems.quantity
+      product_id: localSchema.orderItems.product_id,
+      quantity: localSchema.orderItems.quantity
     })
-    .from(schema.orderItems)
-    .where(eq(schema.orderItems.order_id, orderId))
+    .from(localSchema.orderItems)
+    .where(eq(localSchema.orderItems.order_id, orderId))
     .all();
   }
 }
+

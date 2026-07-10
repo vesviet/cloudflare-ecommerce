@@ -9,6 +9,7 @@ import { ContactForm } from '../../components/checkout/ContactForm';
 import { AddressSelector, GuestAddress } from '../../components/checkout/AddressSelector';
 import { B2bGdprSection } from '../../components/checkout/B2bGdprSection';
 import { OrderSummary } from '../../components/checkout/OrderSummary';
+import { Turnstile } from '@marsidev/react-turnstile';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
 const FLAT_SHIPPING_FEE = 9.99;
@@ -45,7 +46,10 @@ function CheckoutInner() {
   const [priceChanged, setPriceChanged] = useState(false);
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  const [turnstileToken, setTurnstileToken] = useState<string>('');
   const [mounted, setMounted] = useState(false);
+  const [loyaltyBalance, setLoyaltyBalance] = useState(0);
+  const [redeemPoints, setRedeemPoints] = useState(0);
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -82,6 +86,12 @@ function CheckoutInner() {
         const def = data.data.find((a: any) => a.is_default_shipping === 1) || data.data[0];
         setSelectedAddressId(def.id);
       }
+      
+      const loyaltyRes = await fetch(`${API_BASE}/api/customer/loyalty`, { credentials: 'include' });
+      const loyaltyData = await loyaltyRes.json();
+      if (loyaltyData.success) {
+        setLoyaltyBalance(loyaltyData.data.balance);
+      }
     } catch (e) { console.error(e); }
   }, [isAuthenticated, customer]);
 
@@ -114,24 +124,35 @@ function CheckoutInner() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (items.length === 0) return;
+    
+    if (!turnstileToken) {
+      setStatus('error');
+      setErrorMessage('Please complete the security check (Turnstile) before proceeding.');
+      return;
+    }
+
     setStatus('loading');
     setErrorMessage('');
 
     const selectedAddress = savedAddresses.find(a => a.id === selectedAddressId) || null;
     const shippingAddressJson = isAuthenticated && selectedAddress ? selectedAddress : guestAddress;
 
-    if (isB2B && b2bCompany) {
-      (shippingAddressJson as any).company = b2bCompany;
-      (shippingAddressJson as any).vat_id = b2bVatId;
+    const finalAddressJson = shippingAddressJson ? { ...shippingAddressJson } : null;
+    if (finalAddressJson && isB2B && b2bCompany) {
+      (finalAddressJson as any).company = b2bCompany;
+      (finalAddressJson as any).vat_id = b2bVatId;
     }
 
     const payload: Record<string, any> = {
       email,
       customer_id: customer?.id || undefined,
-      shipping_address_json: shippingAddressJson,
+      shipping_address_json: finalAddressJson,
       items: items.map(item => ({ variation_id: item.id, quantity: item.quantity })),
       accepts_marketing: acceptsMarketing,
+      turnstileToken,
     };
+
+    if (redeemPoints > 0) payload.redeem_points = redeemPoints;
 
     if (coupon?.code) payload.coupon_code = coupon.code;
     if (utm.source) payload.utm_source = utm.source;
@@ -182,7 +203,7 @@ function CheckoutInner() {
       <h1 style={{ marginBottom: '40px' }}>Checkout</h1>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '32px', alignItems: 'start' }}>
-        {/* Left: Form */}
+          {/* Left: Form */}
         <div className="glass glass-card" style={{ padding: '32px' }}>
           {priceChanged && (
             <div style={{ padding: '10px 14px', background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.3)', borderRadius: '8px', marginBottom: '20px', color: '#fbbf24', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -219,6 +240,15 @@ function CheckoutInner() {
               </div>
             )}
 
+            <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'center' }}>
+              <Turnstile 
+                siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '1x00000000000000000000AA'} 
+                onSuccess={(token) => setTurnstileToken(token)}
+                onError={() => setErrorMessage('Turnstile verification failed. Please try again.')}
+                options={{ theme: 'auto' }}
+              />
+            </div>
+
             <button
               className="btn" type="submit"
               disabled={status === 'loading'}
@@ -238,7 +268,11 @@ function CheckoutInner() {
           items={items}
           isB2B={isB2B}
           subtotal={getCartSubtotal()}
-          flatShippingFee={FLAT_SHIPPING_FEE}
+          flatShippingFee={(isAuthenticated && savedAddresses.find(a => a.id === selectedAddressId)?.postcode?.startsWith('7')) || (!isAuthenticated && guestAddress?.postcode?.startsWith('7')) ? 30.00 : 50.00}
+          isCalculating={status === 'loading'}
+          loyaltyBalance={loyaltyBalance}
+          redeemPoints={redeemPoints}
+          onRedeemPointsChange={setRedeemPoints}
         />
       </div>
     </main>

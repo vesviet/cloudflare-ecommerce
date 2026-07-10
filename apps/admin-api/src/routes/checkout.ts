@@ -13,30 +13,37 @@ checkout.post('/store/orders', requireRole(['superadmin', 'manager', 'editor']),
     const db = createDb(c.env.DB);
     const { 
       email, items, customer_id, shipping_address_json, billing_address_json,
-      utm_source, utm_medium, utm_campaign, affiliate_id 
-    } = c.req.valid('json');
+      utm_source, utm_medium, utm_campaign, affiliate_id, location_id
+    } = c.req.valid('json') as any;
+    const locationId = location_id || 'loc-1';
 
     // Two-Step Check 1: Select current variations from DB to prevent Price Tampering and check Stock
-    const variationIds = items.map(i => i.variation_id);
-    const dbVariations = await db.select({
-      id: schema.products.id,
-      stock: schema.products.stock_quantity,
-      sale_price: schema.products.sale_price,
-      regular_price: schema.products.regular_price,
-    })
-      .from(schema.products)
-      .where(and(
-        inArray(schema.products.id, variationIds),
-        eq(schema.products.is_purchasable, 1)
-      ))
-      .all();
+    const variationIds = items.map((i: any) => i.variation_id);
+    const dbVariations = await db.all(sql`
+      SELECT 
+        p.id,
+        p.is_purchasable,
+        (SELECT stock_quantity FROM inventory_levels il WHERE il.product_id = p.id AND il.location_id = ${locationId} LIMIT 1) as stock,
+        (SELECT location_id FROM inventory_levels il WHERE il.product_id = p.id AND il.location_id = ${locationId} LIMIT 1) as location_id,
+        (SELECT pli.price FROM price_list_items pli INNER JOIN price_lists pl ON pli.price_list_id = pl.id WHERE pli.product_id = p.id AND pl.type = 'base' LIMIT 1) as regular_price,
+        (SELECT pli.price FROM price_list_items pli INNER JOIN price_lists pl ON pli.price_list_id = pl.id WHERE pli.product_id = p.id AND pl.type = 'sale' LIMIT 1) as sale_price
+      FROM products p
+      WHERE p.id IN (${sql.join(variationIds.map((id: any) => sql`${id}`), sql`, `)})
+        AND p.is_purchasable = 1
+    `) as any[];
 
     // Fetch active reservations for soft-locks
     const now = Math.floor(Date.now() / 1000);
     const allReservations = await db
       .select()
       .from(schema.inventoryReservations)
-      .where(sql`product_id IN (${sql.join(variationIds, sql`, `)}) AND expires_at > ${now}`)
+      .where(
+        and(
+          inArray(schema.inventoryReservations.product_id, variationIds),
+          eq(schema.inventoryReservations.location_id, locationId),
+          sql`expires_at > ${now}`
+        )
+      )
       .all();
 
     const reservationMap = new Map<string, number>();
@@ -76,6 +83,7 @@ checkout.post('/store/orders', requireRole(['superadmin', 'manager', 'editor']),
           id: crypto.randomUUID(),
           order_id: orderId,
           product_id: item.variation_id,
+          location_id: dbVar.location_id || 'loc-1',
           quantity: item.quantity,
           expires_at: expiresAt,
         })

@@ -159,8 +159,14 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ orderId, API
               <div style={{ width: '300px', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '8px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                   <span>Subtotal</span>
-                  <span>{formatCurrency((order.total_amount - order.shipping_fee) / 100)}</span>
+                  <span>{formatCurrency((order.total_amount - order.shipping_fee + (order.discounts?.[0]?.discount_amount || 0)) / 100)}</span>
                 </div>
+                {order.discounts && order.discounts.length > 0 && order.discounts.map(d => (
+                  <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', color: 'var(--success-accent)', fontSize: '0.85rem' }}>
+                    <span>Discount ({d.coupon_code || 'Coupon'})</span>
+                    <span>-{formatCurrency(d.discount_amount / 100)}</span>
+                  </div>
+                ))}
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                   <span>Shipping</span>
                   <span>{formatCurrency(order.shipping_fee / 100)}</span>

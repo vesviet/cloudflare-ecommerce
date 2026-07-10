@@ -1,71 +1,109 @@
 import { Hono } from 'hono'
-import { createDb, schema } from '@ecommerce/database'
+import { createDb } from '@ecommerce/database'
+import { localSchema as schema } from '@ecommerce/core-services'
 import { eq } from 'drizzle-orm'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
+import { PromotionEngine } from '@ecommerce/core-services'
 
 type Bindings = {
   DB: D1Database
+  JWT_SECRET?: string
 }
 
 const cart = new Hono<{ Bindings: Bindings }>()
 
 const ApplyCouponSchema = z.object({
-  cart_id: z.string().uuid(),
+  cart_id: z.string().min(1),
   coupon_code: z.string().min(1),
+  subTotalCents: z.number().optional().default(0)
 })
 
 cart.post('/coupon', zValidator('json', ApplyCouponSchema), async (c) => {
   try {
-    const { cart_id, coupon_code } = c.req.valid('json')
+    const { coupon_code, subTotalCents } = c.req.valid('json')
     const db = createDb(c.env.DB)
 
-    // 1. Validate Cart (assuming order_id for now as cart_id is actually order_id in our simplified checkout)
-    // Wait, the schema has a `carts` table and an `order_discounts` table. 
-    // Actually, in Aura Store, the frontend handles cart locally and passes coupon_code to /api/checkout.
-    // The requirement says: "Implement POST /api/cart/coupon. Strict Limit 1: DELETE existing order_discounts for the cart and INSERT the new one."
-    // However, carts don't have order_discounts. order_discounts is linked to order_id.
-    // If the frontend has an order_id before checkout (draft order), we can use it.
-    // Let's implement it for carts by adding the coupon code to the session or verifying it.
-    // Since the requirement specifically mentions `order_discounts`, let's assume `cart_id` maps to an `order_id` in draft state,
-    // OR we just validate the coupon and return its details so the frontend can send it to /api/checkout.
-    
-    // Let's implement a general coupon validation endpoint for the cart
-    const coupon = await db
-      .select()
-      .from(schema.coupons)
-      .where(eq(schema.coupons.code, coupon_code))
-      .get()
+    // Using PromotionEngine to validate coupon (GAP-05 Fix)
+    const preview = await PromotionEngine.evaluate({
+      db,
+      subTotalCents: subTotalCents || 0,
+      coupon_code,
+      base_shipping_cents: 999
+    });
 
-    if (!coupon) {
-      return c.json({ success: false, error: 'Invalid coupon code' }, 404)
+    if (preview.coupon_error) {
+      // Return specific error message based on the error code
+      const errorMap: Record<string, string> = {
+        'COUPON_NOT_FOUND': 'Invalid coupon code',
+        'COUPON_INACTIVE': 'Coupon is not active',
+        'COUPON_NOT_STARTED': 'Coupon has not started yet',
+        'COUPON_EXPIRED': 'Coupon has expired',
+        'COUPON_MIN_ORDER': 'Minimum order amount not met',
+        'COUPON_EXHAUSTED': 'Coupon usage limit reached',
+        'COUPON_PER_CUSTOMER_LIMIT': 'You have already used this coupon'
+      };
+      return c.json({ success: false, error: errorMap[preview.coupon_error] || 'Invalid coupon code', code: preview.coupon_error }, 400);
     }
 
-    if (coupon.is_active === 0) {
-      return c.json({ success: false, error: 'Coupon is not active' }, 400)
-    }
+    const coupon = await db.select().from(schema.promotions).where(eq(schema.promotions.code, coupon_code.toUpperCase())).get();
 
-    if (coupon.expires_at && coupon.expires_at < Math.floor(Date.now() / 1000)) {
-      return c.json({ success: false, error: 'Coupon has expired' }, 400)
-    }
-
-    if (coupon.max_uses && coupon.uses !== null && coupon.uses >= coupon.max_uses) {
-      return c.json({ success: false, error: 'Coupon usage limit reached' }, 400)
-    }
-
-    // Strict Limit 1 is enforced by the frontend replacing the active coupon, 
-    // and by the backend `checkout.ts` only accepting a single `coupon_code` string in the payload.
     return c.json({
       success: true,
       coupon: {
-        id: coupon.id,
-        code: coupon.code,
-        type: coupon.type,
-        value: coupon.value
+        id: coupon!.id,
+        code: coupon!.code,
+        type: coupon!.type === 'percentage' ? 'percent' : (coupon!.type === 'free_shipping' ? 'freeship' : coupon!.type),
+        value: coupon!.value
+      },
+      preview: {
+        discount_amount: preview.discount_amount,
+        shipping_fee_cents: preview.shipping_fee_cents,
+        total_amount_cents: preview.total_amount_cents,
+        breakdown: preview.discount_breakdown
       }
     })
   } catch (err: any) {
     console.error('[Cart Coupon Error]', err)
+    return c.json({ success: false, error: err.message || 'Internal error' }, 500)
+  }
+})
+
+const SyncCartSchema = z.object({
+  items: z.array(z.object({
+    productId: z.string().min(1),
+    quantity: z.number().min(1)
+  })),
+  guestSessionId: z.string().optional()
+})
+
+cart.post('/sync', zValidator('json', SyncCartSchema), async (c) => {
+  try {
+    const { items, guestSessionId } = c.req.valid('json')
+    const db = createDb(c.env.DB)
+
+    let customerId: string | undefined = undefined;
+    
+    const { getCookie } = await import('hono/cookie');
+    const token = getCookie(c, 'aura_token');
+    
+    if (token) {
+      try {
+        const { verifyJWT } = await import('@ecommerce/database');
+        const payload = await verifyJWT(token, c.env.JWT_SECRET || 'dev_secret_key');
+        customerId = payload.customer_id as string;
+      } catch (e) {
+        console.error('Cart sync token verify error:', e);
+      }
+    }
+
+    const { CartService } = await import('@ecommerce/core-services');
+
+    const result = await CartService.syncCart(db, items, customerId, guestSessionId);
+
+    return c.json(result);
+  } catch (err: any) {
+    console.error('[Cart Sync Error]', err)
     return c.json({ success: false, error: err.message || 'Internal error' }, 500)
   }
 })

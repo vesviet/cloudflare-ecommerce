@@ -1,6 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
 import categories from '../categories';
 
+// Mock Auth Middleware
+vi.mock('../../middleware/auth', () => ({
+  requireRole: () => async (c: any, next: any) => await next()
+}));
+
 // Mock core-services
 let mockHasCycle = false;
 vi.mock('@ecommerce/core-services', async () => {

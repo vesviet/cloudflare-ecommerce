@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { OrderRepository } from '../order.repository';
-import { schema } from '@ecommerce/database';
+import * as schema from '../local-schema';
 import { eq, and } from 'drizzle-orm';
 
 vi.mock('drizzle-orm', () => {

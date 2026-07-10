@@ -4,7 +4,8 @@ import { createDb, schema } from '@ecommerce/database';
 import { Bindings } from '../types';
 import { zValidator } from '@hono/zod-validator';
 import { productFormSchema } from '@ecommerce/contract';
-import { ProductService, CacheService } from '@ecommerce/core-services';
+import { ProductService, CacheService, InventoryRepository } from '@ecommerce/core-services';
+import { requireRole } from '../middleware/auth';
 
 const products = new Hono<{ Bindings: Bindings }>();
 
@@ -55,13 +56,13 @@ products.get('/products', async (c) => {
     const formattedData = results.map((row: any) => {
       // images_json now contains actual asset objects { url, alt_text }
       let images = [];
-      try { images = JSON.parse(row.images_json || '[]').filter((img: any) => img.url); } catch (e) {}
+      try { images = JSON.parse(row.images_json || '[]').filter((img: any) => img.url); } catch { /* ignore */ }
       
       let variations = [];
-      try { variations = JSON.parse(row.variations || '[]').filter((v: any) => v.id); } catch (e) {}
+      try { variations = JSON.parse(row.variations || '[]').filter((v: any) => v.id); } catch { /* ignore */ }
 
       let secondaryCategories = [];
-      try { secondaryCategories = JSON.parse(row.secondary_categories || '[]').filter(Boolean); } catch (e) {}
+      try { secondaryCategories = JSON.parse(row.secondary_categories || '[]').filter(Boolean); } catch { /* ignore */ }
 
       return {
         ...row,
@@ -106,7 +107,7 @@ products.get('/products/search-sku', async (c) => {
 });
 
 // POST: Create Product
-products.post('/products', zValidator('form', productFormSchema), async (c) => {
+products.post('/products', requireRole(['superadmin', 'manager', 'editor']), zValidator('form', productFormSchema), async (c) => {
   try {
     const db = createDb(c.env.DB);
     const body = c.req.valid('form');
@@ -137,11 +138,11 @@ products.post('/products', zValidator('form', productFormSchema), async (c) => {
     const productId = crypto.randomUUID();
     let variations: any[] = [];
     if (body['variations']) {
-      try { variations = JSON.parse(body['variations'] as string); } catch(e){}
+      try { variations = JSON.parse(body['variations'] as string); } catch { /* ignore */ }
     }
     let secondary_categories: string[] = [];
     if (body['secondary_categories']) {
-      try { secondary_categories = JSON.parse(body['secondary_categories'] as string); } catch(e){}
+      try { secondary_categories = JSON.parse(body['secondary_categories'] as string); } catch { /* ignore */ }
     }
 
     const batchQueries = await ProductService.prepareUpsertProduct(db, {
@@ -166,6 +167,17 @@ products.post('/products', zValidator('form', productFormSchema), async (c) => {
     if (batchQueries.length > 0) {
       await db.batch(batchQueries as any);
       
+      if (body['stock'] !== undefined) {
+        c.executionCtx.waitUntil(InventoryRepository.invalidateCache(c.env, productId, 'loc_default'));
+      }
+      if (variations && variations.length > 0) {
+        for (const v of variations) {
+          if (v.id) {
+            c.executionCtx.waitUntil(InventoryRepository.invalidateCache(c.env, v.id, 'loc_default'));
+          }
+        }
+      }
+
       // Fetch the generated slug to invalidate the specific item cache
       const newProduct = await db.select({ slug: schema.products.slug }).from(schema.products).where(eq(schema.products.id, productId)).get();
       if (newProduct && newProduct.slug) {
@@ -181,7 +193,7 @@ products.post('/products', zValidator('form', productFormSchema), async (c) => {
 });
 
 // PUT: Update Product
-products.put('/products/:id', zValidator('form', productFormSchema), async (c) => {
+products.put('/products/:id', requireRole(['superadmin', 'manager', 'editor']), zValidator('form', productFormSchema), async (c) => {
   const productId = c.req.param('id');
   try {
     const db = createDb(c.env.DB);
@@ -197,7 +209,7 @@ products.put('/products/:id', zValidator('form', productFormSchema), async (c) =
 
     let existingImages: string[] = [];
     if (body['existing_images']) {
-      try { existingImages = JSON.parse(body['existing_images'] as string); } catch(e){}
+      try { existingImages = JSON.parse(body['existing_images'] as string); } catch { /* ignore */ }
     }
     const imageRaw = body['images'];
     const files: File[] = [];
@@ -219,11 +231,11 @@ products.put('/products/:id', zValidator('form', productFormSchema), async (c) =
 
     let variations: any[] = [];
     if (body['variations']) {
-      try { variations = JSON.parse(body['variations'] as string); } catch(e){}
+      try { variations = JSON.parse(body['variations'] as string); } catch { /* ignore */ }
     }
     let secondary_categories: string[] = [];
     if (body['secondary_categories']) {
-      try { secondary_categories = JSON.parse(body['secondary_categories'] as string); } catch(e){}
+      try { secondary_categories = JSON.parse(body['secondary_categories'] as string); } catch { /* ignore */ }
     }
 
     const finalImageUrls = (body['existing_images'] !== undefined || files.length > 0) ? imageUrls : undefined;
@@ -249,6 +261,17 @@ products.put('/products/:id', zValidator('form', productFormSchema), async (c) =
 
     if (batchQueries.length > 0) {
       await db.batch(batchQueries as any);
+
+      if (body['stock'] !== undefined) {
+        c.executionCtx.waitUntil(InventoryRepository.invalidateCache(c.env, productId, 'loc_default'));
+      }
+      if (variations && variations.length > 0) {
+        for (const v of variations) {
+          if (v.id) {
+            c.executionCtx.waitUntil(InventoryRepository.invalidateCache(c.env, v.id, 'loc_default'));
+          }
+        }
+      }
 
       // Invalidate item cache (both by id and potential slug)
       const updatedProduct = await db.select({ slug: schema.products.slug }).from(schema.products).where(eq(schema.products.id, productId)).get();

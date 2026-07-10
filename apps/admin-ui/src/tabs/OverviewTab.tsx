@@ -49,7 +49,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ addToast }) => {
     <div className="w-full flex flex-col gap-8">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="m-0 text-3xl font-bold bg-gradient-to-r from-white to-primary-accent bg-clip-text text-transparent">
+          <h2 className="m-0 text-3xl font-bold bg-gradient-to-r from-white via-blue-100 to-primary-accent bg-clip-text text-transparent">
             Dashboard Overview
           </h2>
           <div className="text-text-muted text-sm mt-1">

@@ -25,11 +25,8 @@ export default function AddToCartButton({ product, isVariable }: AddToCartButton
       });
     } else {
       // Simple product
-      const variation = product.variations?.[0];
-      if (!variation) return;
-
       addItem({
-        id: variation.id,
+        id: product.id,
         product_id: product.id,
         name: product.name ?? product.title,
         price: parseInt(String(product.prices?.sale_price ?? product.prices?.regular_price), 10),
@@ -40,9 +37,13 @@ export default function AddToCartButton({ product, isVariable }: AddToCartButton
     toggleCart();
   };
 
+  const inStock = isVariable 
+    ? product.variations?.some((v: any) => v.stock_quantity > 0) 
+    : product.stock_quantity > 0;
+
   return (
-    <button className="btn" disabled={!product.in_stock} onClick={handleAddToCart}>
-      {product.in_stock ? 'Add to Cart' : 'Out of Stock'}
+    <button className="btn" disabled={!inStock} onClick={handleAddToCart}>
+      {inStock ? 'Add to Cart' : 'Out of Stock'}
     </button>
   );
 }
