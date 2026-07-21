@@ -46,19 +46,19 @@ jobs:
       - name: 📥 Install Dependencies
         run: pnpm install --frozen-lockfile
 
-      # -- DEPLOY ADMIN API WORKER --
-      - name: 🚀 Deploy Admin API (Worker)
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: pnpm --filter admin-api run deploy
-
       # -- DEPLOY PUBLIC API WORKER --
       - name: 🚀 Deploy Public API (Worker)
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: pnpm --filter public-api run deploy
+
+      # -- DEPLOY ADMIN API WORKER --
+      - name: 🚀 Deploy Admin API (Worker)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm --filter admin-api run deploy
 
   # (Optional) Deploy UI using Cloudflare Pages
   deploy-pages:
