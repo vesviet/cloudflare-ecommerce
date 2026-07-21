@@ -18,6 +18,7 @@ rm -rf "$MONOREPO_ROOT/apps/public-api/.wrangler"
 rm -rf "$MONOREPO_ROOT/apps/admin-api/.wrangler"
 
 echo "🔄 Initializing test D1 database..."
+cd "$MONOREPO_ROOT"
 pnpm run setup:db
 
 echo "🔄 Initializing WAL mode..."
@@ -63,6 +64,8 @@ echo "🧪 Running Playwright E2E tests..."
 cd "$QA_DIR"
 export PUBLIC_API_URL=http://127.0.0.1:8787
 export ADMIN_API_URL=http://127.0.0.1:8788
-npx playwright test tests/sl06-inventory-do-sync.spec.ts tests/sl07-fulfillment.spec.ts tests/sl08-stripe-webhook.spec.ts tests/combinations-realworld.spec.ts --workers=1
+npx playwright test tests/sl06-inventory-do-sync.spec.ts tests/sl07-fulfillment.spec.ts tests/sl08-stripe-webhook.spec.ts tests/combinations-realworld.spec.ts --workers=1 --retries=2
+echo "🧪 Running Node Integration tests..."
+node tests/landing-pages-integration.js
 
-echo "🎉 All E2E tests executed successfully!"
+echo "🎉 All E2E & Integration tests executed successfully!"

@@ -5,6 +5,7 @@ import { Bindings } from './types';
 import { createDb, schema } from '@ecommerce/database';
 import metricsRoutes from './routes/metrics';
 import ordersRoutes from './routes/orders';
+import landingPagesRoutes from './routes/landing-pages';
 import customersRoutes from './routes/customers';
 import productsRoutes from './routes/products';
 import checkoutRoutes from './routes/checkout';
@@ -46,6 +47,7 @@ app.get('/me', (c) => {
 // Register routers
 app.route('/', metricsRoutes);
 app.route('/', ordersRoutes);
+app.route('/', landingPagesRoutes);
 app.route('/', customersRoutes);
 app.route('/', productsRoutes);
 app.route('/', checkoutRoutes);

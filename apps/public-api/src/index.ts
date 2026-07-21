@@ -14,6 +14,7 @@ import categories from './routes/categories'
 import cms from './routes/cms'
 import cart from './routes/cart'
 import reviews from './routes/reviews'
+import landingPages from './routes/landing-pages'
 import { mediaRouter as media, featureFlagsRoute } from '@ecommerce/shared-routes';
 import { WebhookProcessor } from './services/webhook-processor'
 
@@ -65,6 +66,7 @@ app.route('/api/categories', categories)
 app.route('/api/cms', cms)
 app.route('/api/cart', cart)
 app.route('/api/reviews', reviews)
+app.route('/api/landing-pages', landingPages)
 app.route('/api/checkout', checkout)
 app.route('/api/webhooks', webhook)
 app.route('/api/rma', rma)

@@ -33,8 +33,4 @@ INSERT OR REPLACE INTO inventory_levels (id, location_id, product_id, stock_quan
   ('inv-2', 'loc-1', 'prod-2', 500),
   ('inv-3', 'loc-1', 'prod-3', 200);
 
-INSERT OR REPLACE INTO promotions (id, code, type, value, status, min_order_amount)
-VALUES
-  ('coupon-1', 'WELCOME10', 'percentage', 10, 'active', 0),
-  ('coupon-2', '10OFF', 'fixed', 1000, 'active', 5000),
-  ('coupon-3', 'FREESHIP', 'freeship', 0, 'active', 2000);
+

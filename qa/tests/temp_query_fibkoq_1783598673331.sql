@@ -1,1 +1,0 @@
-UPDATE inventory_levels SET stock_quantity = 10 WHERE product_id = 'prod-rea-t4-05' AND location_id = 'loc-1';

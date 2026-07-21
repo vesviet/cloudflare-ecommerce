@@ -462,3 +462,46 @@ export const settings = sqliteTable('settings', {
   description: text('description'),
   updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
 });
+
+// --- LANDING PAGES ---
+
+export const landingPages = sqliteTable('landing_pages', {
+  id: text('id').primaryKey(),
+  slug: text('slug').notNull().unique(),
+  product_id: text('product_id').references(() => products.id),
+  seo_title: text('seo_title'),
+  facebook_pixel_id: text('facebook_pixel_id'),
+  tiktok_pixel_id: text('tiktok_pixel_id'),
+  urgency_end_time: text('urgency_end_time'), // ISO String
+  urgency_fake_views: integer('urgency_fake_views').default(0),
+  combo_rules_json: text('combo_rules_json'), // JSON string
+  
+  created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+  updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const landingPageLeads = sqliteTable('landing_page_leads', {
+  id: text('id').primaryKey(),
+  landing_page_id: text('landing_page_id').references(() => landingPages.id),
+  
+  customer_name: text('customer_name').notNull(),
+  customer_phone: text('customer_phone').notNull(),
+  customer_address: text('customer_address'),
+  customer_note: text('customer_note'),
+  
+  selected_combo_id: text('selected_combo_id'),
+  selected_colors_json: text('selected_colors_json'),
+  selected_sizes_json: text('selected_sizes_json'),
+  
+  total_amount: integer('total_amount').notNull(),
+  
+  // Tracking
+  utm_source: text('utm_source'),
+  utm_campaign: text('utm_campaign'),
+  utm_content: text('utm_content'),
+  
+  // Webhook Sync
+  sync_status: text('sync_status').default('pending'), // pending, synced, failed
+  
+  created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+});

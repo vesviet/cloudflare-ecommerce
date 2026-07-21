@@ -106,6 +106,41 @@ products.get('/products/search-sku', async (c) => {
   }
 });
 
+// Autocomplete Product Search (For Combobox)
+products.get('/products/search', async (c) => {
+  try {
+    const db = createDb(c.env.DB);
+    const q = c.req.query('q') || '';
+    if (!q || q.length < 2) {
+      return c.json({ success: true, data: [] });
+    }
+
+    const results = await db.all<any>(sql`
+      SELECT 
+        p.id, p.sku, p.title,
+        (SELECT price FROM price_list_items pli WHERE pli.product_id = p.id LIMIT 1) as regular_price,
+        (
+          SELECT a.url 
+          FROM product_assets pa 
+          JOIN assets a ON pa.asset_id = a.id 
+          WHERE pa.product_id = p.id 
+          ORDER BY pa.position ASC 
+          LIMIT 1
+        ) as image_url
+      FROM products p
+      WHERE p.parent_id IS NULL 
+        AND p.deleted_at IS NULL 
+        AND (p.sku LIKE ${'%' + q + '%'} OR p.title LIKE ${'%' + q + '%'})
+      LIMIT 10
+    `);
+
+    return c.json({ success: true, data: results });
+  } catch (err: any) {
+    return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
+
 // POST: Create Product
 products.post('/products', requireRole(['superadmin', 'manager', 'editor']), zValidator('form', productFormSchema), async (c) => {
   try {
