@@ -8,7 +8,7 @@ export default async function LandingPage({ params }: { params: any }) {
   const slug = resolvedParams?.slug;
 
   return (
-    <main style={{ backgroundColor: '#fff', color: '#000', minHeight: '100vh', fontFamily: 'sans-serif' }}>
+    <main data-landing="true" style={{ backgroundColor: '#fff', color: '#000', minHeight: '100vh', fontFamily: 'sans-serif' }}>
       <LandingClient initialSlug={slug} apiUrl={API_BASE} />
     </main>
   );

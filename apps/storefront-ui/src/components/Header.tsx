@@ -7,7 +7,7 @@ import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
 import { useWishlistStore } from '../store/wishlistStore';
 import CartDrawer from './CartDrawer';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { SearchAutocomplete } from './SearchAutocomplete';
 
 interface Category {
@@ -19,6 +19,12 @@ interface Category {
 }
 
 export default function Header() {
+  const pathname = usePathname();
+
+  if (pathname?.startsWith('/landing')) {
+    return null;
+  }
+
   const [isScrolled, setIsScrolled] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [showCategories, setShowCategories] = useState(false);
