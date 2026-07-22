@@ -82,7 +82,7 @@ export const LandingPagesTab: React.FC<LandingPagesTabProps> = ({ API_BASE_URL, 
       seo_description: lp.seo_description,
       facebook_pixel_id: lp.facebook_pixel_id,
       tiktok_pixel_id: lp.tiktok_pixel_id,
-      urgency_end_time: lp.urgency_end_time ? new Date(lp.urgency_end_time).toISOString().slice(0, 16) : '',
+      urgency_end_time: lp.urgency_end_time && !isNaN(new Date(lp.urgency_end_time).getTime()) ? new Date(lp.urgency_end_time).toISOString().slice(0, 16) : '',
       urgency_fake_views: lp.urgency_fake_views || 0,
       combo_rules: combos.length > 0 ? combos : [{ id: crypto.randomUUID(), name: '', price: 0 }]
     });
