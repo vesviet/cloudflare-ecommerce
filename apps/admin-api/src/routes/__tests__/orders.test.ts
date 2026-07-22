@@ -49,6 +49,8 @@ vi.mock('@ecommerce/database', () => {
         from: vi.fn().mockReturnThis(),
         where: vi.fn().mockReturnThis(),
         leftJoin: vi.fn().mockReturnThis(),
+        innerJoin: vi.fn().mockReturnThis(),
+        groupBy: vi.fn().mockReturnThis(),
         get: vi.fn().mockResolvedValue(mockOrder),
         all: vi.fn().mockResolvedValue([{ id: 'item_1', quantity: 10, orderItemId: 'item_1', fulfilledQuantity: 0 }]),
         batch: vi.fn().mockResolvedValue([{ success: true }]),
