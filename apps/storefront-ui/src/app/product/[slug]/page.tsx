@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation';
 import ProductClient from './ProductClient';
 import Link from 'next/link';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com';
 
 async function getProductBySlug(slug: string) {
   try {
