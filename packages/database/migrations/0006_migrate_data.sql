@@ -3,7 +3,7 @@
 -- Migrates stock, price, and images from products table to new tables BEFORE columns are dropped.
 
 -- 1. Create Default Warehouse
-INSERT INTO `locations` (`id`, `name`, `type`) VALUES ('loc_default', 'Main Warehouse', 'warehouse');
+INSERT OR IGNORE INTO `locations` (`id`, `name`, `type`) VALUES ('loc_default', 'Main Warehouse', 'warehouse'), ('loc-1', 'Main Warehouse', 'warehouse');
 
 -- 2. Create Default Base Price List
 INSERT INTO `price_lists` (`id`, `name`, `type`, `currency`) VALUES ('pl_base', 'Base Prices', 'base', 'USD');

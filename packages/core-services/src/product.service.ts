@@ -93,7 +93,10 @@ export class ProductService {
   }) {
     const { isUpdate, productId, type, variations = [], secondary_categories = [] } = params;
     const batchQueries: any[] = [];
-    const locationId = params.locationId || 'loc-1';
+    const locationId = params.locationId || 'loc_default';
+    const primaryCategoryId = (params.primary_category_id && typeof params.primary_category_id === 'string' && params.primary_category_id.trim() !== '' && params.primary_category_id !== 'null' && params.primary_category_id !== 'undefined')
+      ? params.primary_category_id
+      : null;
     
     // Core Product Update/Insert
     let slug = '';
@@ -117,7 +120,7 @@ export class ProductService {
           length: type === 'simple' ? params.length : null,
           width: type === 'simple' ? params.width : null,
           height: type === 'simple' ? params.height : null,
-          primary_category_id: params.primary_category_id || null,
+          primary_category_id: primaryCategoryId,
         })
       );
     } else {
@@ -129,7 +132,7 @@ export class ProductService {
       if (params.length !== undefined && type === 'simple') updateData.length = params.length;
       if (params.width !== undefined && type === 'simple') updateData.width = params.width;
       if (params.height !== undefined && type === 'simple') updateData.height = params.height;
-      if (params.primary_category_id !== undefined) updateData.primary_category_id = params.primary_category_id;
+      if (params.primary_category_id !== undefined) updateData.primary_category_id = primaryCategoryId;
       
       batchQueries.push(
         db.update(schema.products).set(updateData).where(eq(schema.products.id, productId))

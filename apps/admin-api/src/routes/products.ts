@@ -197,6 +197,7 @@ products.post('/products', requireRole(['superadmin', 'manager', 'editor']), zVa
       secondary_categories,
       variations,
       imageUrls,
+      locationId: 'loc_default',
     });
 
     if (batchQueries.length > 0) {
@@ -292,6 +293,7 @@ products.put('/products/:id', requireRole(['superadmin', 'manager', 'editor']), 
       secondary_categories,
       variations,
       imageUrls: finalImageUrls,
+      locationId: 'loc_default',
     });
 
     if (batchQueries.length > 0) {

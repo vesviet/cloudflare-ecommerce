@@ -27,7 +27,7 @@ INSERT OR REPLACE INTO price_list_items (id, price_list_id, product_id, price) V
   ('pli-2', 'pl_base', 'prod-2', 2900),
   ('pli-3', 'pl_base', 'prod-3', 6900);
 
-INSERT OR REPLACE INTO locations (id, name, type) VALUES ('loc-1', 'Main Warehouse', 'warehouse');
+INSERT OR REPLACE INTO locations (id, name, type) VALUES ('loc-1', 'Main Warehouse', 'warehouse'), ('loc_default', 'Default Warehouse', 'warehouse');
 INSERT OR REPLACE INTO inventory_levels (id, location_id, product_id, stock_quantity) VALUES 
   ('inv-1', 'loc-1', 'prod-1', 100),
   ('inv-2', 'loc-1', 'prod-2', 500),
