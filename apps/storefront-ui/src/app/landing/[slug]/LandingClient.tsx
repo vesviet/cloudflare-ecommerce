@@ -100,11 +100,28 @@ export default function LandingClient({ lp, comboRules, apiUrl }: { lp: any, com
         <h1 style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '10px' }}>
           {lp.seo_title || 'Siêu Phẩm Mới'}
         </h1>
-        {lp.urgency_end_time && (
-          <p style={{ color: 'red', fontWeight: 'bold' }}>
-            ⏳ Khuyến mãi kết thúc vào: {new Date(lp.urgency_end_time).toLocaleString('vi-VN')}
-          </p>
-        )}
+        {(() => {
+          if (!lp.urgency_end_time) return null;
+          let date: Date;
+          if (typeof lp.urgency_end_time === 'number') {
+            date = new Date(lp.urgency_end_time > 1e11 ? lp.urgency_end_time : lp.urgency_end_time * 1000);
+          } else if (typeof lp.urgency_end_time === 'string') {
+            const num = Number(lp.urgency_end_time);
+            if (!isNaN(num)) {
+              date = new Date(num > 1e11 ? num : num * 1000);
+            } else {
+              date = new Date(lp.urgency_end_time);
+            }
+          } else {
+            date = new Date(lp.urgency_end_time);
+          }
+          if (isNaN(date.getTime())) return null;
+          return (
+            <p style={{ color: 'red', fontWeight: 'bold' }}>
+              ⏳ Khuyến mãi kết thúc vào: {date.toLocaleString('vi-VN')}
+            </p>
+          );
+        })()}
         {lp.urgency_fake_views > 0 && (
           <p style={{ color: '#666', fontSize: '0.9rem' }}>
             🔥 Đang có {lp.urgency_fake_views} người đang xem trang này

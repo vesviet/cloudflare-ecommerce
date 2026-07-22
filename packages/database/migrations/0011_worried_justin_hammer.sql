@@ -110,7 +110,6 @@ ALTER TABLE carts ADD `applied_promotions_json` text DEFAULT '[]';--> statement-
 ALTER TABLE carts ADD `last_active_at` integer;--> statement-breakpoint
 ALTER TABLE carts ADD `abandoned_email_sent_at` integer;--> statement-breakpoint
 ALTER TABLE customers ADD `loyalty_points_balance` integer DEFAULT 0;--> statement-breakpoint
-ALTER TABLE idempotency_keys ADD `expires_at` integer;--> statement-breakpoint
 ALTER TABLE inventory_reservations ADD `location_id` text NOT NULL REFERENCES locations(id);--> statement-breakpoint
 ALTER TABLE orders ADD `location_id` text REFERENCES locations(id);--> statement-breakpoint
 ALTER TABLE orders ADD `discount_amount` integer DEFAULT 0;--> statement-breakpoint

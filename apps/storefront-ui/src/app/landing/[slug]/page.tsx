@@ -24,7 +24,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   if (!lp) return { title: 'Not Found' };
   
   return {
-    title: lp.seo_title || 'Special Offer',
+    title: lp.seo_title || lp.title || 'Special Offer',
   };
 }
 
@@ -37,10 +37,12 @@ export default async function LandingPage({ params }: { params: Promise<{ slug: 
   }
 
   // Parse combo rules safely
-  let comboRules = [];
+  let comboRules: any[] = [];
   if (lp.combo_rules_json) {
     try {
-      comboRules = JSON.parse(lp.combo_rules_json);
+      comboRules = typeof lp.combo_rules_json === 'string'
+        ? JSON.parse(lp.combo_rules_json)
+        : (Array.isArray(lp.combo_rules_json) ? lp.combo_rules_json : []);
     } catch(e) {}
   }
 
