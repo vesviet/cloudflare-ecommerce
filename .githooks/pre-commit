@@ -1,0 +1,24 @@
+#!/bin/sh
+# Git pre-commit hook to prevent secret commits
+
+# 1. Check for forbidden staged files (.dev.vars, .env, etc.)
+FORBIDDEN_FILES=$(git diff --cached --name-only | grep -E '(\.dev\.vars$|\.env$|\.env\.local$|\.env\..*\.local$)')
+
+if [ -n "$FORBIDDEN_FILES" ]; then
+    echo "❌ ERROR: Attempting to commit local environment or secret file(s):"
+    echo "$FORBIDDEN_FILES"
+    echo "Please remove these files from the staging area using: git reset HEAD <file>"
+    exit 1
+fi
+
+# 2. Check staged content for actual secrets / high-entropy keys
+SECRETS_FOUND=$(git diff --cached -U0 | grep -E '(\+.*sk_live_[0-9a-zA-Z]{24,}|\+.*sk_test_51[0-9a-zA-Z]{20,}|\+.*whsec_1[0-9a-zA-Z]{25,})')
+
+if [ -n "$SECRETS_FOUND" ]; then
+    echo "❌ ERROR: Detected potential API secret or credentials in staged diff:"
+    echo "$SECRETS_FOUND"
+    echo "Please remove hardcoded secrets before committing."
+    exit 1
+fi
+
+exit 0

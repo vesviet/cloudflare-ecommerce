@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Script from 'next/script';
+import Link from 'next/link';
 import { useParams } from 'next/navigation';
 
 export default function LandingClient({ lp: initialLp, comboRules: initialComboRules, initialSlug, apiUrl }: { lp?: any, comboRules?: any[], initialSlug?: string, apiUrl: string }) {
@@ -153,7 +154,7 @@ export default function LandingClient({ lp: initialLp, comboRules: initialComboR
       <div style={{ textAlign: 'center', padding: '60px 20px' }}>
         <h1 style={{ fontSize: '3rem', color: '#ef4444', marginBottom: '10px' }}>404</h1>
         <p style={{ fontSize: '1.2rem', color: '#4b5563', marginBottom: '20px' }}>Trang Landing Page không tồn tại hoặc đã bị gỡ bỏ.</p>
-        <a href="/" style={{ color: '#2563eb', textDecoration: 'underline', fontWeight: 'bold' }}>Trở về trang chủ</a>
+        <Link href="/" style={{ color: '#2563eb', textDecoration: 'underline', fontWeight: 'bold' }}>Trở về trang chủ</Link>
       </div>
     );
   }

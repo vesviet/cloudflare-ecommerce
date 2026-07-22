@@ -72,7 +72,7 @@ export const LandingPagesTab: React.FC<LandingPagesTabProps> = ({ API_BASE_URL, 
   const handleEdit = (lp: any) => {
     setCurrentId(lp.id);
     let combos = [];
-    try { combos = JSON.parse(lp.combo_rules_json || '[]'); } catch(e){}
+    try { combos = JSON.parse(lp.combo_rules_json || '[]'); } catch { /* ignore */ }
     
     reset({
       title: lp.title,

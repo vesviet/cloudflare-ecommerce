@@ -4,7 +4,8 @@
   "scripts": {
     "dev": "wrangler dev --port 8787 --inspector-port 9229",
     "deploy": "wrangler deploy",
-    "test": "vitest",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "lint": "eslint src/"
   },
   "dependencies": {
@@ -14,7 +15,7 @@
     "@ecommerce/shared-routes": "workspace:*",
     "@hono/zod-validator": "^0.2.1",
     "drizzle-orm": "^0.30.10",
-    "hono": "^4.3.7",
+    "hono": "^4.12.27",
     "jose": "^6.2.3",
     "stripe": "^16",
     "zod": "^3.22.4"

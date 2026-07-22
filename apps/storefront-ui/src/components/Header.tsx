@@ -21,10 +21,6 @@ interface Category {
 export default function Header() {
   const pathname = usePathname();
 
-  if (pathname?.startsWith('/landing')) {
-    return null;
-  }
-
   const [isScrolled, setIsScrolled] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [showCategories, setShowCategories] = useState(false);
@@ -39,7 +35,7 @@ export default function Header() {
     if (isAuthenticated) {
       fetchFromServer();
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, fetchFromServer]);
   
   // Calculate total items (only after hydration to prevent mismatch)
   const itemCount = mounted ? items.reduce((total, item) => total + item.quantity, 0) : 0;
@@ -68,7 +64,11 @@ export default function Header() {
         }
       })
       .catch(err => console.error('Failed to fetch categories', err));
-  }, []);
+  }, [apiBase]);
+
+  if (pathname?.startsWith('/landing')) {
+    return null;
+  }
 
   return (
     <>

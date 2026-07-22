@@ -5,6 +5,9 @@
       "dependsOn": ["^build"],
       "outputs": [".next/**", "!.next/cache/**", "dist/**"]
     },
+    "test": {
+      "passThroughEnv": ["TMPDIR", "TMP", "TEMP"]
+    },
     "lint": {},
     "dev": {
       "cache": false,

@@ -5,11 +5,14 @@
 JWT_SECRET=local_dev_secret_key_123
 
 # Required for Checkout / Payments (Use test mode keys)
-STRIPE_SECRET_KEY=sk_test_...
-STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_SECRET_KEY=sk_test_rotate_in_stripe_dashboard
+STRIPE_WEBHOOK_SECRET=whsec_rotate_in_stripe_dashboard
 
 # Optional: Required for sending emails locally
 RESEND_API_KEY=re_...
+
+# Required for Turnstile CAPTCHA (Use Cloudflare dummy test key for local testing)
+TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
 
 # Required for bypassing Cloudflare Access in local development
 LOCAL_DEV=true

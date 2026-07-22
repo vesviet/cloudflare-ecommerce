@@ -1,7 +1,25 @@
 import { Hono } from 'hono';
 import { createDb, schema } from '@ecommerce/database';
 import { eq } from 'drizzle-orm';
-import { CacheService } from '@ecommerce/core-services';
+import { zValidator } from '@hono/zod-validator';
+import { z } from 'zod';
+
+const LeadSubmissionSchema = z.object({
+  landing_page_id: z.string().optional().nullable(),
+  customer_name: z.string().optional().nullable(),
+  customer_phone: z.string().optional().nullable(),
+  customer_address: z.string().optional().nullable(),
+  customer_note: z.string().optional().nullable(),
+  selected_combo_id: z.string().optional().nullable(),
+  selected_colors_json: z.any().optional().nullable(),
+  selected_sizes_json: z.any().optional().nullable(),
+  selected_variants_json: z.any().optional().nullable(),
+  total_amount: z.number().optional().default(0),
+  utm_source: z.string().optional().nullable(),
+  utm_campaign: z.string().optional().nullable(),
+  utm_content: z.string().optional().nullable(),
+  turnstile_token: z.string().optional().nullable(),
+});
 
 const landingPages = new Hono<{ 
   Bindings: { 
@@ -71,9 +89,9 @@ landingPages.get('/:slug/stock', async (c) => {
 });
 
 // POST: /api/landing-pages/leads
-landingPages.post('/leads', async (c) => {
+landingPages.post('/leads', zValidator('json', LeadSubmissionSchema), async (c) => {
   try {
-    const body = await c.req.json();
+    const body = c.req.valid('json');
     const { 
       landing_page_id, customer_name, customer_phone, customer_address, 
       customer_note, selected_combo_id, selected_colors_json, selected_sizes_json, 

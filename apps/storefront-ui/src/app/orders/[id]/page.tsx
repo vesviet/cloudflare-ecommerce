@@ -7,7 +7,8 @@ import { useAuthStore } from '../../../store/authStore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
-export default function OrderDetailPage({ params }: { params: { id: string } }) {
+export default function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = React.use(params);
   const { isAuthenticated } = useAuthStore();
   const router = useRouter();
   const [order, setOrder] = useState<any>(null);
@@ -31,7 +32,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
         const apiBase = process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com';
         
         // Fetch Order
-        const orderRes = await fetch(`${apiBase}/api/customer/orders/${params.id}`, { credentials: 'include' });
+        const orderRes = await fetch(`${apiBase}/api/customer/orders/${id}`, { credentials: 'include' });
         const orderData = await orderRes.json();
         if (orderData.success) {
           setOrder(orderData.data);
@@ -51,7 +52,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
     };
 
     fetchData();
-  }, [isAuthenticated, router, params.id]);
+  }, [isAuthenticated, router, id]);
 
   const handleRmaSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

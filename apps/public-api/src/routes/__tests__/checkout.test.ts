@@ -1,11 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
-import checkout from '../checkout';
 
 // Mock Stripe
 vi.mock('stripe', () => {
   return {
     default: class MockStripe {
-      checkout = {
+      "checkout" = {
         sessions: {
           create: vi.fn().mockResolvedValue({
             id: 'cs_test_123',
@@ -18,7 +17,7 @@ vi.mock('stripe', () => {
 });
 
 // Mock core-services PaymentService
-vi.mock('@ecommerce/core-services', async () => {
+vi.mock('@ecommerce/core-services', () => {
   return {
     InventoryService: {
       validateAndReserveInventory: vi.fn().mockResolvedValue({ validItems: [{ variation_id: '550e8400-e29b-41d4-a716-446655440000', quantity: 2, price: 1000 }], subTotal: 2000 }),
@@ -79,6 +78,8 @@ vi.mock('drizzle-orm', () => ({
   inArray: vi.fn(),
   and: vi.fn(),
 }));
+
+import checkout from '../checkout';
 
 describe('Checkout API Unit Tests', () => {
   const mockEnv = {

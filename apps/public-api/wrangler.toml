@@ -12,10 +12,10 @@ routes = [
 ]
 
 [vars]
-# Non-secret runtime config — secrets (STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, RESEND_API_KEY, JWT_SECRET)
-# must be set via: wrangler secret put <KEY>
+# Non-secret runtime config — secrets (STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, RESEND_API_KEY, JWT_SECRET, TURNSTILE_SECRET_KEY)
+# must be set via: wrangler secret put <KEY> or Cloudflare environment secrets.
+# Local development uses .dev.vars (e.g., TURNSTILE_SECRET_KEY="1x0000000000000000000000000000000AA").
 STOREFRONT_URL = "https://aura-shop.tanhdev.com"
-CF_TURNSTILE_SECRET_KEY = "1x0000000000000000000000000000000AA" # Dummy key for testing
 
 # RISK-01 FIX: CORS allowed origins — comma-separated list.
 # Production: set to your real domain.

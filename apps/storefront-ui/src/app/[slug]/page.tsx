@@ -1,4 +1,5 @@
 import React from 'react';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 
@@ -44,7 +45,7 @@ export default async function DynamicCmsPage({ params }: { params: Promise<{ slu
       <main style={{ maxWidth: '800px', margin: '0 auto', padding: '60px 20px', textAlign: 'center' }}>
         <h1 style={{ fontSize: '3rem', color: '#ef4444', marginBottom: '10px' }}>404</h1>
         <p style={{ fontSize: '1.2rem', color: '#4b5563', marginBottom: '20px' }}>Trang CMS không tồn tại hoặc đã bị xóa.</p>
-        <a href="/" style={{ color: '#2563eb', textDecoration: 'underline', fontWeight: 'bold' }}>Trở về trang chủ</a>
+        <Link href="/" style={{ color: '#2563eb', textDecoration: 'underline', fontWeight: 'bold' }}>Trở về trang chủ</Link>
       </main>
     );
   }
