@@ -44,7 +44,7 @@ landingPages.get('/:slug', async (c) => {
 
     if (data.product_id) {
       productData = await db.select().from(schema.products).where(eq(schema.products.id, data.product_id)).get();
-      variantsData = await db.select().from(schema.productVariants).where(eq(schema.productVariants.product_id, data.product_id)).all();
+      variantsData = await db.select().from(schema.products).where(eq(schema.products.parent_id, data.product_id)).all();
     }
 
     const payload = {
@@ -71,7 +71,7 @@ landingPages.get('/:slug/stock', async (c) => {
     }
 
     const product = await db.select().from(schema.products).where(eq(schema.products.id, lp.product_id)).get();
-    const variants = await db.select().from(schema.productVariants).where(eq(schema.productVariants.product_id, lp.product_id)).all();
+    const variants = await db.select().from(schema.products).where(eq(schema.products.parent_id, lp.product_id)).all();
 
     const isProductActive = product?.status === 'active';
     const totalStock = variants.reduce((sum, v) => sum + (v.stock || 0), 0);
