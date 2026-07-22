@@ -467,9 +467,12 @@ export const settings = sqliteTable('settings', {
 
 export const landingPages = sqliteTable('landing_pages', {
   id: text('id').primaryKey(),
+  title: text('title').notNull().default(''),
   slug: text('slug').notNull().unique(),
   product_id: text('product_id').references(() => products.id),
   seo_title: text('seo_title'),
+  seo_description: text('seo_description'),
+  status: text('status').default('published'),
   facebook_pixel_id: text('facebook_pixel_id'),
   tiktok_pixel_id: text('tiktok_pixel_id'),
   urgency_end_time: text('urgency_end_time'), // ISO String

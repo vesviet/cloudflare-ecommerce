@@ -19,9 +19,12 @@ CREATE TABLE `landing_page_leads` (
 --> statement-breakpoint
 CREATE TABLE `landing_pages` (
 	`id` text PRIMARY KEY NOT NULL,
+	`title` text NOT NULL DEFAULT '',
 	`slug` text NOT NULL,
 	`product_id` text,
 	`seo_title` text,
+	`seo_description` text,
+	`status` text DEFAULT 'published',
 	`facebook_pixel_id` text,
 	`tiktok_pixel_id` text,
 	`urgency_end_time` text,

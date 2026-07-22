@@ -13,7 +13,7 @@
     "e2e": "pnpm run kill-ports && pnpm run setup:db && ./qa/run_all_e2e.sh",
     "setup": "pnpm install && pnpm run setup:db && pnpm run setup:kv && pnpm run setup:secrets",
     "setup:wal": "cd apps/public-api && npx wrangler d1 execute ecommerce-db --local --command \"PRAGMA journal_mode=WAL;\" && cd ../admin-api && npx wrangler d1 execute ecommerce-db --local --persist-to=../public-api/.wrangler/state --command \"PRAGMA journal_mode=WAL;\"",
-    "setup:db": "cd apps/public-api && pnpm exec wrangler d1 migrations apply ecommerce-db --local && pnpm exec wrangler d1 execute ecommerce-db --local --file=seed.sql && cd ../admin-api && pnpm exec wrangler d1 migrations apply ecommerce-db --local --persist-to=../public-api/.wrangler/state && pnpm exec wrangler d1 execute ecommerce-db --local --persist-to=../public-api/.wrangler/state --file=../public-api/seed.sql",
+    "setup:db": "cd apps/public-api && echo y | pnpm exec wrangler d1 migrations apply ecommerce-db --local && pnpm exec wrangler d1 execute ecommerce-db --local --file=seed.sql && cd ../admin-api && echo y | pnpm exec wrangler d1 migrations apply ecommerce-db --local --persist-to=../public-api/.wrangler/state && pnpm exec wrangler d1 execute ecommerce-db --local --persist-to=../public-api/.wrangler/state --file=../public-api/seed.sql",
     "setup:kv": "cd apps/public-api && npx wrangler kv:key put --binding=CACHE_KV \"feature_flags\" \"{\\\"rma_self_service\\\": true}\" --local --preview",
     "setup:secrets": "node -e \"const fs = require('fs'); ['public-api', 'admin-api'].forEach(app => { const p = 'apps/'+app+'/.dev.vars'; if (!fs.existsSync(p)) fs.copyFileSync('apps/public-api/.dev.vars.example', p); })\""
   },
