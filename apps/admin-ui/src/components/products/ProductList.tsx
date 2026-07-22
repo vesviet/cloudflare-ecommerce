@@ -43,15 +43,22 @@ export const ProductList: React.FC<ProductListProps> = ({ products, API_BASE_URL
               return (
                 <tr key={p.id} className="hoverable-row">
                   <td>
-                    {p.images && p.images.length > 0 ? (
-                      <div style={{ width: '48px', height: '48px', borderRadius: '6px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
-                        <img src={p.images[0].startsWith('http') ? p.images[0] : `${API_BASE_URL}${p.images[0]}`} alt="Thumb" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      </div>
-                    ) : (
-                      <div style={{ width: '48px', height: '48px', borderRadius: '6px', backgroundColor: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-                      </div>
-                    )}
+                    {(() => {
+                      const firstImg = p.images && p.images.length > 0 ? (p.images[0] as any) : null;
+                      const imgUrl = typeof firstImg === 'string' ? firstImg : (firstImg?.url || firstImg?.r2_key || '');
+                      if (!imgUrl) {
+                        return (
+                          <div style={{ width: '48px', height: '48px', borderRadius: '6px', backgroundColor: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                          </div>
+                        );
+                      }
+                      return (
+                        <div style={{ width: '48px', height: '48px', borderRadius: '6px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
+                          <img src={imgUrl.startsWith('http') ? imgUrl : `${API_BASE_URL}${imgUrl}`} alt="Thumb" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        </div>
+                      );
+                    })()}
                   </td>
                   <td>
                     <div style={{ fontWeight: 600, color: 'var(--text-main)', fontSize: '14px' }}>{p.title}</div>

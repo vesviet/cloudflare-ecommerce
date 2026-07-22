@@ -84,7 +84,10 @@ export const ProductForm: React.FC<ProductFormProps> = ({ initialData, API_BASE_
           attributes: v.attributes || {}
         }))
       );
-      setExistingImages(p.images || []);
+      const normalizedImages = (p.images || []).map((img: any) =>
+        typeof img === 'string' ? img : (img?.url || img?.r2_key || '')
+      ).filter(Boolean);
+      setExistingImages(normalizedImages);
     } else {
       setProductName('');
       setProductSku('');
