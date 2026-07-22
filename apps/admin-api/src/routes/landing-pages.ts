@@ -11,6 +11,7 @@ const landingPages = new Hono<{ Bindings: Bindings }>();
 const landingPageSchema = z.object({
   title: z.string().min(1),
   slug: z.string().min(1),
+  product_id: z.string().optional(),
   seo_title: z.string().optional(),
   seo_description: z.string().optional(),
   facebook_pixel_id: z.string().optional(),
@@ -49,6 +50,7 @@ landingPages.post('/landing-pages', requireRole(['superadmin', 'manager', 'edito
       id,
       title: body.title,
       slug: body.slug,
+      product_id: body.product_id || null,
       seo_title: body.seo_title,
       seo_description: body.seo_description,
       facebook_pixel_id: body.facebook_pixel_id,
@@ -81,6 +83,7 @@ landingPages.put('/landing-pages/:id', requireRole(['superadmin', 'manager', 'ed
     await db.update(schema.landingPages).set({
       title: body.title,
       slug: body.slug,
+      product_id: body.product_id || null,
       seo_title: body.seo_title,
       seo_description: body.seo_description,
       facebook_pixel_id: body.facebook_pixel_id,

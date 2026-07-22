@@ -259,4 +259,77 @@ orders.get('/shipments/:id/label', requireRole(['superadmin', 'manager', 'suppor
   }
 });
 
+// GET: /api/landing-leads
+orders.get('/landing-leads', async (c) => {
+  try {
+    const db = createDb(c.env.DB);
+    const results = await db.select({
+      id: localSchema.landingPageLeads.id,
+      landing_page_id: localSchema.landingPageLeads.landing_page_id,
+      order_id: localSchema.landingPageLeads.order_id,
+      customer_name: localSchema.landingPageLeads.customer_name,
+      customer_phone: localSchema.landingPageLeads.customer_phone,
+      customer_address: localSchema.landingPageLeads.customer_address,
+      customer_note: localSchema.landingPageLeads.customer_note,
+      selected_combo_id: localSchema.landingPageLeads.selected_combo_id,
+      selected_variants_json: localSchema.landingPageLeads.selected_variants_json,
+      total_amount: localSchema.landingPageLeads.total_amount,
+      utm_source: localSchema.landingPageLeads.utm_source,
+      utm_campaign: localSchema.landingPageLeads.utm_campaign,
+      utm_content: localSchema.landingPageLeads.utm_content,
+      sync_status: localSchema.landingPageLeads.sync_status,
+      created_at: localSchema.landingPageLeads.created_at,
+      landing_page_title: localSchema.landingPages.title,
+      order_status: localSchema.orders.status,
+    })
+      .from(localSchema.landingPageLeads)
+      .leftJoin(localSchema.landingPages, eq(localSchema.landingPageLeads.landing_page_id, localSchema.landingPages.id))
+      .leftJoin(localSchema.orders, eq(localSchema.landingPageLeads.order_id, localSchema.orders.id))
+      .orderBy(sql`${localSchema.landingPageLeads.created_at} DESC`)
+      .all();
+
+    return c.json({ success: true, data: results });
+  } catch (err: any) {
+    return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
+// POST: /api/orders/:id/approve (Telesale confirms order)
+orders.post('/orders/:id/approve', requireRole(['superadmin', 'manager', 'support', 'editor']), async (c) => {
+  const orderId = c.req.param('id');
+  try {
+    const db = createDb(c.env.DB);
+    await db.update(localSchema.orders)
+      .set({ status: 'processing', updated_at: sql`CURRENT_TIMESTAMP` })
+      .where(eq(localSchema.orders.id, orderId));
+
+    await db.update(localSchema.landingPageLeads)
+      .set({ sync_status: 'synced' })
+      .where(eq(localSchema.landingPageLeads.order_id, orderId));
+
+    return c.json({ success: true, message: `Order ${orderId} approved and set to processing` });
+  } catch (err: any) {
+    return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
+// POST: /api/orders/:id/cancel (Telesale cancels order)
+orders.post('/orders/:id/cancel', requireRole(['superadmin', 'manager', 'support', 'editor']), async (c) => {
+  const orderId = c.req.param('id');
+  try {
+    const db = createDb(c.env.DB);
+    await db.update(localSchema.orders)
+      .set({ status: 'cancelled', updated_at: sql`CURRENT_TIMESTAMP` })
+      .where(eq(localSchema.orders.id, orderId));
+
+    await db.update(localSchema.landingPageLeads)
+      .set({ sync_status: 'cancelled' })
+      .where(eq(localSchema.landingPageLeads.order_id, orderId));
+
+    return c.json({ success: true, message: `Order ${orderId} cancelled` });
+  } catch (err: any) {
+    return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
 export default orders;

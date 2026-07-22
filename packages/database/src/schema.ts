@@ -226,6 +226,8 @@ export const orders = sqliteTable('orders', {
   session_id: text('session_id'),
   payment_intent_id: text('payment_intent_id'),
   carrier_name: text('carrier_name'),
+  source: text('source').default('storefront'),
+  landing_page_id: text('landing_page_id'),
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
   updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
 }, (table) => {
@@ -486,6 +488,7 @@ export const landingPages = sqliteTable('landing_pages', {
 export const landingPageLeads = sqliteTable('landing_page_leads', {
   id: text('id').primaryKey(),
   landing_page_id: text('landing_page_id').references(() => landingPages.id),
+  order_id: text('order_id').references(() => orders.id),
   
   customer_name: text('customer_name').notNull(),
   customer_phone: text('customer_phone').notNull(),
@@ -495,6 +498,7 @@ export const landingPageLeads = sqliteTable('landing_page_leads', {
   selected_combo_id: text('selected_combo_id'),
   selected_colors_json: text('selected_colors_json'),
   selected_sizes_json: text('selected_sizes_json'),
+  selected_variants_json: text('selected_variants_json'),
   
   total_amount: integer('total_amount').notNull(),
   

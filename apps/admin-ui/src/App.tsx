@@ -20,6 +20,7 @@ const TeamTab = lazy(() => import('./tabs/TeamTab').then(module => ({ default: m
 const SettingsTab = lazy(() => import('./tabs/SettingsTab').then(module => ({ default: module.SettingsTab })));
 const PromotionsTab = lazy(() => import('./tabs/PromotionsTab').then(module => ({ default: module.PromotionsTab })));
 const LandingPagesTab = lazy(() => import('./tabs/LandingPagesTab').then(module => ({ default: module.LandingPagesTab })));
+const LandingLeadsTab = lazy(() => import('./tabs/LandingLeadsTab').then(module => ({ default: module.LandingLeadsTab })));
 
 // Use environment variable if available, fallback to localhost for dev
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8788/api';
@@ -205,6 +206,11 @@ function App() {
                 <Route path="/landing-pages" element={
                   <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
                     <LandingPagesTab API_BASE_URL={API_BASE_URL} addToast={addToast} />
+                  </motion.div>
+                } />
+                <Route path="/landing-leads" element={
+                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+                    <LandingLeadsTab API_BASE_URL={API_BASE_URL} addToast={addToast} />
                   </motion.div>
                 } />
                 <Route path="/settings" element={

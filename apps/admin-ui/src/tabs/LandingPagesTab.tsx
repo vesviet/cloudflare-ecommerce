@@ -14,11 +14,13 @@ export const LandingPagesTab: React.FC<LandingPagesTabProps> = ({ API_BASE_URL, 
   const [currentId, setCurrentId] = useState<string | null>(null);
 
   const { data, mutate } = useSWR('/landing-pages');
+  const { data: productsData } = useSWR('/products');
 
   const { register, control, handleSubmit, reset } = useForm({
     defaultValues: {
       title: '',
       slug: '',
+      product_id: '',
       seo_title: '',
       seo_description: '',
       facebook_pixel_id: '',
@@ -75,6 +77,7 @@ export const LandingPagesTab: React.FC<LandingPagesTabProps> = ({ API_BASE_URL, 
     reset({
       title: lp.title,
       slug: lp.slug,
+      product_id: lp.product_id || '',
       seo_title: lp.seo_title,
       seo_description: lp.seo_description,
       facebook_pixel_id: lp.facebook_pixel_id,
@@ -112,7 +115,7 @@ export const LandingPagesTab: React.FC<LandingPagesTabProps> = ({ API_BASE_URL, 
         {!isEditing && (
           <button className="btn-primary" onClick={() => {
             reset({
-              title: '', slug: '', seo_title: '', seo_description: '', facebook_pixel_id: '', tiktok_pixel_id: '',
+              title: '', slug: '', product_id: '', seo_title: '', seo_description: '', facebook_pixel_id: '', tiktok_pixel_id: '',
               urgency_end_time: '', urgency_fake_views: 0, combo_rules: [{ id: crypto.randomUUID(), name: '', price: 0 }]
             });
             setCurrentId(null);
@@ -134,6 +137,17 @@ export const LandingPagesTab: React.FC<LandingPagesTabProps> = ({ API_BASE_URL, 
               <div>
                 <label className="input-label">Slug</label>
                 <input {...register('slug', { required: true })} className="input-field" placeholder="campaign-2026" />
+              </div>
+              <div>
+                <label className="input-label">Linked Product (Sản phẩm)</label>
+                <select {...register('product_id')} className="input-field">
+                  <option value="">-- Chọn sản phẩm đính kèm --</option>
+                  {productsData?.data?.map((p: any) => (
+                    <option key={p.id} value={p.id}>
+                      {p.title} ({p.sku || p.id})
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="input-label">SEO Title</label>

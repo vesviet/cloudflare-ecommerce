@@ -171,6 +171,11 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({ API_BASE_URL, addToast }) 
                         <span className="font-mono text-primary-accent">
                           #{order.id.slice(0, 8).toUpperCase()}
                         </span>
+                        {(order as any).source === 'landing_page' && (
+                          <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold" style={{ background: '#3b82f6', color: '#fff' }}>
+                            Landing Page
+                          </span>
+                        )}
                       </td>
                       <td className="px-6 py-4 text-text-muted">{customer}</td>
                       <td className="px-6 py-4 text-text-muted">{date}</td>

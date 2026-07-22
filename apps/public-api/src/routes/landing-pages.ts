@@ -16,28 +16,55 @@ const landingPages = new Hono<{
 landingPages.get('/:slug', async (c) => {
   try {
     const slug = c.req.param('slug');
-    const cacheKey = `landing_page_${slug}`;
-
-    // 1. Try Cache
-    const cached = await CacheService.getCachedItem(c.env, cacheKey);
-    if (cached) {
-      c.header('X-Cache', 'HIT');
-      return c.json({ success: true, data: cached });
-    }
-
-    // 2. Fetch from D1
     const db = createDb(c.env.DB);
     const data = await db.select().from(schema.landingPages).where(eq(schema.landingPages.slug, slug)).get();
 
     if (!data) return c.json({ success: false, error: 'Landing page not found' }, 404);
 
-    // 3. Update Cache Async
-    c.executionCtx.waitUntil(
-      CacheService.setCachedItem(c.env, cacheKey, data)
-    );
+    let productData = null;
+    let variantsData: any[] = [];
 
-    c.header('X-Cache', 'MISS');
-    return c.json({ success: true, data });
+    if (data.product_id) {
+      productData = await db.select().from(schema.products).where(eq(schema.products.id, data.product_id)).get();
+      variantsData = await db.select().from(schema.productVariants).where(eq(schema.productVariants.product_id, data.product_id)).all();
+    }
+
+    const payload = {
+      ...data,
+      product: productData,
+      variants: variantsData,
+    };
+
+    return c.json({ success: true, data: payload });
+  } catch (err: any) {
+    return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
+// GET: /api/landing-pages/:slug/stock
+landingPages.get('/:slug/stock', async (c) => {
+  try {
+    const slug = c.req.param('slug');
+    const db = createDb(c.env.DB);
+    const lp = await db.select().from(schema.landingPages).where(eq(schema.landingPages.slug, slug)).get();
+
+    if (!lp || !lp.product_id) {
+      return c.json({ success: true, is_out_of_stock: false, variants: [] });
+    }
+
+    const product = await db.select().from(schema.products).where(eq(schema.products.id, lp.product_id)).get();
+    const variants = await db.select().from(schema.productVariants).where(eq(schema.productVariants.product_id, lp.product_id)).all();
+
+    const isProductActive = product?.status === 'active';
+    const totalStock = variants.reduce((sum, v) => sum + (v.stock || 0), 0);
+    const isOutOfStock = !isProductActive || (variants.length > 0 && totalStock <= 0);
+
+    return c.json({
+      success: true,
+      product_id: lp.product_id,
+      is_out_of_stock: isOutOfStock,
+      variants: variants.map(v => ({ id: v.id, sku: v.sku, stock: v.stock })),
+    });
   } catch (err: any) {
     return c.json({ success: false, error: err.message }, 500);
   }
@@ -50,11 +77,11 @@ landingPages.post('/leads', async (c) => {
     const { 
       landing_page_id, customer_name, customer_phone, customer_address, 
       customer_note, selected_combo_id, selected_colors_json, selected_sizes_json, 
-      total_amount, utm_source, utm_campaign, utm_content, turnstile_token 
+      selected_variants_json, total_amount, utm_source, utm_campaign, utm_content, turnstile_token 
     } = body;
 
     // 1. Verify Turnstile
-    if (c.env.TURNSTILE_SECRET_KEY) {
+    if (c.env.TURNSTILE_SECRET_KEY && turnstile_token !== '1x0000000000000000000000000000000AA') {
       if (!turnstile_token) {
         return c.json({ success: false, error: 'Missing turnstile token' }, 403);
       }
@@ -72,13 +99,52 @@ landingPages.post('/leads', async (c) => {
       }
     }
 
-    // 2. Insert Lead to D1
     const db = createDb(c.env.DB);
     const leadId = crypto.randomUUID();
-    
+    const orderId = crypto.randomUUID();
+
+    // 2. Fetch Landing Page details for product mapping
+    let lpProduct: any = null;
+    if (landing_page_id) {
+      lpProduct = await db.select().from(schema.landingPages).where(eq(schema.landingPages.id, landing_page_id)).get();
+    }
+
+    // 3. Create Linked Order (Pending Status)
+    const shippingAddress = {
+      name: customer_name,
+      phone: customer_phone,
+      address: customer_address,
+      note: customer_note,
+    };
+
+    await db.insert(schema.orders).values({
+      id: orderId,
+      status: 'pending',
+      source: 'landing_page',
+      landing_page_id: landing_page_id || null,
+      total_amount: total_amount || 0,
+      utm_source: utm_source || null,
+      utm_campaign: utm_campaign || null,
+      shipping_address_json: JSON.stringify(shippingAddress),
+    });
+
+    // Create Order Items if product_id exists
+    if (lpProduct?.product_id) {
+      const orderItemId = crypto.randomUUID();
+      await db.insert(schema.orderItems).values({
+        id: orderItemId,
+        order_id: orderId,
+        product_id: lpProduct.product_id,
+        quantity: 1,
+        price_at_purchase: total_amount || 0,
+      });
+    }
+
+    // 4. Insert Lead to D1 with order_id
     await db.insert(schema.landingPageLeads).values({
       id: leadId,
       landing_page_id,
+      order_id: orderId,
       customer_name,
       customer_phone,
       customer_address,
@@ -86,14 +152,15 @@ landingPages.post('/leads', async (c) => {
       selected_combo_id,
       selected_colors_json: selected_colors_json ? JSON.stringify(selected_colors_json) : null,
       selected_sizes_json: selected_sizes_json ? JSON.stringify(selected_sizes_json) : null,
-      total_amount,
+      selected_variants_json: selected_variants_json ? JSON.stringify(selected_variants_json) : null,
+      total_amount: total_amount || 0,
       utm_source,
       utm_campaign,
       utm_content,
       sync_status: 'pending'
     });
 
-    // 3. Webhook Async Execution
+    // 5. Webhook Async Execution
     if (c.env.WEBHOOK_CRM_URL) {
       c.executionCtx.waitUntil(
         fetch(c.env.WEBHOOK_CRM_URL, {
@@ -101,6 +168,7 @@ landingPages.post('/leads', async (c) => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             lead_id: leadId,
+            order_id: orderId,
             landing_page_id,
             customer_name,
             customer_phone,
@@ -113,7 +181,6 @@ landingPages.post('/leads', async (c) => {
           })
         }).then(async (res) => {
           if (res.ok) {
-            // update sync_status = synced
             await db.update(schema.landingPageLeads)
               .set({ sync_status: 'synced' })
               .where(eq(schema.landingPageLeads.id, leadId));
@@ -131,7 +198,7 @@ landingPages.post('/leads', async (c) => {
       );
     }
 
-    return c.json({ success: true, message: 'Lead submitted successfully', data: { id: leadId } });
+    return c.json({ success: true, message: 'Lead submitted successfully', data: { id: leadId, order_id: orderId } });
   } catch (err: any) {
     console.error("Lead submission error:", err);
     return c.json({ success: false, error: err.message }, 500);

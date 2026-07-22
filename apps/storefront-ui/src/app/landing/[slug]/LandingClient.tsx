@@ -49,6 +49,7 @@ export default function LandingClient({ lp: initialLp, comboRules: initialComboR
     address: '',
     note: '',
     comboId: '',
+    selectedVariantId: '',
   });
 
   useEffect(() => {
@@ -103,6 +104,7 @@ export default function LandingClient({ lp: initialLp, comboRules: initialComboR
           customer_address: formData.address,
           customer_note: formData.note,
           selected_combo_id: formData.comboId,
+          selected_variants_json: formData.selectedVariantId ? [formData.selectedVariantId] : (lp?.variants?.[0]?.id ? [lp.variants[0].id] : []),
           total_amount: selectedCombo ? selectedCombo.price : 0,
           turnstile_token: tToken,
         }),
@@ -111,7 +113,7 @@ export default function LandingClient({ lp: initialLp, comboRules: initialComboR
       const data = await res.json();
       if (res.ok && data.success) {
         setSuccessMsg('Đặt hàng thành công! Chúng tôi sẽ liên hệ với bạn sớm nhất.');
-        setFormData({ name: '', phone: '', address: '', note: '', comboId: formData.comboId });
+        setFormData({ name: '', phone: '', address: '', note: '', comboId: formData.comboId, selectedVariantId: '' });
         
         // Tracking Purchase event for FB/TikTok if window.fbq or window.ttq exists
         if (typeof window !== 'undefined') {
@@ -260,6 +262,24 @@ export default function LandingClient({ lp: initialLp, comboRules: initialComboR
               </div>
             )}
 
+            {/* Variant Selector if Variants exist */}
+            {lp?.variants && lp.variants.length > 0 && (
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Chọn Phân Loại / Phân Mẫu</label>
+                <select
+                  value={formData.selectedVariantId || lp.variants[0].id}
+                  onChange={e => setFormData({ ...formData, selectedVariantId: e.target.value })}
+                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db' }}
+                >
+                  {lp.variants.map((v: any) => (
+                    <option key={v.id} value={v.id} disabled={(v.stock || 0) <= 0}>
+                      {v.title || v.sku} (Còn {v.stock ?? 0} sp) {(v.stock || 0) <= 0 ? '- [Hết hàng]' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             <div>
               <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Họ và Tên</label>
               <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db' }} placeholder="Nguyễn Văn A" />
@@ -293,9 +313,15 @@ export default function LandingClient({ lp: initialLp, comboRules: initialComboR
               ></div>
             </div>
 
-            <button disabled={isSubmitting} type="submit" style={{ width: '100%', padding: '15px', backgroundColor: isSubmitting ? '#9ca3af' : '#2563eb', color: '#fff', fontSize: '1.1rem', fontWeight: 'bold', border: 'none', borderRadius: '8px', cursor: isSubmitting ? 'not-allowed' : 'pointer', marginTop: '10px' }}>
-              {isSubmitting ? 'Đang Xử Lý...' : 'HOÀN TẤT ĐẶT HÀNG'}
-            </button>
+            {lp?.product && (lp.product.status !== 'active' || (lp.variants && lp.variants.length > 0 && lp.variants.reduce((s: number, v: any) => s + (v.stock || 0), 0) <= 0)) ? (
+              <div style={{ backgroundColor: '#fee2e2', color: '#991b1b', padding: '15px', borderRadius: '8px', textAlign: 'center', fontWeight: 'bold', marginTop: '10px' }}>
+                ⚠️ Tạm Hết Hàng - Sản phẩm hiện đang tạm ngưng nhận đơn mới.
+              </div>
+            ) : (
+              <button disabled={isSubmitting} type="submit" style={{ width: '100%', padding: '15px', backgroundColor: isSubmitting ? '#9ca3af' : '#2563eb', color: '#fff', fontSize: '1.1rem', fontWeight: 'bold', border: 'none', borderRadius: '8px', cursor: isSubmitting ? 'not-allowed' : 'pointer', marginTop: '10px' }}>
+                {isSubmitting ? 'Đang Xử Lý...' : 'HOÀN TẤT ĐẶT HÀNG'}
+              </button>
+            )}
             
           </form>
         )}

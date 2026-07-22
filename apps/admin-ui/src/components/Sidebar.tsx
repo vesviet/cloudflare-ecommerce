@@ -32,6 +32,7 @@ const NAV_ITEMS = [
   { id: 'cms', path: '/cms', label: 'Content (CMS)', roles: ['superadmin', 'manager', 'editor'], icon: FileText },
   { id: 'promotions', path: '/promotions', label: 'Promotions', roles: ['superadmin', 'manager'], icon: Gift },
   { id: 'landing-pages', path: '/landing-pages', label: 'Landing Pages', roles: ['superadmin', 'manager', 'editor'], icon: MonitorPlay },
+  { id: 'landing-leads', path: '/landing-leads', label: 'Landing Leads', roles: ['superadmin', 'manager', 'support', 'editor'], icon: Users },
   { id: 'team', path: '/team', label: 'Team', roles: ['superadmin'], icon: Shield },
   { id: 'settings', path: '/settings', label: 'Settings', roles: ['superadmin', 'manager'], icon: Settings },
 ];
