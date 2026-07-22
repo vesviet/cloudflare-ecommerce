@@ -35,9 +35,23 @@ function App() {
 
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  const addToast = useCallback((message: string, type: 'success' | 'error') => {
+  const addToast = useCallback((message: any, type: 'success' | 'error') => {
     const id = Math.random().toString(36).slice(2, 9);
-    setToasts((prev) => [...prev, { id, message, type }]);
+    let formattedMessage = '';
+    if (typeof message === 'string') {
+      formattedMessage = message;
+    } else if (message && typeof message === 'object') {
+      if (Array.isArray(message.issues) && message.issues.length > 0) {
+        formattedMessage = message.issues.map((i: any) => `${i.path?.join('.') || 'field'}: ${i.message}`).join(', ');
+      } else if (message.error) {
+        formattedMessage = typeof message.error === 'string' ? message.error : JSON.stringify(message.error);
+      } else {
+        formattedMessage = message.message || JSON.stringify(message);
+      }
+    } else {
+      formattedMessage = String(message || 'An error occurred');
+    }
+    setToasts((prev) => [...prev, { id, message: formattedMessage, type }]);
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 4000);

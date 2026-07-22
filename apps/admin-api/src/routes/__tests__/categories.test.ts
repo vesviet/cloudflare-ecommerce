@@ -61,6 +61,19 @@ describe('Admin API: Categories Controller', () => {
     expect(data.data[0].id).toBe('cat_1');
   });
 
+  it('POST /categories: creates category auto-generating slug if omitted', async () => {
+    const res = await categories.request('/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Electronic Gadgets' })
+    }, mockEnv);
+
+    expect(res.status).toBe(201);
+    const data = await res.json() as any;
+    expect(data.success).toBe(true);
+    expect(mockEnv.CACHE_KV.delete).toHaveBeenCalledWith('storefront:categories:tree');
+  });
+
   it('PUT /categories/:id: rejects if cycle detected', async () => {
     mockHasCycle = true;
     const res = await categories.request('/cat_1', { 

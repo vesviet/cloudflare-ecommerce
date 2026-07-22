@@ -12,7 +12,7 @@ export const adminUserStatusSchema = z.object({
 
 export const categorySchema = z.object({
   name: z.string().min(1, "Name is required").max(255),
-  slug: z.string().min(1, "Slug is required").max(255),
+  slug: z.string().max(255).optional().nullable(),
   description: z.string().optional().nullable(),
   parent_id: z.string().optional().nullable(),
   image_url: z.string().optional().nullable(),
@@ -43,7 +43,7 @@ export const checkoutSchema = z.object({
 
 export const cmsSchema = z.object({
   title: z.string().min(1, "Title is required").max(255),
-  slug: z.string().min(1, "Slug is required").max(255),
+  slug: z.string().max(255).optional().nullable(),
   type: z.enum(['post', 'page', 'block', 'banner', 'landing_page']),
   status: z.enum(['published', 'draft', 'archived']).optional(),
   content_json: z.string().optional(),

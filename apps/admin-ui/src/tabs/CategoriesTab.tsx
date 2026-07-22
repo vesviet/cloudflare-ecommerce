@@ -77,10 +77,13 @@ export const CategoriesTab: React.FC<CategoriesTabProps> = ({ API_BASE_URL, addT
         resetCategoryForm();
         mutate();
       } else {
-        addToast(data.error || 'Failed to save category', 'error');
+        const errorMsg = typeof data.error === 'string'
+          ? data.error
+          : (data.error?.issues ? data.error.issues.map((i: any) => `${i.path?.join('.') || 'field'}: ${i.message}`).join(', ') : 'Failed to save category');
+        addToast(errorMsg, 'error');
       }
     } catch (err: any) {
-      addToast(err.message, 'error');
+      addToast(err.message || 'An unexpected error occurred', 'error');
     } finally {
       setIsSubmittingCategory(false);
     }
