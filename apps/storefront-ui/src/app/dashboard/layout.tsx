@@ -6,7 +6,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { LogOut, Package, MapPin, User as UserIcon, Star } from 'lucide-react';
 import Link from 'next/link';
 
-const API_BASE = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787'}/api`;
+const API_BASE = `${process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com'}/api`;
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, customer, clearAuth } = useAuthStore();

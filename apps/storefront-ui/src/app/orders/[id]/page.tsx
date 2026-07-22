@@ -28,7 +28,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
 
     const fetchData = async () => {
       try {
-        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com';
         
         // Fetch Order
         const orderRes = await fetch(`${apiBase}/api/customer/orders/${params.id}`, { credentials: 'include' });
@@ -57,7 +57,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
     e.preventDefault();
     setRmaSubmitting(true);
     try {
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com';
       const res = await fetch(`${apiBase}/api/rma`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

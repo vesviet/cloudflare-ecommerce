@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import Link from 'next/link';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com';
 
 export default function EventDetail() {
   const { slug } = useParams();

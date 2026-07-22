@@ -11,7 +11,7 @@ import { B2bGdprSection } from '../../components/checkout/B2bGdprSection';
 import { OrderSummary } from '../../components/checkout/OrderSummary';
 import { Turnstile } from '@marsidev/react-turnstile';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com';
 const FLAT_SHIPPING_FEE = 9.99;
 
 const EMPTY_GUEST: GuestAddress = {

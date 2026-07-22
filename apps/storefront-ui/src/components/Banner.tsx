@@ -7,7 +7,7 @@ interface BannerProps {
   placement: string;
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com';
 
 export default function Banner({ placement }: BannerProps) {
   const [banner, setBanner] = useState<any>(null);

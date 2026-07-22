@@ -2,7 +2,7 @@ import React from 'react';
 import type { Metadata, ResolvingMetadata } from 'next';
 import { CategoryClient } from './CategoryClient';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com';
 
 async function getCategoryProducts(slug: string) {
   try {

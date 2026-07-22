@@ -55,7 +55,7 @@ export default function MyAccount() {
             acceptsMarketing
           };
 
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com';
       const res = await fetch(`${apiBase}/api${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

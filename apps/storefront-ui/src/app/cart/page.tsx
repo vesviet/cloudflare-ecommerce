@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Trash2, Plus, Minus, ShoppingBag, X, Loader2 } from 'lucide-react';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com';
 
 export default function Cart() {
   const { items, removeItem, updateQuantity, getCartTotal, getCartSubtotal, getDiscountAmount, coupon, applyCoupon, removeCoupon } = useCartStore();

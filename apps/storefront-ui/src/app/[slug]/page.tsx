@@ -2,11 +2,13 @@ import React from 'react';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com';
 
 async function getCmsPage(slug: string) {
   try {
-    const res = await fetch(`${API_BASE}/api/cms/${slug}`, { cache: 'no-store' });
+    const res = await fetch(`${API_BASE}/api/cms/${slug}`, {
+      headers: { 'Accept': 'application/json' }
+    });
     if (!res.ok) return null;
     const json = await res.json();
     return json.success ? json.data : null;
@@ -38,7 +40,13 @@ export default async function DynamicCmsPage({ params }: { params: Promise<{ slu
   const page = await getCmsPage(slug);
 
   if (!page) {
-    notFound();
+    return (
+      <main style={{ maxWidth: '800px', margin: '0 auto', padding: '60px 20px', textAlign: 'center' }}>
+        <h1 style={{ fontSize: '3rem', color: '#ef4444', marginBottom: '10px' }}>404</h1>
+        <p style={{ fontSize: '1.2rem', color: '#4b5563', marginBottom: '20px' }}>Trang CMS không tồn tại hoặc đã bị xóa.</p>
+        <a href="/" style={{ color: '#2563eb', textDecoration: 'underline', fontWeight: 'bold' }}>Trở về trang chủ</a>
+      </main>
+    );
   }
 
   return (

@@ -5,7 +5,7 @@ import { useAuthStore } from '../../../store/authStore';
 import { MapPin, Plus, Star, Pencil, Trash2 } from 'lucide-react';
 import AddressFormModal, { EMPTY_ADDRESS } from '../../../components/dashboard/AddressFormModal';
 
-const API_BASE = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787'}/api`;
+const API_BASE = `${process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com'}/api`;
 
 export default function AddressesPage() {
   const { isAuthenticated } = useAuthStore();

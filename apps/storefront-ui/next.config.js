@@ -6,7 +6,7 @@ const nextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787'}/api/:path*`,
+        destination: `${process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com'}/api/:path*`,
       },
     ];
   },

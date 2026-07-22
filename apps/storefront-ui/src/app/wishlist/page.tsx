@@ -37,7 +37,7 @@ export default function WishlistPage() {
                 <div style={{ position: 'relative', width: '100%', aspectRatio: '1', marginBottom: '15px', borderRadius: '8px', overflow: 'hidden' }}>
                   {item.imageUrl ? (
                     <img
-                      src={item.imageUrl.startsWith('http') ? item.imageUrl : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787'}${item.imageUrl}`}
+                      src={item.imageUrl.startsWith('http') ? item.imageUrl : `${process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com'}${item.imageUrl}`}
                       alt={item.name || 'Product'}
                       style={{ objectFit: 'cover', width: '100%', height: '100%' }}
                     />

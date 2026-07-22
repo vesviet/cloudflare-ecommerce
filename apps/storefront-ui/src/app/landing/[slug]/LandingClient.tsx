@@ -2,22 +2,67 @@
 
 import React, { useState, useEffect } from 'react';
 import Script from 'next/script';
+import { useParams } from 'next/navigation';
 
-export default function LandingClient({ lp, comboRules, apiUrl }: { lp: any, comboRules: any[], apiUrl: string }) {
+export default function LandingClient({ lp: initialLp, comboRules: initialComboRules, initialSlug, apiUrl }: { lp?: any, comboRules?: any[], initialSlug?: string, apiUrl: string }) {
+  const params = useParams();
+  const [lp, setLp] = useState<any>(initialLp || null);
+  const [loading, setLoading] = useState(!initialLp);
+  const [error, setError] = useState(false);
+
+  const slug = initialSlug || (params?.slug as string) || (typeof window !== 'undefined' ? window.location.pathname.split('/landing/')[1] : '');
+
+  useEffect(() => {
+    if (lp || !slug) return;
+    fetch(`${apiUrl}/api/landing-pages/${slug}`, {
+      headers: { 'Accept': 'application/json' }
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.data) {
+          setLp(data.data);
+        } else {
+          setError(true);
+        }
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('Failed to fetch landing page in client', err);
+        setError(true);
+        setLoading(false);
+      });
+  }, [slug, lp, apiUrl]);
+
+  // Parse combo rules safely
+  let comboRules: any[] = initialComboRules || [];
+  if (!initialComboRules && lp && lp.combo_rules_json) {
+    try {
+      comboRules = typeof lp.combo_rules_json === 'string'
+        ? JSON.parse(lp.combo_rules_json)
+        : (Array.isArray(lp.combo_rules_json) ? lp.combo_rules_json : []);
+    } catch (e) {}
+  }
+
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
     address: '',
     note: '',
-    comboId: comboRules.length > 0 ? comboRules[0].id : '',
+    comboId: '',
   });
+
+  useEffect(() => {
+    if (comboRules.length > 0 && !formData.comboId) {
+      setFormData(prev => ({ ...prev, comboId: comboRules[0].id }));
+    }
+  }, [comboRules]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
-  const selectedCombo = comboRules.find((c) => c.id === formData.comboId) || comboRules[0];
+  const selectedCombo = comboRules.find((c: any) => c.id === formData.comboId) || comboRules[0];
 
   useEffect(() => {
     // Inject Turnstile Script
@@ -93,8 +138,56 @@ export default function LandingClient({ lp, comboRules, apiUrl }: { lp: any, com
     }
   };
 
+  if (loading) {
+    return (
+      <div style={{ textAlign: 'center', padding: '60px 20px', color: '#666' }}>
+        <p style={{ fontSize: '1.2rem' }}>Đang tải landing page...</p>
+      </div>
+    );
+  }
+
+  if (error || (!lp && !loading)) {
+    return (
+      <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+        <h1 style={{ fontSize: '3rem', color: '#ef4444', marginBottom: '10px' }}>404</h1>
+        <p style={{ fontSize: '1.2rem', color: '#4b5563', marginBottom: '20px' }}>Trang Landing Page không tồn tại hoặc đã bị gỡ bỏ.</p>
+        <a href="/" style={{ color: '#2563eb', textDecoration: 'underline', fontWeight: 'bold' }}>Trở về trang chủ</a>
+      </div>
+    );
+  }
+
   return (
     <div style={{ maxWidth: '600px', margin: '0 auto', padding: '40px 20px' }}>
+      {/* Dynamic Pixels Injection */}
+      {lp.facebook_pixel_id && (
+        <Script id="fb-pixel" strategy="afterInteractive">
+          {`
+            !function(f,b,e,v,n,t,s)
+            {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+            n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+            if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+            n.queue=[];t=b.createElement(e);t.async=!0;
+            t.src=v;s=b.getElementsByTagName(e)[0];
+            s.parentNode.insertBefore(t,s)}(window, document,'script',
+            'https://connect.facebook.net/en_US/fbevents.js');
+            fbq('init', '${lp.facebook_pixel_id}');
+            fbq('track', 'PageView');
+          `}
+        </Script>
+      )}
+      
+      {lp.tiktok_pixel_id && (
+        <Script id="tt-pixel" strategy="afterInteractive">
+          {`
+            !function (w, d, t) {
+              w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie"],ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e},ttq.load=function(e,n){var i="https://analytics.tiktok.com/i18n/pixel/events.js";ttq._i=ttq._i||{},ttq._i[e]=[],ttq._i[e]._u=i,ttq._t=ttq._t||{},ttq._t[e]=+new Date,ttq._o=ttq._o||{},ttq._o[e]=n||{};var o=document.createElement("script");o.type="text/javascript",o.async=!0,o.src=i+"?sdkid="+e+"&lib="+t;var a=document.getElementsByTagName("script")[0];a.parentNode.insertBefore(o,a)};
+              ttq.load('${lp.tiktok_pixel_id}');
+              ttq.page();
+            }(window, document, 'ttq');
+          `}
+        </Script>
+      )}
+
       {/* Hero Section */}
       <div style={{ textAlign: 'center', marginBottom: '40px' }}>
         <h1 style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '10px' }}>

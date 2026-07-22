@@ -19,7 +19,7 @@ export default function OrdersPage() {
 
     const fetchOrders = async () => {
       try {
-        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com';
         const res = await fetch(`${apiBase}/api/customer/orders`, {
           credentials: 'include'
         });

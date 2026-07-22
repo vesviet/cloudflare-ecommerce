@@ -5,7 +5,7 @@ import { X, Trash2, Plus, Minus, ShoppingBag } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import Link from 'next/link';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com';
 
 export default function CartDrawer() {
   const { items, isCartOpen, toggleCart, removeItem, updateQuantity, getCartTotal, coupon, applyCoupon, removeCoupon, getCartSubtotal, getDiscountAmount } = useCartStore();

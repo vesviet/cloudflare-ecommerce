@@ -4,7 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { useCartStore } from '../../../store/cartStore';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com';
 
 export const CategoryClient = ({ products }: { products: any[] }) => {
   const { addItem, toggleCart } = useCartStore();

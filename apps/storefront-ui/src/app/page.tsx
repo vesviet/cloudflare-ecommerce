@@ -6,7 +6,7 @@ import ImageFallback from '../components/ImageFallback';
 
 // Using the same API_BASE resolution as before.
 // In Next.js SSR, we might need a absolute URL, so NEXT_PUBLIC_API_URL must be an absolute URL.
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com';
 
 async function getProducts() {
   try {

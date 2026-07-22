@@ -48,7 +48,7 @@ export default function Header() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com';
 
   useEffect(() => {
     fetch(`${apiBase}/api/categories`)

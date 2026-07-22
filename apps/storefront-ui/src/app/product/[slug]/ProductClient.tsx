@@ -8,7 +8,7 @@ import { ReviewList } from '../../../components/product/ReviewList';
 import { ReviewFormModal } from '../../../components/product/ReviewFormModal';
 import { Heart } from 'lucide-react';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com';
 
 export default function ProductClient({ product }: { product: any }) {
   const [selectedVariationId, setSelectedVariationId] = useState<string>('');
