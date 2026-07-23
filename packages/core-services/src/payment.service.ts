@@ -120,10 +120,15 @@ export class PaymentService {
   /**
    * Processes a refund via Stripe.
    */
-  static async processRefund(stripeSecretKey: string, paymentIntentId: string) {
+  static async processRefund(
+    stripeSecretKey: string,
+    paymentIntentId: string,
+    idempotencyKey?: string,
+  ) {
     const stripe = new Stripe(stripeSecretKey, { apiVersion: '2024-06-20' as any });
-    return await stripe.refunds.create({
-      payment_intent: paymentIntentId
-    });
+    return await stripe.refunds.create(
+      { payment_intent: paymentIntentId },
+      idempotencyKey ? { idempotencyKey } : undefined,
+    );
   }
 }

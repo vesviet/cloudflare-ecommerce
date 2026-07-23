@@ -40,6 +40,9 @@ vi.mock('@ecommerce/core-services', () => {
 });
 
 // Mock Database Module
+const idemStore = new Map<string, any>()
+const settingsStore = new Map<string, any>([['checkout-v2', { value: 'true', type: 'boolean' }]])
+
 vi.mock('@ecommerce/database', () => {
   return {
     schema: {
@@ -48,23 +51,97 @@ vi.mock('@ecommerce/database', () => {
       orders: { id: 'orders' },
       orderItems: { id: 'orderItems' },
       customers: { id: 'customers' },
-      settings: { key: 'key', value: 'value', type: 'type' },
+      settings: { id: 'settings', key: 'key', value: 'value', type: 'type' },
+      checkoutIdempotency: { key: 'key', status: 'status', response_json: 'response_json', expires_at: 'expires_at', order_id: 'order_id' },
+      idempotencyKeys: { id: 'id', status: 'status' },
     },
     createDb: vi.fn().mockImplementation(() => {
+      let currentTableKey: string | null = null
       return {
-        select: vi.fn().mockReturnThis(),
-        from: vi.fn().mockReturnThis(),
-        where: vi.fn().mockReturnThis(),
-        limit: vi.fn().mockReturnThis(),
-        all: vi.fn().mockResolvedValue([
-          { id: '550e8400-e29b-41d4-a716-446655440000', parent_id: 'prod_1', stock_quantity: 5, is_purchasable: 1, regular_price: 1000 }
-        ]),
-        get: vi.fn().mockResolvedValue({ id: 'cust_1' }),
-        insert: vi.fn().mockReturnThis(),
-        values: vi.fn().mockResolvedValue({ success: true }),
-        update: vi.fn().mockReturnThis(),
-        set: vi.fn().mockReturnThis(),
-        delete: vi.fn().mockReturnThis(),
+        select: vi.fn().mockImplementation(() => ({
+          from: vi.fn().mockImplementation((_tbl: any) => {
+            currentTableKey = _tbl?.id || _tbl?.key || null
+            return {
+              where: vi.fn().mockImplementation((_cond: any) => {
+                if (currentTableKey === 'key') {
+                  return {
+                    get: vi.fn().mockImplementation(async () => idemStore.get('idem_record') || null),
+                    all: vi.fn().mockResolvedValue([]),
+                    limit: vi.fn().mockImplementation(() => Promise.resolve(idemStore.get('idem_record') ? [idemStore.get('idem_record')] : [])),
+                  }
+                }
+
+                if (currentTableKey === 'settings') {
+                  return {
+                    get: vi.fn().mockImplementation(async () => {
+                      const raw = settingsStore.get((_cond?.$value || _cond))
+                      return raw ? { value: raw.value, type: raw.type } : undefined
+                    }),
+                    all: vi.fn().mockResolvedValue([]),
+                    limit: vi.fn().mockImplementation((_n: number) => {
+                      const raw = settingsStore.get((_cond?.$value || _cond))
+                      return Promise.resolve(raw ? [{ value: raw.value, type: raw.type }] : [])
+                    }),
+                  }
+                }
+
+                return {
+                  get: vi.fn().mockResolvedValue({ id: 'cust_1' }),
+                  all: vi.fn().mockResolvedValue([
+                    { id: '550e8400-e29b-41d4-a716-446655440000', parent_id: 'prod_1', stock_quantity: 5, is_purchasable: 1, regular_price: 1000 }
+                  ]),
+                  limit: vi.fn().mockImplementation((_n: number) =>
+                    Promise.resolve([
+                      { id: '550e8400-e29b-41d4-a716-446655440000', parent_id: 'prod_1', stock_quantity: 5, is_purchasable: 1, regular_price: 1000 }
+                    ])
+                  ),
+                }
+              }),
+              get: vi.fn().mockResolvedValue({ id: 'cust_1' }),
+              all: vi.fn().mockResolvedValue([]),
+            }
+          })
+        })),
+        insert: vi.fn().mockImplementation((_tbl: any) => {
+          currentTableKey = _tbl?.key || _tbl?.id || null
+          return {
+            values: vi.fn().mockImplementation((vals: any) => {
+              if (currentTableKey === 'key') {
+                const existing = idemStore.get('idem_record')
+                if (existing) {
+                  return {
+                    onConflictDoNothing: vi.fn().mockResolvedValue({ changes: 0, meta: { changes: 0 } })
+                  }
+                }
+                idemStore.set('idem_record', { ...vals, status: 'processing' })
+                return {
+                  onConflictDoNothing: vi.fn().mockResolvedValue({ changes: 1, meta: { changes: 1 } })
+                }
+              }
+              return Promise.resolve({ success: true })
+            })
+          }
+        }),
+        update: vi.fn().mockImplementation(() => ({
+          set: vi.fn().mockImplementation((setVals: any) => ({
+            where: vi.fn().mockImplementation(async () => {
+              if (currentTableKey === 'key') {
+                const existing = idemStore.get('idem_record') || {}
+                idemStore.set('idem_record', { ...existing, ...setVals })
+                return { changes: 1, meta: { changes: 1 } }
+              }
+              return { success: true }
+            })
+          }))
+        })),
+        delete: vi.fn().mockImplementation(() => ({
+          where: vi.fn().mockImplementation(async () => {
+            if (currentTableKey === 'key') {
+              idemStore.delete('idem_record')
+            }
+            return { success: true }
+          })
+        })),
         batch: vi.fn().mockResolvedValue([{ success: true }]),
       }
     })
@@ -77,6 +154,8 @@ vi.mock('drizzle-orm', () => ({
   sql: Object.assign(vi.fn(), { join: vi.fn() }),
   inArray: vi.fn(),
   and: vi.fn(),
+  or: vi.fn(),
+  lt: vi.fn(),
 }));
 
 import checkout from '../checkout';
@@ -125,6 +204,45 @@ describe('Checkout API Unit Tests', () => {
       body: JSON.stringify({ items: [{ variation_id: '550e8400-e29b-41d4-a716-446655440000', quantity: 1 }] })
     }, mockEnv);
     expect(res.status).toBe(400);
+  });
+
+  it('P0: Returns cached response when repeating checkout with identical Idempotency-Key', async () => {
+    const idempotencyKey = 'idem_key_unit_test_001';
+
+    const firstRes = await checkout.request('/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Idempotency-Key': idempotencyKey,
+      },
+      body: JSON.stringify({
+        email: 'test@example.com',
+        items: [{ variation_id: '550e8400-e29b-41d4-a716-446655440000', quantity: 2 }]
+      })
+    }, mockEnv);
+
+    expect(firstRes.status).toBe(200);
+    const firstData = await firstRes.json() as any;
+    expect(firstData.success).toBe(true);
+    expect(firstData.order_id).toBeDefined();
+
+    const secondRes = await checkout.request('/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Idempotency-Key': idempotencyKey,
+      },
+      body: JSON.stringify({
+        email: 'test@example.com',
+        items: [{ variation_id: '550e8400-e29b-41d4-a716-446655440000', quantity: 2 }]
+      })
+    }, mockEnv);
+
+    expect(secondRes.status).toBe(200);
+    const secondData = await secondRes.json() as any;
+    expect(secondData.success).toBe(true);
+    expect(secondData.order_id).toBe(firstData.order_id);
+    expect(secondData.checkout_url).toBe(firstData.checkout_url);
   });
 
   it('P1: Fallback to Flat Rate when Carrier API and Tax API timeout', async () => {

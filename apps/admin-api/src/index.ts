@@ -62,23 +62,24 @@ export default {
   fetch: app.fetch,
   async queue(batch: MessageBatch<any>, env: Bindings): Promise<void> {
     const db = createDb(env.DB);
-    const queries = [];
     
     for (const msg of batch.messages) {
-      queries.push(
-        db.insert(schema.failedJobs).values({
-          id: crypto.randomUUID(),
-          queue_name: batch.queue,
-          payload_json: JSON.stringify(msg.body),
-          error_message: "Dead Letter Queue: Max retries exceeded in public-api",
-        })
-      );
-      msg.ack();
-    }
-    
-    if (queries.length > 0) {
-      await db.batch(queries as any);
-      console.log(`[DLQ Consumer] Logged ${queries.length} failed jobs to D1.`);
+      try {
+        await db.insert(schema.failedJobs)
+          .values({
+            id: crypto.randomUUID(),
+            source_message_id: msg.id,
+            queue_name: batch.queue,
+            payload_json: JSON.stringify(msg.body),
+            error_message: "Dead Letter Queue: Max retries exceeded",
+          })
+          .onConflictDoNothing();
+
+        msg.ack();
+      } catch (err) {
+        console.error(`[DLQ Consumer] Failed to persist DLQ message ${msg.id}:`, err);
+        msg.retry();
+      }
     }
   },
   async scheduled(event: any, env: Bindings, _ctx: any): Promise<void> {

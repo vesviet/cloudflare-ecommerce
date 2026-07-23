@@ -52,6 +52,18 @@ max_batch_size = 10
 max_batch_timeout = 1
 max_retries = 1
 
+[[queues.consumers]]
+queue = "stripe-webhook-dlq"
+max_batch_size = 10
+max_batch_timeout = 1
+max_retries = 1
+
+[[queues.consumers]]
+queue = "carrier-webhook-dlq"
+max_batch_size = 10
+max_batch_timeout = 1
+max_retries = 1
+
 [[durable_objects.bindings]]
 name = "INVENTORY_DO"
 class_name = "InventoryLockManagerDO"

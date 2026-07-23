@@ -90,8 +90,12 @@ export default {
     if (batch.queue === 'stripe-webhook-prod') {
       for (const msg of batch.messages) {
         try {
-          await WebhookProcessor.processStripeWebhook(db, env, msg.body)
-          msg.ack()
+          const result = await WebhookProcessor.processStripeWebhook(db, env, msg.body)
+          if (result === 'completed' || result === 'already_completed') {
+            msg.ack()
+          } else {
+            msg.retry()
+          }
         } catch (err) {
           console.error(`[Queue] Fatal error processing stripe webhook:`, err)
           msg.retry()

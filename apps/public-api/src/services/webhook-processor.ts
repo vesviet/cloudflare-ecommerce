@@ -1,26 +1,108 @@
-import { eq, sql } from 'drizzle-orm'
+import { and, eq, lt, or, sql } from 'drizzle-orm'
 import { schema } from '@ecommerce/database'
 import { OrderService, LoyaltyService, PaymentService } from '@ecommerce/core-services'
 import Stripe from 'stripe'
 
+type StripeEventProcessingResult = 'completed' | 'already_completed' | 'retry'
+
 export class WebhookProcessor {
-  static async processStripeWebhook(db: any, env: any, event: Stripe.Event) {
+  static async processStripeWebhook(db: any, env: any, event: Stripe.Event): Promise<StripeEventProcessingResult> {
+    const now = Math.floor(Date.now() / 1000)
+    const leaseToken = crypto.randomUUID()
+    const leaseExpiresAt = now + 60
     const insertResult = await db
       .insert(schema.idempotencyKeys)
       .values({
         id: event.id,
         event_type: event.type,
+        status: 'processing',
+        lease_token: leaseToken,
+        lease_expires_at: leaseExpiresAt,
+        attempts: 1,
         // Set expires_at for TTL-based cleanup (90 days)
-        expires_at: Math.floor(Date.now() / 1000) + (90 * 24 * 3600),
+        expires_at: now + (90 * 24 * 3600),
       })
       .onConflictDoNothing()
 
-    const changes = (insertResult as any)?.meta?.changes ?? (insertResult as any)?.changes
-    if (changes === 0) {
-      console.log(`[Queue] Stripe Webhook: Duplicate event ${event.id} (${event.type}) — already processed, skipping`)
-      return
+    const insertChanges = (insertResult as any)?.meta?.changes ?? (insertResult as any)?.changes
+    let claimed = insertChanges !== 0
+
+    if (!claimed) {
+      const existing = await db.select()
+        .from(schema.idempotencyKeys)
+        .where(eq(schema.idempotencyKeys.id, event.id))
+        .get()
+
+      if (existing?.status === 'completed') {
+        return 'already_completed'
+      }
+
+      if (existing?.status === 'processing' && existing.lease_expires_at && existing.lease_expires_at > now) {
+        return 'retry'
+      }
+
+      const reclaimResult = await db.update(schema.idempotencyKeys)
+        .set({
+          event_type: event.type,
+          status: 'processing',
+          lease_token: leaseToken,
+          lease_expires_at: leaseExpiresAt,
+          attempts: sql`${schema.idempotencyKeys.attempts} + 1`,
+          last_error: null,
+        })
+        .where(and(
+          eq(schema.idempotencyKeys.id, event.id),
+          or(
+            eq(schema.idempotencyKeys.status, 'pending'),
+            eq(schema.idempotencyKeys.status, 'failed'),
+            and(
+              eq(schema.idempotencyKeys.status, 'processing'),
+              lt(schema.idempotencyKeys.lease_expires_at, now),
+            ),
+          ),
+        ))
+
+      const reclaimChanges = (reclaimResult as any)?.meta?.changes ?? (reclaimResult as any)?.changes
+      claimed = reclaimChanges !== 0
+      if (!claimed) {
+        return 'retry'
+      }
     }
 
+    try {
+      await this.processStripeWebhookEvent(db, env, event)
+
+      await db.update(schema.idempotencyKeys)
+        .set({
+          status: 'completed',
+          lease_token: null,
+          lease_expires_at: null,
+          last_error: null,
+          processed_at: sql`CURRENT_TIMESTAMP`,
+        })
+        .where(and(
+          eq(schema.idempotencyKeys.id, event.id),
+          eq(schema.idempotencyKeys.lease_token, leaseToken),
+        ))
+
+      return 'completed'
+    } catch (error: any) {
+      await db.update(schema.idempotencyKeys)
+        .set({
+          status: 'failed',
+          lease_token: null,
+          lease_expires_at: now,
+          last_error: String(error?.message ?? 'Stripe webhook processing failed').slice(0, 500),
+        })
+        .where(and(
+          eq(schema.idempotencyKeys.id, event.id),
+          eq(schema.idempotencyKeys.lease_token, leaseToken),
+        ))
+      throw error
+    }
+  }
+
+  private static async processStripeWebhookEvent(db: any, env: any, event: Stripe.Event) {
     if (event.type === 'checkout.session.completed' || event.type === 'payment_intent.succeeded') {
       const eventObject = event.data.object as Stripe.Checkout.Session | Stripe.PaymentIntent
 
@@ -58,7 +140,11 @@ export class WebhookProcessor {
 
         if (paymentIntentId) {
           try {
-            await PaymentService.processRefund(env.STRIPE_SECRET_KEY, paymentIntentId)
+            await PaymentService.processRefund(
+              env.STRIPE_SECRET_KEY,
+              paymentIntentId,
+              `stripe-webhook:${event.id}:late-payment-refund`,
+            )
           } catch (refundErr: any) {
             console.error(`[Queue] Failed to process automatic refund for order ${order.id}:`, refundErr.message)
           }

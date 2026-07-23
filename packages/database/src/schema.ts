@@ -314,8 +314,27 @@ export const inventoryReservations = sqliteTable('inventory_reservations', {
 export const idempotencyKeys = sqliteTable('idempotency_keys', {
   id: text('id').primaryKey(),
   event_type: text('event_type').notNull(),
+  status: text('status').notNull().default('pending'),
+  lease_token: text('lease_token'),
+  lease_expires_at: integer('lease_expires_at'),
+  attempts: integer('attempts').notNull().default(0),
+  last_error: text('last_error'),
   expires_at: integer('expires_at'),
-  processed_at: text('processed_at').default(sql`CURRENT_TIMESTAMP`),
+  processed_at: text('processed_at'),
+});
+
+export const checkoutIdempotency = sqliteTable('checkout_idempotency', {
+  key: text('key').primaryKey(),
+  order_id: text('order_id').notNull(),
+  status: text('status').notNull().default('processing'),
+  response_json: text('response_json'),
+  expires_at: integer('expires_at').notNull(),
+  created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+  updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+}, (table) => {
+  return {
+    expiresAtIdx: index('idx_checkout_idempotency_expires_at').on(table.expires_at),
+  };
 });
 
 export const cmsEntries = sqliteTable('cms_entries', {
@@ -450,6 +469,7 @@ export const rmaRequests = sqliteTable('rma_requests', {
 
 export const failedJobs = sqliteTable('failed_jobs', {
   id: text('id').primaryKey(),
+  source_message_id: text('source_message_id').unique(),
   queue_name: text('queue_name').notNull(),
   payload_json: text('payload_json'),
   error_message: text('error_message'),
