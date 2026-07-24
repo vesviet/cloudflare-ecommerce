@@ -8,8 +8,6 @@ ALTER TABLE `idempotency_keys` ADD COLUMN `attempts` integer NOT NULL DEFAULT 0;
 --> statement-breakpoint
 ALTER TABLE `idempotency_keys` ADD COLUMN `last_error` text;
 --> statement-breakpoint
-ALTER TABLE `idempotency_keys` ADD COLUMN `expires_at` integer;
---> statement-breakpoint
 UPDATE `idempotency_keys`
 SET `status` = 'completed',
     `attempts` = 1
