@@ -4,6 +4,7 @@ import { eq, lt } from 'drizzle-orm'
 import { zValidator } from '@hono/zod-validator'
 import { CheckoutSchema } from '@ecommerce/contract'
 import { InventoryService, PaymentService, OrderService } from '@ecommerce/core-services'
+import { rateLimit, clientIp, type RateLimiter } from '@ecommerce/shared-routes'
 
 import { getSetting } from '../utils/settingsCache'
 
@@ -13,13 +14,25 @@ type Bindings = {
   STRIPE_SECRET_KEY: string
   STOREFRONT_URL: string
   ENVIRONMENT?: string
+  CHECKOUT_RATE_LIMITER?: RateLimiter
 }
 
 const FLAT_SHIPPING_FEE_CENTS = 999 
 
 const checkout = new Hono<{ Bindings: Bindings }>()
 
-checkout.post('/', zValidator('json', CheckoutSchema), async (c) => {
+// Runs after zValidator so the identity comes from the already-validated payload.
+const limitCheckout = rateLimit({
+  binding: 'CHECKOUT_RATE_LIMITER',
+  scope: 'checkout-create',
+  key: (c) => {
+    const body = c.req.valid('json' as never) as { customer_id?: string; email?: string } | undefined
+    return body?.customer_id || body?.email || clientIp(c)
+  },
+  message: 'Too many checkout attempts. Please wait a moment and try again.',
+})
+
+checkout.post('/', zValidator('json', CheckoutSchema), limitCheckout, async (c) => {
   try {
     const body = c.req.valid('json')
     const {

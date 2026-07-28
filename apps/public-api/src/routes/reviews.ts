@@ -1,25 +1,90 @@
 import { Hono } from 'hono';
-import { createDb } from '@ecommerce/database';
+import { getCookie } from 'hono/cookie';
+import { createMiddleware } from 'hono/factory';
+import { createDb, verifyJWT } from '@ecommerce/database';
 import { localSchema } from '@ecommerce/core-services';
-import { eq, desc, and } from 'drizzle-orm';
+import { rateLimit, type RateLimiter } from '@ecommerce/shared-routes';
+import { eq, desc, and, or, inArray } from 'drizzle-orm';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 
-const reviews = new Hono<{ Bindings: { DB: D1Database } }>();
+type Bindings = {
+  DB: D1Database;
+  JWT_SECRET?: string;
+  REVIEW_RATE_LIMITER?: RateLimiter;
+};
+
+type Variables = {
+  customerId: string;
+};
+
+type Env = { Bindings: Bindings; Variables: Variables };
+
+// Only orders that are actually paid for count as a verified purchase.
+const PAID_ORDER_STATUSES = ['processing', 'shipped', 'completed'];
+
+const reviews = new Hono<Env>();
 
 const PostReviewSchema = z.object({
   product_id: z.string().min(1),
-  rating: z.number().min(1).max(5),
-  comment: z.string().optional(),
-  customer_id: z.string().optional(),
+  rating: z.number().int().min(1).max(5),
+  comment: z.string().max(2000).optional(),
 });
+
+const requireCustomer = createMiddleware<Env>(async (c, next) => {
+  const token = getCookie(c, 'aura_token');
+  if (!token) {
+    return c.json({ success: false, error: 'Unauthorized: Sign in to post a review' }, 401);
+  }
+
+  if (!c.env.JWT_SECRET) {
+    return c.json({ success: false, error: 'Internal Server Error: Missing JWT_SECRET' }, 500);
+  }
+
+  try {
+    const payload = await verifyJWT(token, c.env.JWT_SECRET);
+    if (!payload?.customer_id) {
+      return c.json({ success: false, error: 'Unauthorized: Invalid token' }, 401);
+    }
+    c.set('customerId', payload.customer_id as string);
+  } catch {
+    return c.json({ success: false, error: 'Unauthorized: Invalid token' }, 401);
+  }
+
+  await next();
+});
+
+/**
+ * Checks whether the customer has a paid order containing the product,
+ * matching either the product itself or one of its variations.
+ */
+const hasPurchasedProduct = async (db: any, customerId: string, productId: string): Promise<boolean> => {
+  const purchase = await db
+    .select({ id: localSchema.orderItems.id })
+    .from(localSchema.orderItems)
+    .innerJoin(localSchema.orders, eq(localSchema.orderItems.order_id, localSchema.orders.id))
+    .leftJoin(localSchema.products, eq(localSchema.orderItems.product_id, localSchema.products.id))
+    .where(
+      and(
+        eq(localSchema.orders.customer_id, customerId),
+        inArray(localSchema.orders.status, PAID_ORDER_STATUSES),
+        or(
+          eq(localSchema.orderItems.product_id, productId),
+          eq(localSchema.products.parent_id, productId)
+        )
+      )
+    )
+    .get();
+
+  return !!purchase;
+};
 
 // GET reviews for a product
 reviews.get('/:product_id', async (c) => {
   try {
     const product_id = c.req.param('product_id');
     const db = createDb(c.env.DB);
-    
+
     const data = await db
       .select()
       .from(localSchema.cmsEntries)
@@ -31,42 +96,66 @@ reviews.get('/:product_id', async (c) => {
       )
       .orderBy(desc(localSchema.cmsEntries.created_at))
       .all();
-      
-    const mappedReviews = data.map((r) => {
-      let metadata: any = {};
+
+    const publishedReviews = [];
+    for (const r of data) {
+      let metadata: any = null;
       if (r.metadata_json) {
         try {
           metadata = JSON.parse(r.metadata_json);
-        } catch {}
+        } catch {
+          metadata = null;
+        }
       }
-      return {
+
+      // Skip entries we cannot trust rather than inventing a rating or an approval state.
+      const rating = metadata?.rating;
+      if (!metadata || typeof rating !== 'number' || rating < 1 || rating > 5) {
+        console.warn(`[Reviews] Skipping review ${r.id}: missing or invalid metadata`);
+        continue;
+      }
+
+      if (metadata.status !== 'approved') {
+        continue;
+      }
+
+      publishedReviews.push({
         id: r.id,
-        product_id: r.placement || "",
+        product_id: r.placement || '',
         customer_id: metadata.customer_id || null,
-        rating: metadata.rating || 5,
-        comment: metadata.comment || "",
-        status: metadata.status || 'approved',
-        verified_purchase: metadata.verified_purchase !== undefined ? metadata.verified_purchase : 1,
+        rating,
+        comment: metadata.comment || '',
+        status: 'approved',
+        verified_purchase: metadata.verified_purchase === 1 ? 1 : 0,
         created_at: r.created_at,
-      };
-    });
+      });
+    }
 
-    // Filter to only approved reviews, but if using auto-approve, all might be 'approved'
-    const approvedReviews = mappedReviews.filter((r) => r.status === 'approved' || r.status === 'pending');
-
-    return c.json({ success: true, data: approvedReviews });
+    return c.json({ success: true, data: publishedReviews });
   } catch (err: any) {
     console.error('Get reviews error:', err);
     return c.json({ success: false, error: err.message }, 500);
   }
 });
 
+const limitReviews = rateLimit({
+  binding: 'REVIEW_RATE_LIMITER',
+  scope: 'review-post',
+  key: (c) => c.get('customerId'),
+  message: 'Too many reviews submitted. Please try again later.',
+});
+
 // POST a new review
-reviews.post('/', zValidator('json', PostReviewSchema), async (c) => {
+reviews.post('/', requireCustomer, limitReviews, zValidator('json', PostReviewSchema), async (c) => {
   try {
-    const { product_id, rating, comment, customer_id } = c.req.valid('json');
+    const { product_id, rating, comment } = c.req.valid('json');
+    const customerId = c.get('customerId');
     const db = createDb(c.env.DB);
-    
+
+    const verifiedPurchase = await hasPurchasedProduct(db, customerId, product_id);
+
+    // Verified buyers publish immediately; everyone else waits for moderation.
+    const status = verifiedPurchase ? 'approved' : 'pending';
     const reviewId = `rev_${crypto.randomUUID()}`;
 
     await db.insert(localSchema.cmsEntries).values({
@@ -77,22 +166,22 @@ reviews.post('/', zValidator('json', PostReviewSchema), async (c) => {
       status: 'published',
       placement: product_id,
       metadata_json: JSON.stringify({
-        customer_id: customer_id || null,
+        customer_id: customerId,
         rating,
-        comment: comment || "",
-        status: 'approved',
-        verified_purchase: 1,
+        comment: comment || '',
+        status,
+        verified_purchase: verifiedPurchase ? 1 : 0,
       }),
     }).run();
 
     const createdReview = {
       id: reviewId,
       product_id,
-      customer_id: customer_id || null,
+      customer_id: customerId,
       rating,
-      comment: comment || "",
-      status: 'approved',
-      verified_purchase: 1,
+      comment: comment || '',
+      status,
+      verified_purchase: verifiedPurchase ? 1 : 0,
       created_at: new Date().toISOString(),
     };
 

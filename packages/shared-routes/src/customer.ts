@@ -5,21 +5,52 @@ import { createDb } from '@ecommerce/database';
 import { localSchema as schema } from '@ecommerce/core-services';
 import { hashPassword, verifyPassword, signJWT, verifyJWT } from '@ecommerce/database';
 import { WishlistService } from '@ecommerce/core-services';
+import { rateLimit, clientIp, type RateLimiter } from './rate-limit';
 type Bindings = {
   DB: D1Database;
   JWT_SECRET: string;
   CACHE_KV: KVNamespace;
   ENVIRONMENT?: string;
+  AUTH_RATE_LIMITER?: RateLimiter;
 };
 
 type Variables = {
   jwtPayload: any;
 };
 
+const MISSING_JWT_SECRET_ERROR = 'Internal Server Error: Missing JWT_SECRET';
+const AUTH_RATE_LIMIT_MESSAGE = 'Too many attempts. Please wait a minute and try again.';
+
+const emailFromBody = async (c: any): Promise<string | null> => {
+  try {
+    const body = await c.req.json();
+    const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : '';
+    return email || null;
+  } catch {
+    return null;
+  }
+};
+
+const limitByIp = (scope: string) =>
+  rateLimit({
+    binding: 'AUTH_RATE_LIMITER',
+    scope,
+    key: clientIp,
+    message: AUTH_RATE_LIMIT_MESSAGE,
+  });
+
+const limitByEmail = (scope: string) =>
+  rateLimit({
+    binding: 'AUTH_RATE_LIMITER',
+    scope,
+    key: emailFromBody,
+    message: AUTH_RATE_LIMIT_MESSAGE,
+  });
+
 const customerApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
 // Authentication Routes
-customerApp.post('/auth/register', async (c) => {
+customerApp.post('/auth/register', limitByIp('auth-register-ip'), async (c) => {
   try {
     const { 
       email, password, firstName, lastName, phone, 
@@ -40,6 +71,10 @@ customerApp.post('/auth/register', async (c) => {
       .get();
     if (existing) {
       return c.json({ success: false, error: 'Email is already registered' }, 400);
+    }
+
+    if (!c.env.JWT_SECRET) {
+      return c.json({ success: false, error: MISSING_JWT_SECRET_ERROR }, 500);
     }
 
     const customerId = crypto.randomUUID();
@@ -68,7 +103,7 @@ customerApp.post('/auth/register', async (c) => {
     });
 
     // Auto-login: Create JWT and set cookie
-    const token = await signJWT({ customer_id: customerId, email }, c.env.JWT_SECRET || 'dev_secret_key');
+    const token = await signJWT({ customer_id: customerId, email }, c.env.JWT_SECRET);
     
     const isProd = c.env.ENVIRONMENT === 'production' || !c.req.url.includes('localhost');
     setCookie(c, 'aura_token', token, {
@@ -85,12 +120,16 @@ customerApp.post('/auth/register', async (c) => {
   }
 });
 
-customerApp.post('/auth/login', async (c) => {
+customerApp.post('/auth/login', limitByEmail('auth-login-email'), limitByIp('auth-login-ip'), async (c) => {
   try {
     const { email, password } = await c.req.json();
     
     if (!email || !password) {
       return c.json({ success: false, error: 'Email and password are required' }, 400);
+    }
+
+    if (!c.env.JWT_SECRET) {
+      return c.json({ success: false, error: MISSING_JWT_SECRET_ERROR }, 500);
     }
 
     const db = createDb(c.env.DB);
@@ -117,7 +156,7 @@ customerApp.post('/auth/login', async (c) => {
       return c.json({ success: false, error: 'Invalid email or password' }, 401);
     }
 
-    const token = await signJWT({ customer_id: customer.id, email }, c.env.JWT_SECRET || 'dev_secret_key');
+    const token = await signJWT({ customer_id: customer.id, email }, c.env.JWT_SECRET);
     
     const isProd = c.env.ENVIRONMENT === 'production' || !c.req.url.includes('localhost');
     setCookie(c, 'aura_token', token, {
@@ -152,8 +191,12 @@ customerApp.use('/customer/*', async (c, next) => {
     return c.json({ success: false, error: 'Unauthorized: No token provided' }, 401);
   }
 
+  if (!c.env.JWT_SECRET) {
+    return c.json({ success: false, error: MISSING_JWT_SECRET_ERROR }, 500);
+  }
+
   try {
-    const payload = await verifyJWT(token, c.env.JWT_SECRET || 'dev_secret_key');
+    const payload = await verifyJWT(token, c.env.JWT_SECRET);
     c.set('jwtPayload', payload);
     
     // Check status in DB to block suspended users

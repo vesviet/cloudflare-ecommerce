@@ -88,12 +88,17 @@ cart.post('/sync', zValidator('json', SyncCartSchema), async (c) => {
     const token = getCookie(c, 'aura_token');
     
     if (token) {
-      try {
-        const { verifyJWT } = await import('@ecommerce/database');
-        const payload = await verifyJWT(token, c.env.JWT_SECRET || 'dev_secret_key');
-        customerId = payload.customer_id as string;
-      } catch (e) {
-        console.error('Cart sync token verify error:', e);
+      if (!c.env.JWT_SECRET) {
+        // Never fall back to a hardcoded secret: treat the request as a guest instead.
+        console.error('[Cart Sync] JWT_SECRET is not set — falling back to guest cart')
+      } else {
+        try {
+          const { verifyJWT } = await import('@ecommerce/database');
+          const payload = await verifyJWT(token, c.env.JWT_SECRET);
+          customerId = payload.customer_id as string;
+        } catch (e) {
+          console.error('Cart sync token verify error:', e);
+        }
       }
     }
 
