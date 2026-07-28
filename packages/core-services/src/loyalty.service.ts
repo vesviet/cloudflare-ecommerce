@@ -1,21 +1,39 @@
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import * as localSchema from './local-schema';
 
 export class LoyaltyService {
+  /**
+   * Applies a signed points delta with the balance guard evaluated by the database.
+   * Reading the balance and writing back an absolute value would let two concurrent
+   * redemptions both pass the check and spend the same points twice.
+   */
   static async updateCustomerPoints(db: any, customerId: string, pointsDiff: number): Promise<void> {
-    const customer = await db.select().from(localSchema.customers).where(eq(localSchema.customers.id, customerId)).get();
+    const result = await db.update(localSchema.customers)
+      .set({
+        loyalty_points_balance: sql`COALESCE(loyalty_points_balance, 0) + ${pointsDiff}`,
+        updated_at: sql`CURRENT_TIMESTAMP`,
+      })
+      .where(and(
+        eq(localSchema.customers.id, customerId),
+        sql`COALESCE(loyalty_points_balance, 0) + ${pointsDiff} >= 0`,
+      ))
+      .run();
+
+    const changes = result?.meta?.changes ?? result?.changes ?? 0;
+    if (changes !== 0) {
+      return;
+    }
+
+    const customer = await db.select({ id: localSchema.customers.id })
+      .from(localSchema.customers)
+      .where(eq(localSchema.customers.id, customerId))
+      .get();
+
     if (!customer) {
       throw new Error(`Customer ${customerId} not found`);
     }
-    const currentPoints = customer.loyalty_points_balance || 0;
-    const newPoints = currentPoints + pointsDiff;
-    if (newPoints < 0) {
-      throw new Error('Insufficient Loyalty Points');
-    }
-    await db.update(localSchema.customers)
-      .set({ loyalty_points_balance: newPoints, updated_at: sql`CURRENT_TIMESTAMP` })
-      .where(eq(localSchema.customers.id, customerId))
-      .run();
+
+    throw new Error('Insufficient Loyalty Points');
   }
 
   /**
