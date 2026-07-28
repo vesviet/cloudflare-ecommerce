@@ -22,11 +22,18 @@ export type Env = {
 let cachedJWKS: any = null;
 let cachedJwksUrl: string = '';
 
+// Product and CMS images are read-only R2 assets served to the public storefront.
+// Matched exactly so a sibling route such as /api/customers can never be included.
+const isPublicMediaPath = (path: string): boolean =>
+  path === '/media' ||
+  path.startsWith('/media/') ||
+  path === '/api/media' ||
+  path.startsWith('/api/media/');
+
 // Middleware to extract email from CF JWT and fetch user from DB
 export const adminAuth = createMiddleware<Env>(async (c, next) => {
   const path = c.req.path;
-  // Bỏ qua kiểm tra Zero Trust cho các API của Storefront và Media
-  if (path.startsWith('/store') || path.startsWith('/auth') || path.startsWith('/customer') || path.startsWith('/media') || path.startsWith('/api/media')) {
+  if (isPublicMediaPath(path)) {
     return next();
   }
 

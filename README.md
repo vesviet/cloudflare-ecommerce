@@ -30,14 +30,16 @@ The system is a Monorepo powered by **Turborepo** and deployed entirely on the C
 
 ## Core Workflows & CI/CD
 
-### 1. Zero DevOps Deployment
-All code pushed to `main` is automatically picked up by Cloudflare Pages and Cloudflare Workers for immediate edge deployment. No intermediate CI pipelines are required for infrastructure updates.
+### 1. Deployment
+Pushes to `main` run the `deploy.yml` GitHub Actions pipeline. A mandatory quality gate job runs ESLint, Vitest, `pnpm audit`, and a Trivy filesystem scan; deployment only starts once it passes. The pipeline then applies D1 migrations, deploys both Workers, and builds and deploys the two Pages projects.
 
 ### 2. Auto-generated Mobile SDKs
-Whenever `packages/contract` is updated, our GitHub Actions pipeline (`openapi-sdk.yml`) automatically:
+Whenever `packages/contract/src` is updated, the `openapi-sdk.yml` pipeline:
 1. Compiles the Zod definitions into `openapi.json`.
 2. Generates the Dart and Swift API clients.
-3. Commits and pushes the new SDKs back to the `/sdks/` directory in this repository.
+3. Opens a pull request on the `auto/sdk-update` branch with the regenerated `/sdks/` output.
+
+The SDK changes land after that pull request is reviewed and merged, so `main` is never written to directly by the generator.
 
 Mobile teams consume these SDKs directly via Git submodules or package managers pointing to the respective folders, ensuring they always have the latest API contracts without manual handoffs.
 
@@ -62,6 +64,14 @@ pnpm install
 # Start all local development servers
 pnpm dev
 ```
+
+### Required Secrets
+`JWT_SECRET` must be set for every environment that serves customer routes. Registration, login, the customer session middleware, and the review and return endpoints return `500` when it is missing rather than falling back to a default, so a misconfigured environment fails loudly instead of issuing tokens signed with a known key.
+
+Set it locally in `apps/public-api/.dev.vars` and in production via `wrangler secret put JWT_SECRET`. The same applies to `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `CARRIER_WEBHOOK_SECRET`, `RESEND_API_KEY`, and `TURNSTILE_SECRET_KEY`.
+
+### Rate Limiting
+Login, registration, review submission, and checkout are rate limited through the Cloudflare rate limiting bindings declared in `apps/public-api/wrangler.toml`. Each limit uses its own `namespace_id`, and `period` may only be `10` or `60` seconds. When a binding is unavailable, such as in local dev or tests, requests pass through unlimited and a warning is logged.
 
 ### Stripe Webhook Local Testing
 To test Stripe Webhooks locally, run the Stripe CLI to forward events to the local `public-api` worker:

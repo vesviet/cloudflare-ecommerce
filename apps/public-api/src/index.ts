@@ -163,7 +163,7 @@ export default {
             if (!emailRes.ok) {
               console.error(`[Queue Email] Resend API error for order ${payload.orderId}:`, await emailRes.text())
             } else {
-              console.log(`[Queue Email] Confirmation sent to ${recipientEmail} for order ${payload.orderId}`)
+              console.log(`[Queue Email] Confirmation sent for order ${payload.orderId}`)
             }
           } else if (!env.RESEND_API_KEY) {
             console.warn('[Queue Email] RESEND_API_KEY not set — skipping email send')
@@ -212,7 +212,7 @@ export default {
             if (!emailRes.ok) {
               console.error(`[Queue Email] Resend API error for shipped order ${payload.orderId}:`, await emailRes.text())
             } else {
-              console.log(`[Queue Email] Shipping confirmation sent to ${recipientEmail} for order ${payload.orderId}`)
+              console.log(`[Queue Email] Shipping confirmation sent for order ${payload.orderId}`)
             }
           } else if (!env.RESEND_API_KEY) {
             console.warn('[Queue Email] RESEND_API_KEY not set — skipping shipping email')
@@ -385,7 +385,7 @@ export default {
               await db.update(schema.carts)
                 .set({ abandoned_email_sent_at: Math.floor(Date.now() / 1000) })
                 .where(eq(schema.carts.id, cart.id)).run();
-              console.log(`[Cron] (Mock) Sent abandoned cart email to ${customer.email}`);
+              console.log(`[Cron] (Mock) Sent abandoned cart email for cart ${cart.id}`);
             }
           }
         } catch (err: any) {

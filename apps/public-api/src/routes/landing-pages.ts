@@ -1,13 +1,14 @@
 import { Hono } from 'hono';
 import { createDb, schema } from '@ecommerce/database';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 
 const LeadSubmissionSchema = z.object({
   landing_page_id: z.string().optional().nullable(),
-  customer_name: z.string().optional().nullable(),
-  customer_phone: z.string().optional().nullable(),
+  // Required by the landing_page_leads table; keep in sync or inserts fail at runtime.
+  customer_name: z.string().min(1),
+  customer_phone: z.string().min(1),
   customer_address: z.string().optional().nullable(),
   customer_note: z.string().optional().nullable(),
   selected_combo_id: z.string().optional().nullable(),
@@ -74,14 +75,32 @@ landingPages.get('/:slug/stock', async (c) => {
     const variants = await db.select().from(schema.products).where(eq(schema.products.parent_id, lp.product_id)).all();
 
     const isProductActive = product?.status === 'active';
-    const totalStock = variants.reduce((sum, v) => sum + (v.stock || 0), 0);
-    const isOutOfStock = !isProductActive || (variants.length > 0 && totalStock <= 0);
+
+    // Stock lives in inventory_levels, not on products. Sum across locations so a
+    // product is only out of stock when no location can fulfil it.
+    const stockedIds = variants.length > 0 ? variants.map(v => v.id) : [lp.product_id];
+    const stockRows = await db
+      .select({
+        product_id: schema.inventoryLevels.product_id,
+        stock_quantity: schema.inventoryLevels.stock_quantity,
+      })
+      .from(schema.inventoryLevels)
+      .where(inArray(schema.inventoryLevels.product_id, stockedIds))
+      .all();
+
+    const stockByProduct = new Map<string, number>();
+    for (const row of stockRows) {
+      stockByProduct.set(row.product_id, (stockByProduct.get(row.product_id) ?? 0) + (row.stock_quantity ?? 0));
+    }
+
+    const totalStock = stockedIds.reduce((sum, id) => sum + (stockByProduct.get(id) ?? 0), 0);
+    const isOutOfStock = !isProductActive || totalStock <= 0;
 
     return c.json({
       success: true,
       product_id: lp.product_id,
       is_out_of_stock: isOutOfStock,
-      variants: variants.map(v => ({ id: v.id, sku: v.sku, stock: v.stock })),
+      variants: variants.map(v => ({ id: v.id, sku: v.sku, stock: stockByProduct.get(v.id) ?? 0 })),
     });
   } catch (err: any) {
     return c.json({ success: false, error: err.message }, 500);

@@ -34,42 +34,44 @@ describe('Admin API Auth Middleware', () => {
   });
 
   describe('adminAuth', () => {
+    // Mirrors the real worker, which mounts every route under the /api base path.
     const createTestApp = () => {
-      const app = new Hono<{ Bindings: any; Variables: any }>();
+      const app = new Hono<{ Bindings: any; Variables: any }>().basePath('/api');
       app.use('*', adminAuth);
-      app.get('/store/products', (c) => c.json({ success: true, public: true }));
-      app.get('/auth/login', (c) => c.json({ success: true, public: true }));
-      app.get('/customer/me', (c) => c.json({ success: true, public: true }));
       app.get('/media/image.png', (c) => c.json({ success: true, public: true }));
-      app.get('/api/media/image.png', (c) => c.json({ success: true, public: true }));
+      app.get('/customers/:id', (c) => c.json({ success: true, user: c.get('adminUser') }));
+      app.get('/store/orders', (c) => c.json({ success: true, user: c.get('adminUser') }));
       app.get('/admin/dashboard', (c) =>
         c.json({ success: true, user: c.get('adminUser') })
       );
       return app;
     };
 
-    it('TC-AUTH-MDL-01: adminAuth Bypasses Public Paths', async () => {
+    it('TC-AUTH-MDL-01: adminAuth Bypasses Public Media Paths', async () => {
       const app = createTestApp();
-      const paths = [
-        '/store/products',
-        '/auth/login',
-        '/customer/me',
-        '/media/image.png',
-        '/api/media/image.png',
-      ];
+      const req = new Request('http://localhost/api/media/image.png');
+      const res = await app.fetch(req, {});
 
-      for (const path of paths) {
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as any;
+      expect(body).toEqual({ success: true, public: true });
+    });
+
+    it('TC-AUTH-MDL-01b: adminAuth Protects Routes Adjacent To Public Prefixes', async () => {
+      const app = createTestApp();
+
+      // /api/customers must not be treated as public just because /customer was
+      // once listed as a bypass prefix. Same for the storefront order endpoint.
+      for (const path of ['/api/customers/cust_1', '/api/store/orders']) {
         const req = new Request(`http://localhost${path}`);
         const res = await app.fetch(req, {});
-        expect(res.status).toBe(200);
-        const body = (await res.json()) as any;
-        expect(body).toEqual({ success: true, public: true });
+        expect(res.status).toBe(403);
       }
     });
 
     it('TC-AUTH-MDL-02: Spoofing Protection for X-Local-Admin-Email in Non-Local Envs', async () => {
       const app = createTestApp();
-      const req = new Request('http://localhost/admin/dashboard', {
+      const req = new Request('http://localhost/api/admin/dashboard', {
         headers: { 'X-Local-Admin-Email': 'hacker@test.com' },
       });
 
@@ -96,7 +98,7 @@ describe('Admin API Auth Middleware', () => {
       };
       mockGetUser.mockResolvedValue(mockUser);
 
-      const req = new Request('http://localhost/admin/dashboard', {
+      const req = new Request('http://localhost/api/admin/dashboard', {
         headers: { 'X-Local-Admin-Email': 'dev@local.test' },
       });
       const env = { LOCAL_DEV: 'true', ENVIRONMENT: 'local' };
@@ -110,7 +112,7 @@ describe('Admin API Auth Middleware', () => {
 
     it('TC-AUTH-MDL-04: Production Zero Trust - Missing CF Assertion Header', async () => {
       const app = createTestApp();
-      const req = new Request('http://localhost/admin/dashboard');
+      const req = new Request('http://localhost/api/admin/dashboard');
       const env = { ENVIRONMENT: 'production' };
 
       const res = await app.fetch(req, env);
@@ -137,7 +139,7 @@ describe('Admin API Auth Middleware', () => {
       });
       mockGetUser.mockResolvedValue(mockUser);
 
-      const req = new Request('http://localhost/admin/dashboard', {
+      const req = new Request('http://localhost/api/admin/dashboard', {
         headers: { 'CF-Access-JWT-Assertion': 'valid_jwt_token' },
       });
       const env = {
@@ -162,7 +164,7 @@ describe('Admin API Auth Middleware', () => {
       const app = createTestApp();
       mockJwtVerify.mockRejectedValue(new Error('jwt expired'));
 
-      const req = new Request('http://localhost/admin/dashboard', {
+      const req = new Request('http://localhost/api/admin/dashboard', {
         headers: { 'CF-Access-JWT-Assertion': 'invalid_token' },
       });
       const env = {
@@ -185,7 +187,7 @@ describe('Admin API Auth Middleware', () => {
 
       // Test case A: User not found in DB
       mockGetUser.mockResolvedValue(null);
-      const reqNotFound = new Request('http://localhost/admin/dashboard', {
+      const reqNotFound = new Request('http://localhost/api/admin/dashboard', {
         headers: { 'X-Local-Admin-Email': 'missing@local.dev' },
       });
       const envLocal = { LOCAL_DEV: 'true', ENVIRONMENT: 'local' };
@@ -203,7 +205,7 @@ describe('Admin API Auth Middleware', () => {
         email: 'disabled@local.dev',
         status: 'disabled',
       });
-      const reqDisabled = new Request('http://localhost/admin/dashboard', {
+      const reqDisabled = new Request('http://localhost/api/admin/dashboard', {
         headers: { 'X-Local-Admin-Email': 'disabled@local.dev' },
       });
 
