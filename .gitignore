@@ -27,6 +27,7 @@ out/
 # ==========================
 .wrangler/
 wrangler-dist/
+worker.tar.gz
 
 # ==========================
 # OS & Editor
