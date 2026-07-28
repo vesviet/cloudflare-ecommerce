@@ -196,6 +196,13 @@ export default function LandingClient({ lp: initialLp, comboRules: initialComboR
         <h1 style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '10px' }}>
           {lp.seo_title || 'Siêu Phẩm Mới'}
         </h1>
+        {lp?.product?.images && lp.product.images.length > 0 && (
+          <img 
+            src={lp.product.images[0].url} 
+            alt={lp.product.images[0].alt_text || lp.seo_title || 'Product Image'} 
+            style={{ width: '100%', maxWidth: '400px', height: 'auto', borderRadius: '12px', margin: '20px auto', display: 'block', objectFit: 'cover' }} 
+          />
+        )}
         {(() => {
           if (!lp.urgency_end_time) return null;
           let date: Date;
