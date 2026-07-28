@@ -1,9 +1,7 @@
 import { Hono } from 'hono';
-import { getCookie } from 'hono/cookie';
-import { createMiddleware } from 'hono/factory';
-import { createDb, verifyJWT } from '@ecommerce/database';
+import { createDb } from '@ecommerce/database';
 import { localSchema } from '@ecommerce/core-services';
-import { rateLimit, type RateLimiter } from '@ecommerce/shared-routes';
+import { rateLimit, requireCustomer, type RateLimiter } from '@ecommerce/shared-routes';
 import { eq, desc, and, or, inArray } from 'drizzle-orm';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
@@ -31,28 +29,7 @@ const PostReviewSchema = z.object({
   comment: z.string().max(2000).optional(),
 });
 
-const requireCustomer = createMiddleware<Env>(async (c, next) => {
-  const token = getCookie(c, 'aura_token');
-  if (!token) {
-    return c.json({ success: false, error: 'Unauthorized: Sign in to post a review' }, 401);
-  }
-
-  if (!c.env.JWT_SECRET) {
-    return c.json({ success: false, error: 'Internal Server Error: Missing JWT_SECRET' }, 500);
-  }
-
-  try {
-    const payload = await verifyJWT(token, c.env.JWT_SECRET);
-    if (!payload?.customer_id) {
-      return c.json({ success: false, error: 'Unauthorized: Invalid token' }, 401);
-    }
-    c.set('customerId', payload.customer_id as string);
-  } catch {
-    return c.json({ success: false, error: 'Unauthorized: Invalid token' }, 401);
-  }
-
-  await next();
-});
+const customerAuth = requireCustomer({ message: 'Unauthorized: Sign in to post a review' });
 
 /**
  * Checks whether the customer has a paid order containing the product,
@@ -146,7 +123,7 @@ const limitReviews = rateLimit({
 });
 
 // POST a new review
-reviews.post('/', requireCustomer, limitReviews, zValidator('json', PostReviewSchema), async (c) => {
+reviews.post('/', customerAuth, limitReviews, zValidator('json', PostReviewSchema), async (c) => {
   try {
     const { product_id, rating, comment } = c.req.valid('json');
     const customerId = c.get('customerId');

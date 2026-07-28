@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import Stripe from 'stripe'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
+import { secretEquals } from '../utils/secretCompare'
 
 type Bindings = {
   STRIPE_WEBHOOK_QUEUE?: Queue
@@ -54,7 +55,7 @@ const CarrierWebhookSchema = z.object({
 
 webhook.post('/carrier', zValidator('json', CarrierWebhookSchema), async (c) => {
   const carrierSecret = c.req.header('X-Carrier-Webhook-Secret')
-  if (!carrierSecret || carrierSecret !== c.env.CARRIER_WEBHOOK_SECRET) {
+  if (!secretEquals(carrierSecret, c.env.CARRIER_WEBHOOK_SECRET)) {
     console.warn('[Webhook] Carrier webhook: unauthorized request')
     return c.json({ error: 'Unauthorized' }, 401)
   }
