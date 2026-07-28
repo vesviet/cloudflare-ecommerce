@@ -299,3 +299,49 @@ describe('PaymentService.createStripeSession', () => {
     warnSpy.mockRestore();
   });
 });
+
+// ──────────────────────────────────────────────
+// Refund reference resolution
+// ──────────────────────────────────────────────
+
+describe('PaymentService.resolvePaymentIntentId', () => {
+  const makeStripe = (retrieveResult?: any) => ({
+    checkout: {
+      sessions: {
+        retrieve: vi.fn().mockResolvedValue(retrieveResult),
+      },
+    },
+  }) as any;
+
+  it('passes a payment intent reference through without calling Stripe', async () => {
+    const stripe = makeStripe();
+
+    const result = await PaymentService.resolvePaymentIntentId(stripe, 'pi_test_456');
+
+    expect(result).toBe('pi_test_456');
+    expect(stripe.checkout.sessions.retrieve).not.toHaveBeenCalled();
+  });
+
+  it('resolves a checkout session reference to its payment intent', async () => {
+    const stripe = makeStripe({ payment_intent: 'pi_from_session' });
+
+    const result = await PaymentService.resolvePaymentIntentId(stripe, 'cs_test_123');
+
+    expect(result).toBe('pi_from_session');
+    expect(stripe.checkout.sessions.retrieve).toHaveBeenCalledWith('cs_test_123');
+  });
+
+  it('resolves an expanded payment intent object', async () => {
+    const stripe = makeStripe({ payment_intent: { id: 'pi_expanded' } });
+
+    await expect(PaymentService.resolvePaymentIntentId(stripe, 'cs_test_123')).resolves.toBe('pi_expanded');
+  });
+
+  it('throws when the session has no payment intent', async () => {
+    const stripe = makeStripe({ payment_intent: null });
+
+    await expect(
+      PaymentService.resolvePaymentIntentId(stripe, 'cs_test_123')
+    ).rejects.toThrow('no associated payment intent');
+  });
+});

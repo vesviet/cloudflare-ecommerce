@@ -93,7 +93,11 @@ orders.post('/orders/:id/refund', requireRole(['superadmin', 'manager', 'support
 
     if (order.payment_intent_id && c.env.STRIPE_SECRET_KEY) {
       try {
-        await PaymentService.processRefund(c.env.STRIPE_SECRET_KEY, order.payment_intent_id);
+        await PaymentService.processRefund(
+          c.env.STRIPE_SECRET_KEY,
+          order.payment_intent_id,
+          `admin-refund:${orderId}`,
+        );
       } catch (stripeErr: any) {
         return c.json({ success: false, error: `Stripe Refund failed: ${stripeErr.message}` }, 500);
       }

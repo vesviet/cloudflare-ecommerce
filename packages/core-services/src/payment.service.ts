@@ -118,14 +118,38 @@ export class PaymentService {
   }
 
   /**
-   * Processes a refund via Stripe.
+   * Resolves a stored payment reference to a PaymentIntent id.
+   * Some orders store the Checkout Session id, which the Refunds API rejects.
+   */
+  static async resolvePaymentIntentId(stripe: Stripe, paymentReference: string): Promise<string> {
+    if (!paymentReference.startsWith('cs_')) {
+      return paymentReference;
+    }
+
+    const session = await stripe.checkout.sessions.retrieve(paymentReference);
+    const paymentIntentId = typeof session.payment_intent === 'string'
+      ? session.payment_intent
+      : session.payment_intent?.id;
+
+    if (!paymentIntentId) {
+      throw new Error('Checkout session has no associated payment intent');
+    }
+
+    return paymentIntentId;
+  }
+
+  /**
+   * Processes a refund via Stripe. Accepts either a PaymentIntent or a
+   * Checkout Session reference.
    */
   static async processRefund(
     stripeSecretKey: string,
-    paymentIntentId: string,
+    paymentReference: string,
     idempotencyKey?: string,
   ) {
     const stripe = new Stripe(stripeSecretKey, { apiVersion: '2024-06-20' as any });
+    const paymentIntentId = await this.resolvePaymentIntentId(stripe, paymentReference);
+
     return await stripe.refunds.create(
       { payment_intent: paymentIntentId },
       idempotencyKey ? { idempotencyKey } : undefined,
