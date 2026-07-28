@@ -196,6 +196,7 @@ export class ProductService {
 
         if (!assetId) {
           assetId = crypto.randomUUID();
+          assetIdMap[url] = assetId;
           // Insert asset
           batchQueries.push(
             db.insert(schema.assets).values({
