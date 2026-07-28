@@ -10,6 +10,7 @@ export default function LandingClient({ lp: initialLp, comboRules: initialComboR
   const [lp, setLp] = useState<any>(initialLp || null);
   const [loading, setLoading] = useState(!initialLp);
   const [error, setError] = useState(false);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
 
   const slug = initialSlug || (params?.slug as string) || (typeof window !== 'undefined' ? window.location.pathname.split('/landing/')[1] : '');
 
@@ -192,17 +193,100 @@ export default function LandingClient({ lp: initialLp, comboRules: initialComboR
       )}
 
       {/* Hero Section */}
-      <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-        <h1 style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '10px' }}>
-          {lp.seo_title || 'Siêu Phẩm Mới'}
-        </h1>
+      <div style={{ marginBottom: '40px' }}>
+        {/* Fake Urgency Viewers */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '10px', backgroundColor: '#fdf2f8', color: '#be123c', fontWeight: 'bold', fontSize: '1.1rem', marginBottom: '15px', borderRadius: '8px' }}>
+          <span>👁️ Đang có</span>
+          <span style={{ color: '#e11d48', fontSize: '1.2rem' }}>{lp.urgency_fake_views || 800}</span>
+          <span>người xem sản phẩm này</span>
+        </div>
+
+        {/* Image Gallery */}
         {lp?.product?.images && lp.product.images.length > 0 && (
-          <img 
-            src={lp.product.images[0].url} 
-            alt={lp.product.images[0].alt_text || lp.seo_title || 'Product Image'} 
-            style={{ width: '100%', maxWidth: '400px', height: 'auto', borderRadius: '12px', margin: '20px auto', display: 'block', objectFit: 'cover' }} 
-          />
+          <div style={{ position: 'relative', marginBottom: '5px' }}>
+            <img 
+              src={lp.product.images[activeImageIndex]?.url} 
+              alt={lp.product.images[activeImageIndex]?.alt_text || lp.seo_title || 'Product Image'} 
+              style={{ width: '100%', height: 'auto', borderRadius: '4px', display: 'block', objectFit: 'cover', aspectRatio: '4/5' }} 
+            />
+            {lp.product.images.length > 1 && (
+              <>
+                <button 
+                  type="button"
+                  onClick={() => setActiveImageIndex((prev) => (prev > 0 ? prev - 1 : lp.product.images.length - 1))}
+                  style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.4)', color: 'white', border: 'none', borderRadius: '50%', width: '40px', height: '40px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem' }}>
+                  ‹
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => setActiveImageIndex((prev) => (prev < lp.product.images.length - 1 ? prev + 1 : 0))}
+                  style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.4)', color: 'white', border: 'none', borderRadius: '50%', width: '40px', height: '40px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem' }}>
+                  ›
+                </button>
+              </>
+            )}
+          </div>
         )}
+
+        {/* Thumbnails */}
+        {lp?.product?.images && lp.product.images.length > 1 && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px', marginBottom: '20px' }}>
+            {lp.product.images.slice(0, 4).map((img: any, idx: number) => (
+              <img 
+                key={idx}
+                src={img.url}
+                onClick={() => setActiveImageIndex(idx)}
+                style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', borderRadius: '4px', cursor: 'pointer', opacity: activeImageIndex === idx ? 1 : 0.6 }}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Title */}
+        <h1 style={{ fontSize: '1.4rem', fontWeight: '900', textAlign: 'center', textTransform: 'uppercase', marginBottom: '15px', lineHeight: '1.4' }}>
+          {lp.seo_title || 'ÁO SƠ MI NAM CỔ TRỤ THIẾT KẾ PHONG ĐỘ - TRẺ TRUNG - LỊCH LÃM'}
+        </h1>
+
+        {/* Fake Rating & Sold */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', color: '#6b7280', fontSize: '0.9rem', marginBottom: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <span style={{ color: '#ea580c', fontWeight: 'bold', textDecoration: 'underline' }}>4.9</span>
+            <span style={{ color: '#fbbf24', fontSize: '1.1rem' }}>★★★★★</span>
+          </div>
+          <div style={{ width: '1px', height: '12px', background: '#d1d5db' }}></div>
+          <div><span style={{ textDecoration: 'underline' }}>1200</span> Đánh giá</div>
+          <div style={{ width: '1px', height: '12px', background: '#d1d5db' }}></div>
+          <div><span style={{ textDecoration: 'underline' }}>583 824</span> Đã bán</div>
+        </div>
+
+        {/* Price Section */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '25px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '1.1rem', fontWeight: '600', color: '#4b5563' }}>Giá chỉ:</span>
+            <span style={{ fontSize: '2.2rem', fontWeight: '900', color: '#ea580c' }}>
+              {selectedCombo ? selectedCombo.price.toLocaleString('vi-VN') : '189.000'} VNĐ
+            </span>
+            <span style={{ backgroundColor: '#fbbf24', color: '#fff', fontWeight: 'bold', padding: '4px 10px', borderRadius: '20px', fontSize: '0.9rem' }}>
+              GIẢM 50%
+            </span>
+          </div>
+          <div style={{ color: '#6b7280', fontSize: '1rem', marginTop: '5px' }}>
+            Tiết kiệm <span style={{ fontWeight: 'bold' }}>{selectedCombo ? selectedCombo.price.toLocaleString('vi-VN') : '190.000'} vnđ</span> so với giá niêm yết
+          </div>
+        </div>
+
+        {/* Features Bullet Points */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '0 20px', fontSize: '1.1rem', color: '#374151', marginBottom: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+            <span style={{ color: '#d1d5db', fontSize: '1.2rem' }}>●</span>
+            <span>Màu sắc: Trắng - Xanh - Be - Nâu</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+            <span style={{ color: '#d1d5db', fontSize: '1.2rem' }}>●</span>
+            <span>Phù hợp mặc: Đi làm, dự tiệc, vui chơi dã ngoại, hằng ngày</span>
+          </div>
+        </div>
+
         {(() => {
           if (!lp.urgency_end_time) return null;
           let date: Date;
@@ -220,16 +304,13 @@ export default function LandingClient({ lp: initialLp, comboRules: initialComboR
           }
           if (isNaN(date.getTime())) return null;
           return (
-            <p style={{ color: 'red', fontWeight: 'bold' }}>
-              ⏳ Khuyến mãi kết thúc vào: {date.toLocaleString('vi-VN')}
-            </p>
+            <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+              <p style={{ color: 'red', fontWeight: 'bold', fontSize: '1.1rem' }}>
+                ⏳ Khuyến mãi kết thúc vào: {date.toLocaleString('vi-VN')}
+              </p>
+            </div>
           );
         })()}
-        {lp.urgency_fake_views > 0 && (
-          <p style={{ color: '#666', fontSize: '0.9rem' }}>
-            🔥 Đang có {lp.urgency_fake_views} người đang xem trang này
-          </p>
-        )}
       </div>
 
       {/* Checkout Form */}
