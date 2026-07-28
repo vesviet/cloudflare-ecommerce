@@ -314,7 +314,7 @@ export default function LandingClient({ lp: initialLp, comboRules: initialComboR
               ></div>
             </div>
 
-            {lp?.product && (lp.product.status !== 'active' || (lp.variants && lp.variants.length > 0 && lp.variants.reduce((s: number, v: any) => s + (v.stock || 0), 0) <= 0)) ? (
+            {lp?.product && ((lp.product.status !== 'active' && lp.product.status !== 'published') || (lp.variants && lp.variants.length > 0 ? lp.variants.reduce((s: number, v: any) => s + (v.stock || 0), 0) <= 0 : (lp.product.stock || 0) <= 0)) ? (
               <div style={{ backgroundColor: '#fee2e2', color: '#991b1b', padding: '15px', borderRadius: '8px', textAlign: 'center', fontWeight: 'bold', marginTop: '10px' }}>
                 ⚠️ Tạm Hết Hàng - Sản phẩm hiện đang tạm ngưng nhận đơn mới.
               </div>

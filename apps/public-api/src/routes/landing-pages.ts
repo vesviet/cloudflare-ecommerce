@@ -46,6 +46,29 @@ landingPages.get('/:slug', async (c) => {
     if (data.product_id) {
       productData = await db.select().from(schema.products).where(eq(schema.products.id, data.product_id)).get();
       variantsData = await db.select().from(schema.products).where(eq(schema.products.parent_id, data.product_id)).all();
+
+      const stockedIds = variantsData.length > 0 ? variantsData.map(v => v.id) : [data.product_id];
+      const stockRows = await db
+        .select({
+          product_id: schema.inventoryLevels.product_id,
+          stock_quantity: schema.inventoryLevels.stock_quantity,
+        })
+        .from(schema.inventoryLevels)
+        .where(inArray(schema.inventoryLevels.product_id, stockedIds))
+        .all();
+
+      const stockByProduct = new Map<string, number>();
+      for (const row of stockRows) {
+        stockByProduct.set(row.product_id, (stockByProduct.get(row.product_id) ?? 0) + (row.stock_quantity ?? 0));
+      }
+
+      if (productData) {
+        (productData as any).stock = stockByProduct.get(productData.id) ?? 0;
+      }
+      variantsData = variantsData.map(v => ({
+        ...v,
+        stock: stockByProduct.get(v.id) ?? 0
+      }));
     }
 
     const payload = {
@@ -74,7 +97,7 @@ landingPages.get('/:slug/stock', async (c) => {
     const product = await db.select().from(schema.products).where(eq(schema.products.id, lp.product_id)).get();
     const variants = await db.select().from(schema.products).where(eq(schema.products.parent_id, lp.product_id)).all();
 
-    const isProductActive = product?.status === 'active';
+    const isProductActive = product?.status === 'active' || product?.status === 'published';
 
     // Stock lives in inventory_levels, not on products. Sum across locations so a
     // product is only out of stock when no location can fulfil it.
