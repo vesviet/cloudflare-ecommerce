@@ -1,4 +1,4 @@
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, inArray } from 'drizzle-orm';
 import { schema } from '@ecommerce/database';
 
 export class ProductService {
@@ -182,18 +182,31 @@ export class ProductService {
           db.delete(schema.productAssets).where(eq(schema.productAssets.product_id, productId))
         );
       }
+
+      const assetIdMap: Record<string, string> = {};
+      const existingAssets = await db.select({ id: schema.assets.id, r2_key: schema.assets.r2_key })
+        .from(schema.assets)
+        .where(inArray(schema.assets.r2_key, params.imageUrls));
+        
+      existingAssets.forEach((a: any) => { assetIdMap[a.r2_key] = a.id; });
+
       for (let i = 0; i < params.imageUrls.length; i++) {
         const url = params.imageUrls[i];
-        const assetId = crypto.randomUUID();
-        // Insert asset
-        batchQueries.push(
-          db.insert(schema.assets).values({
-            id: assetId,
-            r2_key: url,
-            url: url,
-            alt_text: params.name || 'Product Image'
-          })
-        );
+        let assetId = assetIdMap[url];
+
+        if (!assetId) {
+          assetId = crypto.randomUUID();
+          // Insert asset
+          batchQueries.push(
+            db.insert(schema.assets).values({
+              id: assetId,
+              r2_key: url,
+              url: url,
+              alt_text: params.name || 'Product Image'
+            })
+          );
+        }
+        
         // Link asset to product
         batchQueries.push(
           db.insert(schema.productAssets).values({
