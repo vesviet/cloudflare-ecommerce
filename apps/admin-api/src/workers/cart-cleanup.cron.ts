@@ -1,7 +1,5 @@
 import { sql, eq } from 'drizzle-orm';
-import { createDb } from '@ecommerce/database';
 import { localSchema as schema } from '@ecommerce/core-services';
-import { Bindings } from '../types';
 
 export const runCartCleanup = async (db: any) => {
   // 30 days ago in seconds

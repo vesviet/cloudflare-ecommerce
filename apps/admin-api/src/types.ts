@@ -4,7 +4,6 @@ export type Bindings = {
   CMS_R2: R2Bucket;
   ENVIRONMENT: string;
   CACHE_KV: KVNamespace;
-  CATALOG_FILTERS_KV: KVNamespace;
   EVENT_QUEUE: Queue;
   ALLOWED_ADMIN_ORIGINS?: string;
   STRIPE_SECRET_KEY?: string;

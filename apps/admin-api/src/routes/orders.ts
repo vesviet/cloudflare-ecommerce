@@ -200,6 +200,13 @@ orders.post('/orders/:id/fulfill', requireRole(['superadmin', 'manager', 'suppor
       }
     }
 
+    // Only a fully fulfilled order moves to shipped. Marking a partial shipment as
+    // shipped lets the carrier webhook complete an order that still owes items.
+    const totalOrderedQty = dbOrderItems.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
+    const previouslyFulfilledQty = Array.from(fulfilledMap.values()).reduce((sum, qty) => sum + qty, 0);
+    const newlyFulfilledQty = mappedItems.reduce((sum, item) => sum + item.quantity, 0);
+    const isFullyFulfilled = previouslyFulfilledQty + newlyFulfilledQty >= totalOrderedQty;
+
     const shipmentId = await FulfillmentService.createFulfillment(
       db,
       orderId,
@@ -210,10 +217,12 @@ orders.post('/orders/:id/fulfill', requireRole(['superadmin', 'manager', 'suppor
 
     await FulfillmentService.updateStatus(db, shipmentId, 'shipped');
 
-    await db.update(localSchema.orders)
-      .set({ status: 'shipped', updated_at: sql`CURRENT_TIMESTAMP` })
-      .where(eq(localSchema.orders.id, orderId))
-      .run();
+    if (isFullyFulfilled) {
+      await db.update(localSchema.orders)
+        .set({ status: 'shipped', updated_at: sql`CURRENT_TIMESTAMP` })
+        .where(eq(localSchema.orders.id, orderId))
+        .run();
+    }
 
     if (c.env.EVENT_QUEUE) {
       await c.env.EVENT_QUEUE.send({
@@ -221,11 +230,17 @@ orders.post('/orders/:id/fulfill', requireRole(['superadmin', 'manager', 'suppor
         orderId,
         trackingNumber: tracking_number,
         carrierName: carrier_name,
-        isPartial: false
+        isPartial: !isFullyFulfilled
       });
     }
 
-    return c.json({ success: true, message: `Order ${orderId} completely fulfilled successfully` });
+    return c.json({
+      success: true,
+      is_partial: !isFullyFulfilled,
+      message: isFullyFulfilled
+        ? `Order ${orderId} fully fulfilled`
+        : `Order ${orderId} partially fulfilled`
+    });
   } catch (err: any) {
     return c.json({ success: false, error: err.message }, 500);
   }

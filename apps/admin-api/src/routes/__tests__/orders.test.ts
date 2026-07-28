@@ -110,8 +110,12 @@ describe('Admin API: Orders Controller', () => {
     if (!data.success) console.log('FULFILL ERR:', JSON.stringify(data));
     expect(res.status).toBe(200);
     expect(data.success).toBe(true);
+
+    // Only 1 of the 10 ordered units ships here, so this must be reported as partial.
+    expect(data.is_partial).toBe(true);
     expect(mockEnv.EVENT_QUEUE.send).toHaveBeenCalledWith(expect.objectContaining({
-      type: 'ORDER_SHIPPED'
+      type: 'ORDER_SHIPPED',
+      isPartial: true
     }));
   });
 });

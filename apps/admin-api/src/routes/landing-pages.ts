@@ -33,18 +33,19 @@ landingPages.get('/landing-pages', requireRole(['superadmin', 'manager', 'editor
 });
 
 // POST: Create Landing Page
+// urgency_end_time is an ISO string column. Writing an epoch number instead made
+// the admin form parse it as milliseconds and display the wrong date.
+const toIsoStringOrNull = (value?: string | null): string | null => {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return isNaN(parsed.getTime()) ? null : parsed.toISOString();
+};
+
 landingPages.post('/landing-pages', requireRole(['superadmin', 'manager', 'editor']), zValidator('json', landingPageSchema), async (c) => {
   try {
     const db = createDb(c.env.DB);
     const body = c.req.valid('json');
     const id = crypto.randomUUID();
-
-    // Generate a valid epoch timestamp if urgency_end_time is provided
-    let urgencyEpoch: number | null = null;
-    if (body.urgency_end_time) {
-      const parsed = new Date(body.urgency_end_time).getTime();
-      if (!isNaN(parsed)) urgencyEpoch = Math.floor(parsed / 1000);
-    }
 
     await db.insert(schema.landingPages).values({
       id,
@@ -55,7 +56,7 @@ landingPages.post('/landing-pages', requireRole(['superadmin', 'manager', 'edito
       seo_description: body.seo_description,
       facebook_pixel_id: body.facebook_pixel_id,
       tiktok_pixel_id: body.tiktok_pixel_id,
-      urgency_end_time: urgencyEpoch,
+      urgency_end_time: toIsoStringOrNull(body.urgency_end_time),
       urgency_fake_views: body.urgency_fake_views,
       combo_rules_json: body.combo_rules_json,
       status: 'published',
@@ -74,12 +75,6 @@ landingPages.put('/landing-pages/:id', requireRole(['superadmin', 'manager', 'ed
     const db = createDb(c.env.DB);
     const body = c.req.valid('json');
 
-    let urgencyEpoch: number | null = null;
-    if (body.urgency_end_time) {
-      const parsed = new Date(body.urgency_end_time).getTime();
-      if (!isNaN(parsed)) urgencyEpoch = Math.floor(parsed / 1000);
-    }
-
     await db.update(schema.landingPages).set({
       title: body.title,
       slug: body.slug,
@@ -88,7 +83,7 @@ landingPages.put('/landing-pages/:id', requireRole(['superadmin', 'manager', 'ed
       seo_description: body.seo_description,
       facebook_pixel_id: body.facebook_pixel_id,
       tiktok_pixel_id: body.tiktok_pixel_id,
-      urgency_end_time: urgencyEpoch,
+      urgency_end_time: toIsoStringOrNull(body.urgency_end_time),
       urgency_fake_views: body.urgency_fake_views,
       combo_rules_json: body.combo_rules_json,
     }).where(eq(schema.landingPages.id, id));
