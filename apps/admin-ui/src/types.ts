@@ -20,6 +20,7 @@ export interface ProductData {
   regular_price: number;
   sale_price: number | null;
   manage_stock?: number;
+  stock_quantity?: number;
   weight?: number | null;
   length?: number | null;
   width?: number | null;

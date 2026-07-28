@@ -66,7 +66,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({ initialData, API_BASE_
       setProductType(p.type);
       setProductRegularPrice(p.regular_price ? (p.regular_price / 100).toString() : '');
       setProductSalePrice(p.sale_price ? (p.sale_price / 100).toString() : '');
-      const simpleStock = p.variations?.[0]?.stock !== undefined ? p.variations[0].stock.toString() : '';
+      const simpleStock = p.stock_quantity !== undefined && p.stock_quantity !== null ? p.stock_quantity.toString() : '';
       setProductStock(simpleStock);
       setProductWeight(p.weight?.toString() || '');
       setProductLength(p.length?.toString() || '');
