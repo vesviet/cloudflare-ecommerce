@@ -106,7 +106,7 @@ export default function OrdersPage() {
                         const res = await fetch(`${API_BASE}/rma`, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ order_id: selectedOrder, customer_id: useAuthStore.getState().customer?.id, reason: rmaReason }),
+                          body: JSON.stringify({ order_id: selectedOrder, reason: rmaReason }),
                           credentials: 'include'
                         });
                         const data = await res.json();

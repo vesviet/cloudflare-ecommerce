@@ -21,9 +21,13 @@ export function ReviewFormModal({ productId, isOpen, onClose, onSuccess }: Revie
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await fetch('/api/reviews', {
+      // Posting a review requires the session cookie, which belongs to the API
+      // origin, so call it directly instead of going through the Next rewrite.
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com';
+      const res = await fetch(`${apiBase}/api/reviews`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ product_id: productId, rating, comment })
       });
       const data = await res.json();

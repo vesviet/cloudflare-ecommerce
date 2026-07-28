@@ -101,8 +101,19 @@ describe('Landing Pages Route & Secret Sanitization Verification', () => {
       passThroughOnException: vi.fn(),
     };
 
-    it('P0: Accepts dev dummy token without calling Turnstile siteverify API', async () => {
-      const fetchSpy = vi.spyOn(global, 'fetch');
+    it('P0: Does not trust the well-known dev token and still calls siteverify', async () => {
+      let siteverifyCalled = false;
+      vi.spyOn(global, 'fetch').mockImplementation(async (url: any) => {
+        if (url.toString().includes('siteverify')) {
+          siteverifyCalled = true;
+          return new Response(JSON.stringify({ success: false, 'error-codes': ['invalid-input-response'] }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+        return new Response('Not found', { status: 404 });
+      });
+
       const mockEnv = {
         DB: {} as any,
         CACHE_KV: {} as any,
@@ -121,18 +132,11 @@ describe('Landing Pages Route & Secret Sanitization Verification', () => {
       });
 
       const res = await landingPages.fetch(req, mockEnv, mockExecutionCtx as any);
-      expect(res.status).toBe(200);
 
+      expect(siteverifyCalled).toBe(true);
+      expect(res.status).toBe(403);
       const data = (await res.json()) as any;
-      expect(data.success).toBe(true);
-      expect(data.data.id).toBeDefined();
-      expect(data.data.order_id).toBeDefined();
-
-      // siteverify API must NOT be called for dummy token
-      expect(fetchSpy).not.toHaveBeenCalledWith(
-        'https://challenges.cloudflare.com/turnstile/v0/siteverify',
-        expect.anything()
-      );
+      expect(data.success).toBe(false);
     });
 
     it('P0: Rejects request with missing turnstile_token when TURNSTILE_SECRET_KEY is configured', async () => {

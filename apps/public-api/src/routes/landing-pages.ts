@@ -117,8 +117,11 @@ landingPages.post('/leads', zValidator('json', LeadSubmissionSchema), async (c) 
       selected_variants_json, total_amount, utm_source, utm_campaign, utm_content, turnstile_token 
     } = body;
 
-    // 1. Verify Turnstile
-    if (c.env.TURNSTILE_SECRET_KEY && turnstile_token !== '1x0000000000000000000000000000000AA') {
+    // 1. Verify Turnstile.
+    // Every token is verified against siteverify. Local and QA environments use
+    // Cloudflare's always-passing testing secret rather than a trusted token value,
+    // because any token value a client can send is a value an attacker can send.
+    if (c.env.TURNSTILE_SECRET_KEY) {
       if (!turnstile_token) {
         return c.json({ success: false, error: 'Missing turnstile token' }, 403);
       }
@@ -134,6 +137,8 @@ landingPages.post('/leads', zValidator('json', LeadSubmissionSchema), async (c) 
       if (!outcome.success) {
         return c.json({ success: false, error: 'Turnstile verification failed' }, 403);
       }
+    } else {
+      console.warn('[Landing Pages] TURNSTILE_SECRET_KEY is not set — lead submissions are unprotected');
     }
 
     const db = createDb(c.env.DB);
