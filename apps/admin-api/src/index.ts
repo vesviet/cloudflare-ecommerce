@@ -58,6 +58,8 @@ app.route('/media', mediaRoutes);
 app.route('/admin-users', adminUsersRoutes);
 app.route('/settings', settingsRoutes);
 
+export type AppType = typeof app;
+
 export default {
   fetch: app.fetch,
   async queue(batch: MessageBatch<any>, env: Bindings): Promise<void> {

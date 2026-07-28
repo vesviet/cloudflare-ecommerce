@@ -3,7 +3,16 @@ import { z } from '@hono/zod-openapi';
 import * as fs from 'fs';
 import * as path from 'path';
 
-import { ProductSchema, CheckoutSchema, ErrorResponseSchema } from '../src/index';
+import {
+  ProductSchema,
+  CheckoutSchema,
+  ErrorResponseSchema,
+  CouponSchema,
+  ReviewSchema,
+  WishlistSchema,
+  FulfillmentSchema,
+  RMASchema,
+} from '../src/index';
 
 const registry = new OpenAPIRegistry();
 
@@ -11,8 +20,13 @@ const registry = new OpenAPIRegistry();
 registry.register('Product', ProductSchema);
 registry.register('Checkout', CheckoutSchema);
 registry.register('ErrorResponse', ErrorResponseSchema);
+registry.register('Coupon', CouponSchema);
+registry.register('Review', ReviewSchema);
+registry.register('Wishlist', WishlistSchema);
+registry.register('Fulfillment', FulfillmentSchema);
+registry.register('RMA', RMASchema);
 
-// We can also define some dummy paths here so the SDK generator has endpoints to generate.
+// We can also define dummy paths here so the SDK generator has endpoints to generate.
 registry.registerPath({
   method: 'get',
   path: '/api/products',

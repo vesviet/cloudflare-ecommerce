@@ -4,7 +4,7 @@ import { localSchema } from '@ecommerce/core-services';
 import { rateLimit, requireCustomer, type RateLimiter } from '@ecommerce/shared-routes';
 import { eq, desc, and, or, inArray } from 'drizzle-orm';
 import { zValidator } from '@hono/zod-validator';
-import { z } from 'zod';
+import { PostReviewSchema } from '@ecommerce/contract';
 
 type Bindings = {
   DB: D1Database;
@@ -22,12 +22,6 @@ type Env = { Bindings: Bindings; Variables: Variables };
 const PAID_ORDER_STATUSES = ['processing', 'shipped', 'completed'];
 
 const reviews = new Hono<Env>();
-
-const PostReviewSchema = z.object({
-  product_id: z.string().min(1),
-  rating: z.number().int().min(1).max(5),
-  comment: z.string().max(2000).optional(),
-});
 
 const customerAuth = requireCustomer({ message: 'Unauthorized: Sign in to post a review' });
 

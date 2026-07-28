@@ -1,4 +1,18 @@
 import { z } from '@hono/zod-openapi'
+import {
+  adminUserSchema,
+  adminUserStatusSchema,
+  categorySchema,
+  updateCategorySchema,
+  cmsSchema,
+  updateCmsSchema,
+  customerSchema,
+  resetPasswordSchema,
+  fulfillSchema,
+  productFormSchema,
+  couponSchema,
+  updateCouponSchema,
+} from './admin'
 
 // Schema cho Sản phẩm (Catalog)
 export const ProductSchema = z.object({
@@ -32,11 +46,15 @@ export const CheckoutSchema = z.object({
   utm_source: z.string().optional(),
   utm_medium: z.string().optional(),
   utm_campaign: z.string().optional(),
-  accepts_marketing: z.boolean().optional(),
+  accepts_marketing: z.union([z.boolean(), z.number().transform(v => Boolean(v))]).optional(),
   turnstileToken: z.string().optional(),
   redeem_points: z.number().int().nonnegative().optional(),
+  b2b_company: z.string().optional(),
+  b2b_vat_id: z.string().optional(),
 }).openapi('Checkout')
 
+// Alias checkoutSchema to CheckoutSchema for compatibility
+export const checkoutSchema = CheckoutSchema
 
 // Schema API Key Response
 export const ErrorResponseSchema = z.object({
@@ -49,7 +67,7 @@ export const ErrorResponseSchema = z.object({
 export const CouponSchema = z.object({
   id: z.string().uuid(),
   code: z.string(),
-  type: z.enum(['percent', 'fixed', 'freeship']),
+  type: z.enum(['percent', 'fixed', 'freeship', 'percentage', 'free_shipping']),
   value: z.number(),
   max_uses: z.number().int().optional(),
   uses: z.number().int().default(0),
@@ -68,6 +86,12 @@ export const ReviewSchema = z.object({
   verified_purchase: z.boolean().default(false),
   created_at: z.string().datetime(),
 }).openapi('Review')
+
+export const PostReviewSchema = z.object({
+  product_id: z.string().min(1),
+  rating: z.number().int().min(1).max(5),
+  comment: z.string().max(2000).optional(),
+})
 
 export const WishlistSchema = z.object({
   id: z.string().uuid(),
@@ -102,4 +126,99 @@ export const RMASchema = z.object({
   updated_at: z.string().datetime(),
 }).openapi('RMA')
 
-export * from './admin';
+// --- CART SCHEMAS ---
+export const CartItemSchema = z.object({
+  id: z.string().optional(),
+  variation_id: z.string(),
+  product_id: z.string().optional(),
+  quantity: z.number().int().positive(),
+  price: z.number().optional(),
+  title: z.string().optional(),
+})
+
+export const CartSchema = z.object({
+  id: z.string().optional(),
+  customer_id: z.string().optional(),
+  items: z.array(CartItemSchema),
+  updated_at: z.string().optional(),
+})
+
+export const AddToCartSchema = z.object({
+  variation_id: z.string(),
+  quantity: z.number().int().positive().default(1),
+})
+
+// --- SHARED ROUTE SCHEMAS ---
+export const CustomerRegisterSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8),
+  firstName: z.string().optional().nullable(),
+  lastName: z.string().optional().nullable(),
+  phone: z.string().optional().nullable(),
+  dob: z.string().optional().nullable(),
+  gender: z.string().optional().nullable(),
+  companyName: z.string().optional().nullable(),
+  vatTaxId: z.string().optional().nullable(),
+  acceptsMarketing: z.union([z.boolean(), z.number().transform(v => Boolean(v))]).optional(),
+  signupUtmSource: z.string().optional().nullable(),
+  signupUtmMedium: z.string().optional().nullable(),
+  signupUtmCampaign: z.string().optional().nullable(),
+  signupAffiliateId: z.string().optional().nullable(),
+})
+
+export const CustomerLoginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+})
+
+export const CustomerAddressSchema = z.object({
+  alias: z.string().optional(),
+  first_name: z.string().min(1),
+  last_name: z.string().min(1),
+  company: z.string().optional().nullable(),
+  address_1: z.string().min(1),
+  address_2: z.string().optional().nullable(),
+  city: z.string().min(1),
+  state: z.string().optional().nullable(),
+  postcode: z.string().min(1),
+  country: z.string().optional(),
+  phone: z.string().optional().nullable(),
+  vat_id: z.string().optional().nullable(),
+  latitude: z.number().optional().nullable(),
+  longitude: z.number().optional().nullable(),
+  delivery_instructions: z.string().optional().nullable(),
+})
+
+// Re-export admin schemas
+export * from './admin'
+
+// Export Inferred Types
+export type Product = z.infer<typeof ProductSchema>;
+export type CheckoutInput = z.infer<typeof CheckoutSchema>;
+export type ErrorResponse = z.infer<typeof ErrorResponseSchema>;
+export type Coupon = z.infer<typeof CouponSchema>;
+export type CouponInput = z.infer<typeof couponSchema>;
+export type UpdateCouponInput = z.infer<typeof updateCouponSchema>;
+export type Review = z.infer<typeof ReviewSchema>;
+export type PostReviewInput = z.infer<typeof PostReviewSchema>;
+export type Wishlist = z.infer<typeof WishlistSchema>;
+export type Fulfillment = z.infer<typeof FulfillmentSchema>;
+export type FulfillInput = z.infer<typeof fulfillSchema>;
+export type RMA = z.infer<typeof RMASchema>;
+
+export type AdminUser = z.infer<typeof adminUserSchema>;
+export type AdminUserStatus = z.infer<typeof adminUserStatusSchema>;
+export type Category = z.infer<typeof categorySchema>;
+export type UpdateCategory = z.infer<typeof updateCategorySchema>;
+export type CMSItem = z.infer<typeof cmsSchema>;
+export type UpdateCMSItem = z.infer<typeof updateCmsSchema>;
+export type Customer = z.infer<typeof customerSchema>;
+export type ResetPassword = z.infer<typeof resetPasswordSchema>;
+export type ProductForm = z.infer<typeof productFormSchema>;
+
+export type CartItem = z.infer<typeof CartItemSchema>;
+export type Cart = z.infer<typeof CartSchema>;
+export type AddToCartInput = z.infer<typeof AddToCartSchema>;
+export type CustomerRegisterInput = z.infer<typeof CustomerRegisterSchema>;
+export type CustomerLoginInput = z.infer<typeof CustomerLoginSchema>;
+export type CustomerAddressInput = z.infer<typeof CustomerAddressSchema>;

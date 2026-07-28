@@ -1,70 +1,83 @@
 {
   "project": "Cloudflare E-Commerce",
-  "version": "1.1",
+  "version": "1.2",
   "inputs": {
     "feature_ticket_ref": "contracts/feature-ticket-checkout.json",
-    "architecture_review_ref": "architecture_review_checkout.md"
+    "architecture_review_ref": "CLOUDFLARE_DEPLOYMENT.md",
+    "schema_ref": "packages/database/src/schema.ts"
   },
   "ai_assisted_development_policy": {
-    "ai_tooling_in_use": ["Antigravity"],
-    "trust_zones_defined": ["restricted", "standard"],
-    "restricted_zone_slices": ["slice-1-checkout-inventory", "slice-2-payment-webhook"],
-    "ai_code_review_focus": "Deep-dive human review required for inventory math (D1 batch transactions) and Stripe webhook signature validation."
+    "ai_tooling_in_use": ["Google Antigravity (Gemini 3.6 Flash)", "Wrangler CLI"],
+    "trust_zones_defined": ["restricted", "standard", "low-risk"],
+    "restricted_zone_slices": [
+      "slice-1-auth-zero-trust",
+      "slice-2-payment-stripe-webhook",
+      "slice-3-checkout-idempotency-inventory"
+    ],
+    "ai_code_review_focus": "Intent + Assumption validation for Zero Trust JWT verification, D1 batch transactions, Durable Object inventory locks, and webhook idempotency replay safety."
   },
   "slices": [
     {
-      "id": "slice-0-feature-flag",
-      "owner": "backend-developer",
-      "description": "Create a `settings` table in D1 to manage the `checkout-v2` feature flag in real-time without redeploying the Worker.",
+      "id": "slice-0-database-migration",
+      "owner": "cloudflare-engineer",
+      "description": "D1 migrations (0000 -> 0015) covering schema tables: orders, idempotency_keys, checkout_idempotency, landing_pages, landing_page_leads, failed_jobs, product_reviews, rma_requests.",
       "depends_on": [],
       "trust_zone": "standard"
     },
     {
-      "id": "slice-1-checkout-inventory",
+      "id": "slice-1-auth-zero-trust",
       "owner": "backend-developer",
-      "description": "Implement checkout API endpoint to create order and 15-minute soft-lock. MUST use pure D1 `db.batch()` for atomic transactions to prevent race conditions.",
-      "depends_on": ["slice-0-feature-flag"],
+      "description": "Cloudflare Access Zero Trust JWT middleware (CF-Access-JWT-Assertion), RBAC role enforcement (superadmin, manager, support, editor), and local dev fallback header validation.",
+      "depends_on": ["slice-0-database-migration"],
       "trust_zone": "restricted"
     },
     {
-      "id": "slice-2-payment-webhook",
+      "id": "slice-2-payment-stripe-webhook",
       "owner": "backend-developer",
-      "description": "Implement Stripe webhook handler. MUST use `idempotency_keys` table to prevent duplicate processing. Data Minimization: Log ONLY `stripe_event_id`, `order_id`, and `status` to `audit_logs` (NO full payload).",
-      "depends_on": ["slice-1-checkout-inventory"],
+      "description": "Stripe webhook event processing with lease-based idempotency state machine, signature verification, and Cloudflare Queue DLQ persistence before ack.",
+      "depends_on": ["slice-0-database-migration"],
       "trust_zone": "restricted"
     },
     {
-      "id": "slice-3-abandoned-cron",
+      "id": "slice-3-checkout-idempotency-inventory",
       "owner": "backend-developer",
-      "description": "Implement Cloudflare Worker Cron handler (hourly) to mark `pending_payment` orders > 24h as `abandoned`. MUST use pagination (LIMIT/OFFSET) to avoid Worker timeouts.",
-      "depends_on": ["slice-1-checkout-inventory"],
+      "description": "Public API checkout v2 logic using checkout_idempotency claim/replay, inventory reservation via INVENTORY_DO Durable Object & D1 batch locks.",
+      "depends_on": ["slice-0-database-migration"],
+      "trust_zone": "restricted"
+    },
+    {
+      "id": "slice-4-landing-product-mapping",
+      "owner": "frontend-developer",
+      "description": "Hybrid Lead & Order creation flow mapping Landing Pages with Product/Variants, Turnstile anti-spam, and real-time Stock Guard disabled state.",
+      "depends_on": ["slice-0-database-migration", "slice-3-checkout-idempotency-inventory"],
       "trust_zone": "standard"
     },
     {
-      "id": "slice-4-coupon-stacking",
-      "owner": "backend-developer",
-      "description": "Implement `POST /api/cart/coupon`. Strict Limit 1: DELETE existing `order_discounts` for the cart and INSERT the new one.",
-      "depends_on": [],
+      "id": "slice-5-admin-telesale-dashboard",
+      "owner": "frontend-developer",
+      "description": "Telesale Admin UI tab for Landing Leads (1-click order approve/cancel, stock deduction), Order list Landing Page badge, and product-linking selector.",
+      "depends_on": ["slice-4-landing-product-mapping"],
       "trust_zone": "standard"
     }
   ],
   "progressive_delivery": {
-    "feature_flags_required": ["checkout-v2 (via D1 settings table)"],
-    "canary_target": "10% of logged-in user traffic",
-    "rollback_trigger": "Checkout 5xx error rate > 1% OR Stripe webhook failure rate > 0%",
-    "observability_requirement": "Log all inventory soft-lock collisions and webhook signature failures."
+    "feature_flags_required": ["rma_self_service (via CACHE_KV)", "landing_lead_hybrid_checkout"],
+    "canary_target": "100% storefront & admin traffic on main branch Cloudflare Workers/Pages",
+    "rollback_trigger": "Checkout 5xx error rate > 1% OR Stripe webhook failure rate > 0% OR D1 lock contention timeout",
+    "observability_requirement": "Log all inventory soft-lock collisions, Turnstile validation failures, and webhook idempotency lease states to Cloudflare Workers Logs & audit_logs table."
   },
   "impact_and_gates": {
-    "impact_radius": "Critical path: Checkout and Payment. A bug here halts all revenue.",
+    "impact_radius": "Critical path: Public Storefront Checkout, Landing Page Lead Creation, Admin Order Approval, Stripe Webhooks.",
     "quality_gates": [
-      "Unit tests for soft-lock expiration logic.",
-      "Unit tests for webhook idempotency logic (Mandatory).",
-      "Stripe CLI local webhook testing must pass before merge."
+      "pnpm audit --prod --audit-level high passes with 0 vulnerabilities (Clean).",
+      "Vitest API test suites pass 100% across public-api and admin-api (40 + 36 = 76 passing tests).",
+      "Next.js storefront-ui build via @cloudflare/next-on-pages passes without errors.",
+      "Vite admin-ui build passes without TypeScript or asset errors."
     ]
   },
   "documentation_deltas": [
-    "Update README with Stripe webhook setup instructions for local development.",
-    "Document D1 `settings` table schema for feature flags."
+    "CLOUDFLARE_DEPLOYMENT.md updated with Wrangler deploy & D1 migration apply instructions.",
+    "README.md updated with local dev seed and environment variable requirements."
   ],
   "open_questions": []
 }

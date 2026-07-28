@@ -6,6 +6,8 @@ import { localSchema as schema } from '@ecommerce/core-services';
 import { hashPassword, verifyPassword, signJWT, verifyJWT } from '@ecommerce/database';
 import { WishlistService } from '@ecommerce/core-services';
 import { rateLimit, clientIp, type RateLimiter } from './rate-limit';
+import { zValidator } from '@hono/zod-validator';
+import { CustomerRegisterSchema, CustomerLoginSchema } from '@ecommerce/contract';
 type Bindings = {
   DB: D1Database;
   JWT_SECRET: string;
@@ -50,13 +52,13 @@ const limitByEmail = (scope: string) =>
 const customerApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
 // Authentication Routes
-customerApp.post('/auth/register', limitByIp('auth-register-ip'), async (c) => {
+customerApp.post('/auth/register', limitByIp('auth-register-ip'), zValidator('json', CustomerRegisterSchema), async (c) => {
   try {
     const { 
       email, password, firstName, lastName, phone, 
       dob, gender, companyName, vatTaxId, acceptsMarketing,
       signupUtmSource, signupUtmMedium, signupUtmCampaign, signupAffiliateId
-    } = await c.req.json();
+    } = c.req.valid('json');
     
     if (!email || !password || password.length < 8) {
       return c.json({ success: false, error: 'Invalid email or password must be at least 8 characters' }, 400);
@@ -120,9 +122,9 @@ customerApp.post('/auth/register', limitByIp('auth-register-ip'), async (c) => {
   }
 });
 
-customerApp.post('/auth/login', limitByEmail('auth-login-email'), limitByIp('auth-login-ip'), async (c) => {
+customerApp.post('/auth/login', limitByEmail('auth-login-email'), limitByIp('auth-login-ip'), zValidator('json', CustomerLoginSchema), async (c) => {
   try {
-    const { email, password } = await c.req.json();
+    const { email, password } = c.req.valid('json');
     
     if (!email || !password) {
       return c.json({ success: false, error: 'Email and password are required' }, 400);

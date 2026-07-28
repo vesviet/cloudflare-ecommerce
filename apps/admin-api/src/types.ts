@@ -1,3 +1,4 @@
+/// <reference types="@cloudflare/workers-types" />
 export type Bindings = {
   DB: D1Database;
   PRODUCTS_R2: R2Bucket;

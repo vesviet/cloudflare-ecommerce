@@ -7,12 +7,14 @@
     "build": "next build --webpack",
     "build:pages": "mkdir -p apps && rm -f apps/storefront-ui && ln -s .. apps/storefront-ui && npx @cloudflare/next-on-pages",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint . --ignore-pattern .next/ --ignore-pattern node_modules/ --ignore-pattern .turbo/ --ignore-pattern out/ --ignore-pattern build/ --ignore-pattern .wrangler/"
   },
   "dependencies": {
+    "@ecommerce/contract": "workspace:*",
     "@marsidev/react-turnstile": "^1.5.3",
     "@stripe/react-stripe-js": "^6.8.0",
     "@stripe/stripe-js": "^9.12.0",
+    "hono": "^4.12.27",
     "lucide-react": "^1.25.0",
     "next": "16.2.11",
     "react": "19.2.4",
@@ -28,6 +30,7 @@
     "@types/react-dom": "^19.2.3",
     "eslint": "^9.39.5",
     "eslint-config-next": "16.2.11",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.3"
   }

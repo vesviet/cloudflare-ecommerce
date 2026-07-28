@@ -68,6 +68,12 @@
             "type": "string",
             "format": "uuid"
           },
+          "coupon_code": {
+            "type": "string"
+          },
+          "location_id": {
+            "type": "string"
+          },
           "address": {
             "type": "object",
             "properties": {
@@ -100,8 +106,7 @@
               "type": "object",
               "properties": {
                 "variation_id": {
-                  "type": "string",
-                  "format": "uuid"
+                  "type": "string"
                 },
                 "quantity": {
                   "type": "integer",
@@ -128,7 +133,27 @@
             "type": "string"
           },
           "accepts_marketing": {
-            "type": "boolean"
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          },
+          "turnstileToken": {
+            "type": "string"
+          },
+          "redeem_points": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "b2b_company": {
+            "type": "string"
+          },
+          "b2b_vat_id": {
+            "type": "string"
           }
         },
         "required": [
@@ -148,6 +173,248 @@
         },
         "required": [
           "error"
+        ]
+      },
+      "Coupon": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "percent",
+              "fixed",
+              "freeship",
+              "percentage",
+              "free_shipping"
+            ]
+          },
+          "value": {
+            "type": "number"
+          },
+          "max_uses": {
+            "type": "integer"
+          },
+          "uses": {
+            "type": "integer",
+            "default": 0
+          },
+          "expires_at": {
+            "type": "integer"
+          },
+          "is_active": {
+            "type": "boolean",
+            "default": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "type",
+          "value",
+          "created_at"
+        ]
+      },
+      "Review": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "product_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "customer_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "rating": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "comment": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "approved",
+              "rejected"
+            ],
+            "default": "pending"
+          },
+          "verified_purchase": {
+            "type": "boolean",
+            "default": false
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "product_id",
+          "rating",
+          "created_at"
+        ]
+      },
+      "Wishlist": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "customer_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "product_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "customer_id",
+          "product_id",
+          "created_at"
+        ]
+      },
+      "Fulfillment": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "order_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "processing",
+              "shipped",
+              "delivered",
+              "cancelled"
+            ],
+            "default": "processing"
+          },
+          "tracking_number": {
+            "type": "string"
+          },
+          "carrier": {
+            "type": "string"
+          },
+          "shipped_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "order_item_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "quantity": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "exclusiveMinimum": true
+                }
+              },
+              "required": [
+                "order_item_id",
+                "quantity"
+              ]
+            }
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "order_id",
+          "created_at",
+          "updated_at"
+        ]
+      },
+      "RMA": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "order_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "customer_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "requested",
+              "approved",
+              "refunded",
+              "rejected"
+            ],
+            "default": "requested"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "refund_amount": {
+            "type": "integer"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "order_id",
+          "customer_id",
+          "reason",
+          "created_at",
+          "updated_at"
         ]
       }
     },

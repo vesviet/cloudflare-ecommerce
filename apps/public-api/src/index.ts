@@ -1,3 +1,4 @@
+/// <reference types="@cloudflare/workers-types" />
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { createDb } from '@ecommerce/database'
@@ -77,6 +78,8 @@ app.route('/media', media)
 
 
 export { InventoryLockManagerDO } from '@ecommerce/core-services'
+
+export type AppType = typeof app
 
 export default {
   // 1. HTTP Requests (Hono)
@@ -402,6 +405,27 @@ export default {
       const now = Math.floor(Date.now() / 1000)
       await db.run(sql`DELETE FROM idempotency_keys WHERE expires_at IS NOT NULL AND expires_at < ${now}`)
         .catch((err: any) => console.warn('[Cron] idempotency_keys cleanup skipped (column may not exist yet):', err.message))
+
+    } else if (event.cron === '0 0 * * *') {
+      // --- Daily job: Data Retention Cleanup (Slice 6) ---
+      console.log('[Cron] Daily: starting data retention cleanup')
+
+      // 1. Delete idempotency keys processed > 7 days ago (when no explicit TTL) or expired by TTL
+      await db.run(
+        sql`DELETE FROM idempotency_keys WHERE (expires_at IS NULL AND datetime(processed_at) < datetime('now', '-7 days')) OR (expires_at IS NOT NULL AND expires_at < unixepoch('now'))`
+      ).catch((err: any) => console.error('[Cron] Error cleaning up idempotency_keys:', err.message))
+
+      // 2. Delete abandoned carts created > 7 days ago
+      await db.run(
+        sql`DELETE FROM carts WHERE status = 'abandoned' AND datetime(created_at) < datetime('now', '-7 days')`
+      ).catch((err: any) => console.error('[Cron] Error cleaning up abandoned carts:', err.message))
+
+      // 3. Delete expired checkout idempotency keys
+      await db.run(
+        sql`DELETE FROM checkout_idempotency WHERE expires_at < unixepoch('now')`
+      ).catch((err: any) => console.error('[Cron] Error cleaning up checkout_idempotency:', err.message))
+
+      console.log('[Cron] Daily retention cleanup completed')
 
     } else {
       console.warn(`[Cron] Unknown cron expression: ${event.cron}`)

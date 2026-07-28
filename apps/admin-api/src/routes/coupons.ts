@@ -5,27 +5,12 @@ import { localSchema } from '@ecommerce/core-services';
 import { eq, sql, desc, and } from 'drizzle-orm';
 import { auditMiddleware } from '../middleware/audit';
 import { requireRole } from '../middleware/auth';
-import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
+import { couponSchema, updateCouponSchema } from '@ecommerce/contract';
 
 const router = new Hono<{ Bindings: Bindings, Variables: any }>();
 
 router.use('*', auditMiddleware);
-
-const couponSchema = z.object({
-  code: z.string().min(4),
-  type: z.enum(['percent', 'fixed', 'freeship', 'percentage', 'free_shipping']),
-  value: z.number().min(0),
-  max_uses: z.number().nullable().optional(),
-  expires_at: z.number().nullable().optional(),
-  is_active: z.number().optional(),
-  description: z.string().nullable().optional(),
-  min_order_amount: z.number().optional(),
-  starts_at: z.number().nullable().optional(),
-  status: z.string().optional()
-});
-
-const updateCouponSchema = couponSchema.partial();
 
 function mapPromotionToCoupon(promo: any) {
   if (!promo) return promo;

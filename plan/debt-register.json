@@ -51,10 +51,12 @@
       "severity": "P0",
       "title": "Codebase Out of Sync with Database Migration 0010 (Dropped Tables)",
       "description": "Several API routes and services reference tables dropped in migration 0010_cold_kid_colt.sql, leading to immediate compilation failures and runtime crashes across coupons, RMA, fulfillment, wishlists, and reviews.",
-      "status": "New",
+      "status": "Resolved",
       "identified_at": "2026-07-07T14:28:27Z",
       "owner": "Technical Lead",
-      "repayment_plan": "Refactor all referenced models, services, and route controllers in admin-api, public-api, and core-services to target the new standardized database schemas."
+      "repayment_plan": "Refactor all referenced models, services, and route controllers in admin-api, public-api, and core-services to target the new standardized database schemas.",
+      "resolved_at": "2026-07-28T12:15:00Z",
+      "resolution_evidence": "Verified 2026-07-28: no dropped-table references remain. admin-api and public-api both type-check clean after landingPages/landingPageLeads were re-exported from core-services local-schema. The 21 remaining core-services type errors have a different root cause (Workers types absent from that package tsconfig) and are tracked as DEBT-011."
     },
     {
       "id": "DEBT-006",
@@ -62,10 +64,12 @@
       "severity": "P0",
       "title": "Decoupled Durable Object Stock State",
       "description": "When INVENTORY_DO is active, checkout stock deductions write to the DO's local SQLite database but are never synchronized back to the main D1 database. The storefront reads D1, leading to stale stock displays and overselling.",
-      "status": "New",
+      "status": "Resolved",
       "identified_at": "2026-07-07T14:28:27Z",
       "owner": "Platform Architect",
-      "repayment_plan": "Implement sharding on DO namespaces by product_id and establish a message-queue or transactional webhook sync mechanism to replicate DO SQLite inventory changes back to D1 in real-time."
+      "repayment_plan": "Implement sharding on DO namespaces by product_id and establish a message-queue or transactional webhook sync mechanism to replicate DO SQLite inventory changes back to D1 in real-time.",
+      "resolved_at": "2026-07-28T12:15:00Z",
+      "resolution_evidence": "Verified 2026-07-28: InventoryLockManagerDO write-through to D1 is present in both deductStock and restock (env.DB.batch), covered by do-sync-integration.test.ts. The sharding half of the original repayment plan is a throughput concern, not a correctness one, and is tracked separately as DEBT-012."
     },
     {
       "id": "DEBT-007",
@@ -73,10 +77,12 @@
       "severity": "P1",
       "title": "Missing Role-Based Access Control on Administrative Write Routes",
       "description": "Critical administrative write paths (Categories, Settings, Customers, Promotions, Products) lack role-based guards, allowing low-privilege admin roles to perform destructive deletions or modifications.",
-      "status": "New",
+      "status": "Resolved",
       "identified_at": "2026-07-07T14:28:27Z",
       "owner": "Security Engineer",
-      "repayment_plan": "Add requireRole middleware with specific permission checks to protect all state-changing endpoints in admin-api."
+      "repayment_plan": "Add requireRole middleware with specific permission checks to protect all state-changing endpoints in admin-api.",
+      "resolved_at": "2026-07-28T12:15:00Z",
+      "resolution_evidence": "Verified 2026-07-28: requireRole guards present on every named area (categories 4, settings 2, customers 4, coupons 5, products 3, orders 6, cms 4)."
     },
     {
       "id": "DEBT-008",
@@ -84,10 +90,12 @@
       "severity": "P0",
       "title": "Location-Agnostic Inventory Deductions",
       "description": "Inventory deduction and restocking queries inside InventoryRepository and inventory.service.ts lack location_id qualifiers, resulting in stock modifications applying to every location a product is listed in.",
-      "status": "New",
+      "status": "Resolved",
       "identified_at": "2026-07-07T14:28:27Z",
       "owner": "Backend Developer",
-      "repayment_plan": "Refactor InventoryRepository and inventory.service.ts queries to accept location_id and append location filters to all Drizzle update/select clauses."
+      "repayment_plan": "Refactor InventoryRepository and inventory.service.ts queries to accept location_id and append location filters to all Drizzle update/select clauses.",
+      "resolved_at": "2026-07-28T12:15:00Z",
+      "resolution_evidence": "Verified 2026-07-28: InventoryRepository deduct and restock both take locationId and qualify every statement with location_id = ?."
     },
     {
       "id": "DEBT-009",
@@ -95,10 +103,12 @@
       "severity": "P1",
       "title": "Stripe Webhook and Cancel Cron Race Conditions",
       "description": "The system cancels orders after 15 minutes of non-payment. Late Stripe payments are ignored by the webhook handler (leaving the customer charged but order cancelled). Out-of-order webhooks overwrite order states back to paid/processing after refunds are already processed.",
-      "status": "New",
+      "status": "Resolved",
       "identified_at": "2026-07-07T14:28:27Z",
       "owner": "Backend Developer",
-      "repayment_plan": "Update webhook-processor.ts to trigger automatic refunds/support alerts for late payments, and integrate a state sequencing validation filter in the Stripe webhook router."
+      "repayment_plan": "Update webhook-processor.ts to trigger automatic refunds/support alerts for late payments, and integrate a state sequencing validation filter in the Stripe webhook router.",
+      "resolved_at": "2026-07-28T12:15:00Z",
+      "resolution_evidence": "Verified 2026-07-28: late payment on a cancelled order triggers an audit entry and automatic refund; processPaymentSuccess uses an optimistic pending_payment to processing transition, so an out-of-order webhook cannot resurrect a refunded order."
     },
     {
       "id": "DEBT-010",
@@ -106,10 +116,58 @@
       "severity": "P1",
       "title": "RMA Routing Bypass and Conflicting Eligibility Logic",
       "description": "The public API RMA controller bypasses the RmaService layer to make raw D1 queries. Additionally, its order status eligibility check contradicts the eligibility check inside RmaService, creating conflicting state validation rules.",
-      "status": "New",
+      "status": "Resolved",
       "identified_at": "2026-07-07T14:28:27Z",
       "owner": "Backend Developer",
-      "repayment_plan": "Refactor public-api /api/rma controller to delegate requests directly to RmaService, and unify order status eligibility validations to eliminate split-brain logic."
+      "repayment_plan": "Refactor public-api /api/rma controller to delegate requests directly to RmaService, and unify order status eligibility validations to eliminate split-brain logic.",
+      "resolved_at": "2026-07-28T12:15:00Z",
+      "resolution_evidence": "Verified 2026-07-28: public-api RMA route delegates to RmaService.createReturnRequest with no raw D1 access. Eligibility now lives only in the service. The route additionally required a customer session as of this cycle."
+    },
+    {
+      "id": "DEBT-011",
+      "type": "Technical",
+      "severity": "P2",
+      "title": "core-services tsconfig omits Cloudflare Workers types",
+      "description": "packages/core-services/tsconfig.json declares no Workers type package, so a standalone type-check of that package reports 21 errors for cloudflare:workers, KVNamespace, DurableObjectState and the DurableObject ctx/env members. The code is correct and compiles inside both workers; the package cannot be type-checked on its own, which hides real errors and blocks adding it to CI.",
+      "status": "New",
+      "identified_at": "2026-07-28T12:15:00Z",
+      "owner": "Backend Developer",
+      "repayment_plan": "Add @cloudflare/workers-types to the package devDependencies and reference it via compilerOptions.types, then verify a standalone type-check is clean and wire the check into CI."
+    },
+    {
+      "id": "DEBT-012",
+      "type": "Architecture",
+      "severity": "P1",
+      "title": "Inventory Durable Object is a single global instance",
+      "description": "InventoryRepository addresses the Durable Object through idFromName('GLOBAL_INVENTORY'), and the object serialises every request through one promise queue. Correctness is sound but all inventory movement in the platform funnels through a single object, which caps checkout throughput and concentrates failure. Sharding changes how the inventory lock is keyed, so it needs an architecture decision before implementation.",
+      "status": "New",
+      "identified_at": "2026-07-28T12:15:00Z",
+      "owner": "Technical Architect",
+      "repayment_plan": "Raise an ADR covering the shard key (product_id or product_id plus location_id), cross-shard ordering guarantees for multi-item checkouts, and the migration path from the single global object. Implementation follows the accepted ADR."
+    },
+    {
+      "id": "DEBT-013",
+      "type": "Technical",
+      "severity": "P1",
+      "title": "drizzle-kit cannot run against the pinned drizzle-orm",
+      "description": "drizzle-kit 0.20.18 fails on Node 22 with 'Failed to find Response internal state key' and expects drizzle-orm 0.30.x, while the root pnpm override pins drizzle-orm to 0.45.2. Migrations are therefore hand written, and the drizzle journal has no snapshots for 0007, 0014 or 0015, so the snapshot chain no longer describes the deployed schema. Upgrading the tool without first baselining the snapshots would let a future generate emit already-applied DDL.",
+      "status": "New",
+      "identified_at": "2026-07-28T12:15:00Z",
+      "owner": "Technical Architect",
+      "repayment_plan": "Decide the schema source of truth first: either baseline the snapshot chain against the deployed schema, or declare migrations hand written and drop the journal. Upgrade drizzle-kit and migrate drizzle.config.ts only as part of that decision. Do not renumber or rename any applied migration file, because the D1 tracking table keys on file name and a rename replays the migration."
+    },
+    {
+      "id": "DEBT-014",
+      "type": "Intent",
+      "severity": "P3",
+      "title": "Legacy landing page urgency timestamps stored as epoch",
+      "description": "landing_pages.urgency_end_time is declared as an ISO string but the admin API wrote epoch seconds until this cycle. Rows saved earlier still hold epoch values. The storefront tolerates both formats through accumulated parsing branches; the admin form parses an epoch value as milliseconds and displays 1970.",
+      "status": "New",
+      "identified_at": "2026-07-28T12:15:00Z",
+      "owner": "Technical Lead",
+      "repayment_plan": "Normalise existing rows to ISO strings with a one-off script, then remove the multi-format parsing branches in the storefront. The data write is irreversible and needs explicit approval plus a verified backup before it runs."
     }
-  ]
+  ],
+  "last_reviewed_at": "2026-07-28T12:15:00Z",
+  "reviewed_by": "Technical Lead"
 }
