@@ -62,12 +62,36 @@ landingPages.get('/:slug', async (c) => {
         stockByProduct.set(row.product_id, (stockByProduct.get(row.product_id) ?? 0) + (row.stock_quantity ?? 0));
       }
 
+      // Fetch images
+      const assetRows = await db
+        .select({
+          product_id: schema.productAssets.product_id,
+          url: schema.assets.url,
+          alt_text: schema.assets.alt_text,
+          position: schema.productAssets.position,
+        })
+        .from(schema.productAssets)
+        .innerJoin(schema.assets, eq(schema.productAssets.asset_id, schema.assets.id))
+        .where(inArray(schema.productAssets.product_id, stockedIds))
+        .orderBy(schema.productAssets.position)
+        .all();
+
+      const imagesByProduct = new Map<string, any[]>();
+      for (const row of assetRows) {
+        if (!imagesByProduct.has(row.product_id)) {
+          imagesByProduct.set(row.product_id, []);
+        }
+        imagesByProduct.get(row.product_id)!.push({ url: row.url, alt_text: row.alt_text });
+      }
+
       if (productData) {
         (productData as any).stock = stockByProduct.get(productData.id) ?? 0;
+        (productData as any).images = imagesByProduct.get(productData.id) ?? [];
       }
       variantsData = variantsData.map(v => ({
         ...v,
-        stock: stockByProduct.get(v.id) ?? 0
+        stock: stockByProduct.get(v.id) ?? 0,
+        images: imagesByProduct.get(v.id) ?? []
       }));
     }
 
