@@ -6,6 +6,7 @@ import { zValidator } from '@hono/zod-validator';
 import { productFormSchema } from '@ecommerce/contract';
 import { ProductService, CacheService, InventoryRepository } from '@ecommerce/core-services';
 import { requireRole } from '../middleware/auth';
+import { buildUploadKey } from './uploadKey';
 
 const products = new Hono<{ Bindings: Bindings }>();
 
@@ -163,7 +164,7 @@ products.post('/products', requireRole(['superadmin', 'manager', 'editor']), zVa
     for (const file of files) {
       if (file.size > 5 * 1024 * 1024) continue;
       if (!file.type.startsWith('image/')) continue;
-      const filename = `${Date.now()}-${file.name}`;
+      const filename = buildUploadKey(file.name);
       await c.env.PRODUCTS_R2.put(filename, file.stream(), {
         httpMetadata: { contentType: file.type },
       });
@@ -258,7 +259,7 @@ products.put('/products/:id', requireRole(['superadmin', 'manager', 'editor']), 
     for (const file of files) {
       if (file.size > 5 * 1024 * 1024) continue;
       if (!file.type.startsWith('image/')) continue;
-      const filename = `${Date.now()}-${file.name}`;
+      const filename = buildUploadKey(file.name);
       await c.env.PRODUCTS_R2.put(filename, file.stream(), {
         httpMetadata: { contentType: file.type },
       });
