@@ -13,13 +13,18 @@ const orders = new Hono<{ Bindings: Bindings }>();
 orders.get('/orders', async (c) => {
   try {
     const db = createDb(c.env.DB);
+    const limit = Math.min(Math.max(parseInt(c.req.query('limit') || '100', 10) || 100, 1), 200);
+    const offset = Math.max(parseInt(c.req.query('offset') || '0', 10) || 0, 0);
     const results = await db.select()
       .from(localSchema.orders)
       .orderBy(sql`${localSchema.orders.created_at} DESC`)
+      .limit(limit)
+      .offset(offset)
       .all();
     return c.json({ success: true, data: results });
   } catch (err: any) {
-    return c.json({ success: false, error: err.message }, 500);
+    console.error('Admin list orders error:', err);
+    return c.json({ success: false, error: 'Internal server error' }, 500);
   }
 });
 
@@ -305,11 +310,14 @@ orders.get('/landing-leads', async (c) => {
       .leftJoin(localSchema.landingPages, eq(localSchema.landingPageLeads.landing_page_id, localSchema.landingPages.id))
       .leftJoin(localSchema.orders, eq(localSchema.landingPageLeads.order_id, localSchema.orders.id))
       .orderBy(sql`${localSchema.landingPageLeads.created_at} DESC`)
+      .limit(Math.min(Math.max(parseInt(c.req.query('limit') || '100', 10) || 100, 1), 200))
+      .offset(Math.max(parseInt(c.req.query('offset') || '0', 10) || 0, 0))
       .all();
 
     return c.json({ success: true, data: results });
   } catch (err: any) {
-    return c.json({ success: false, error: err.message }, 500);
+    console.error('Admin list landing-leads error:', err);
+    return c.json({ success: false, error: 'Internal server error' }, 500);
   }
 });
 

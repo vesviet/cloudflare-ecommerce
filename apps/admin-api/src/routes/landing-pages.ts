@@ -28,7 +28,9 @@ const landingPageSchema = z.object({
 landingPages.get('/landing-pages', requireRole(['superadmin', 'manager', 'editor']), async (c) => {
   try {
     const db = createDb(c.env.DB);
-    const results = await db.select().from(schema.landingPages).orderBy(sql`${schema.landingPages.created_at} DESC`).all();
+    const limit = Math.min(Math.max(parseInt(c.req.query('limit') || '100', 10) || 100, 1), 200);
+    const offset = Math.max(parseInt(c.req.query('offset') || '0', 10) || 0, 0);
+    const results = await db.select().from(schema.landingPages).orderBy(sql`${schema.landingPages.created_at} DESC`).limit(limit).offset(offset).all();
     return c.json({ success: true, data: results });
   } catch (err: any) {
     return c.json({ success: false, error: err.message }, 500);

@@ -12,6 +12,8 @@ const customers = new Hono<{ Bindings: Bindings }>();
 customers.get('/customers', async (c) => {
   try {
     const db = createDb(c.env.DB);
+    const limit = Math.min(Math.max(parseInt(c.req.query('limit') || '100', 10) || 100, 1), 200);
+    const offset = Math.max(parseInt(c.req.query('offset') || '0', 10) || 0, 0);
     // NOTE: Drizzle does not support groupBy + aggregate in a single typed select for D1 easily;
     // using sql helper for the complex LEFT JOIN + GROUP BY aggregate query.
     const results = await db.all(sql`
@@ -23,10 +25,12 @@ customers.get('/customers', async (c) => {
       LEFT JOIN orders o ON c.id = o.customer_id AND o.status != 'refunded'
       GROUP BY c.id
       ORDER BY c.created_at DESC
+      LIMIT ${limit} OFFSET ${offset}
     `);
     return c.json({ success: true, data: results });
   } catch (err: any) {
-    return c.json({ success: false, error: err.message }, 500);
+    console.error('Admin list customers error:', err);
+    return c.json({ success: false, error: 'Internal server error' }, 500);
   }
 });
 

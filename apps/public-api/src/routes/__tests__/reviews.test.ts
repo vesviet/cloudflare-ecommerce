@@ -162,7 +162,7 @@ describe('Public API: Reviews Route', () => {
       const body = (await res.json()) as any;
       expect(body).toEqual({
         success: false,
-        error: 'D1 Connection Failed',
+        error: 'Internal server error',
       });
     });
   });

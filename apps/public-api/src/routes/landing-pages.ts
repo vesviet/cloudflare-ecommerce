@@ -3,6 +3,15 @@ import { createDb, schema } from '@ecommerce/database';
 import { eq, inArray } from 'drizzle-orm';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
+import { rateLimit, clientIp } from '@ecommerce/shared-routes';
+
+// Rate limit lead submissions by client IP (defence-in-depth alongside Turnstile).
+const limitLeads = rateLimit({
+  binding: 'LEADS_RATE_LIMITER',
+  scope: 'landing-lead',
+  key: clientIp,
+  message: 'Too many submissions. Please wait a moment and try again.',
+});
 
 const LeadSubmissionSchema = z.object({
   landing_page_id: z.string().optional().nullable(),
@@ -103,7 +112,8 @@ landingPages.get('/:slug', async (c) => {
 
     return c.json({ success: true, data: payload });
   } catch (err: any) {
-    return c.json({ success: false, error: err.message }, 500);
+    console.error('[public-api] landing-pages error:', err);
+    return c.json({ success: false, error: 'Internal server error' }, 500);
   }
 });
 
@@ -150,12 +160,13 @@ landingPages.get('/:slug/stock', async (c) => {
       variants: variants.map(v => ({ id: v.id, sku: v.sku, stock: stockByProduct.get(v.id) ?? 0 })),
     });
   } catch (err: any) {
-    return c.json({ success: false, error: err.message }, 500);
+    console.error('[public-api] landing-pages error:', err);
+    return c.json({ success: false, error: 'Internal server error' }, 500);
   }
 });
 
 // POST: /api/landing-pages/leads
-landingPages.post('/leads', zValidator('json', LeadSubmissionSchema), async (c) => {
+landingPages.post('/leads', limitLeads, zValidator('json', LeadSubmissionSchema), async (c) => {
   try {
     const body = c.req.valid('json');
     const { 
@@ -290,7 +301,8 @@ landingPages.post('/leads', zValidator('json', LeadSubmissionSchema), async (c) 
     return c.json({ success: true, message: 'Lead submitted successfully', data: { id: leadId, order_id: orderId } });
   } catch (err: any) {
     console.error("Lead submission error:", err);
-    return c.json({ success: false, error: err.message }, 500);
+    console.error('[public-api] landing-pages error:', err);
+    return c.json({ success: false, error: 'Internal server error' }, 500);
   }
 });
 

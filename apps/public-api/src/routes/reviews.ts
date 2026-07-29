@@ -105,7 +105,8 @@ reviews.get('/:product_id', async (c) => {
     return c.json({ success: true, data: publishedReviews });
   } catch (err: any) {
     console.error('Get reviews error:', err);
-    return c.json({ success: false, error: err.message }, 500);
+    console.error('[public-api] reviews error:', err);
+    return c.json({ success: false, error: 'Internal server error' }, 500);
   }
 });
 
@@ -159,7 +160,8 @@ reviews.post('/', customerAuth, limitReviews, zValidator('json', PostReviewSchem
     return c.json({ success: true, data: createdReview });
   } catch (err: any) {
     console.error('Post review error:', err);
-    return c.json({ success: false, error: err.message }, 500);
+    console.error('[public-api] reviews error:', err);
+    return c.json({ success: false, error: 'Internal server error' }, 500);
   }
 });
 

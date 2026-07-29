@@ -110,6 +110,12 @@ type = "ratelimit"
 namespace_id = "1003"
 simple = { limit = 12, period = 60 }
 
+[[unsafe.bindings]]
+name = "LEADS_RATE_LIMITER"
+type = "ratelimit"
+namespace_id = "1004"
+simple = { limit = 10, period = 60 }
+
 [[durable_objects.bindings]]
 name = "INVENTORY_DO"
 class_name = "InventoryLockManagerDO"

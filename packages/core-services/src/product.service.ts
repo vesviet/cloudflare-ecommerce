@@ -150,7 +150,7 @@ export class ProductService {
             id: crypto.randomUUID(),
             price_list_id: 'pl_base',
             product_id: productId,
-            price: params.regular_price || 0
+            price: Math.max(0, Number(params.regular_price) || 0)
           })
         );
       }
@@ -169,7 +169,7 @@ export class ProductService {
             id: crypto.randomUUID(),
             location_id: locationId,
             product_id: productId,
-            stock_quantity: params.stock || 0
+            stock_quantity: Math.max(0, Number(params.stock) || 0)
           })
         );
       }
@@ -285,7 +285,7 @@ export class ProductService {
             id: crypto.randomUUID(),
             price_list_id: 'pl_base',
             product_id: varId,
-            price: v.regular_price || 0
+            price: Math.max(0, Number(v.regular_price) || 0)
           })
         );
 
@@ -302,7 +302,7 @@ export class ProductService {
             id: crypto.randomUUID(),
             location_id: locationId,
             product_id: varId,
-            stock_quantity: v.stock || 0
+            stock_quantity: Math.max(0, Number(v.stock) || 0)
           })
         );
       }

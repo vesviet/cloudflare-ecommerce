@@ -65,7 +65,7 @@ cart.post('/coupon', zValidator('json', ApplyCouponSchema), async (c) => {
     })
   } catch (err: any) {
     console.error('[Cart Coupon Error]', err)
-    return c.json({ success: false, error: err.message || 'Internal error' }, 500)
+    return c.json({ success: false, error: 'Internal error' }, 500)
   }
 })
 
@@ -109,7 +109,7 @@ cart.post('/sync', zValidator('json', SyncCartSchema), async (c) => {
     return c.json(result);
   } catch (err: any) {
     console.error('[Cart Sync Error]', err)
-    return c.json({ success: false, error: err.message || 'Internal error' }, 500)
+    return c.json({ success: false, error: 'Internal error' }, 500)
   }
 })
 

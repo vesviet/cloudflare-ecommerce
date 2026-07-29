@@ -1,4 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+// landing-pages now imports @ecommerce/shared-routes (rate limiter), which transitively
+// pulls core-services/inventory.do.ts using the `cloudflare:workers` module. Stub it for the node test env.
+vi.mock('cloudflare:workers', () => ({ DurableObject: class {} }));
 import landingPages from '../landing-pages';
 import fs from 'fs';
 import path from 'path';

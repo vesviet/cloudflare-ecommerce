@@ -272,7 +272,7 @@ checkout.post('/', zValidator('json', CheckoutSchema), limitCheckout, async (c) 
     }
   } catch (err: any) {
     console.error('[Checkout Error]', err)
-    return c.json({ success: false, error: err.message || 'Internal checkout error' }, 500)
+    return c.json({ success: false, error: 'Internal checkout error' }, 500)
   }
 })
 

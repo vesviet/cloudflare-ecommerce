@@ -77,7 +77,8 @@ app.get('/', async (c) => {
       }
     });
   } catch (err: any) {
-    return c.json({ success: false, error: err.message }, 500);
+    console.error('[public-api] cms error:', err);
+    return c.json({ success: false, error: 'Internal server error' }, 500);
   }
 });
 
@@ -98,7 +99,8 @@ app.get('/:slug', async (c) => {
     
     return c.json({ success: true, data: entry });
   } catch (err: any) {
-    return c.json({ success: false, error: err.message }, 500);
+    console.error('[public-api] cms error:', err);
+    return c.json({ success: false, error: 'Internal server error' }, 500);
   }
 });
 
