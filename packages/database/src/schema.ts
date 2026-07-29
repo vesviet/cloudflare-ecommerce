@@ -501,6 +501,9 @@ export const landingPages = sqliteTable('landing_pages', {
   urgency_fake_views: integer('urgency_fake_views').default(0),
   combo_rules_json: text('combo_rules_json'), // JSON string
   features_json: text('features_json'), // JSON string array
+  header_logo_url: text('header_logo_url'),
+  header_cta_text: text('header_cta_text'),
+  footer_content: text('footer_content'),
   
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
   updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),

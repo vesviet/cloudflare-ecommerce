@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import useSWR from 'swr';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useForm, useFieldArray, Controller } from 'react-hook-form';
+import MDEditor from '@uiw/react-md-editor';
 import { MonitorPlay, Plus, Edit, Trash, ExternalLink } from 'lucide-react';
 import { GlassCard } from '../components/ui/GlassCard';
 
@@ -28,7 +29,10 @@ export const LandingPagesTab: React.FC<LandingPagesTabProps> = ({ API_BASE_URL, 
       urgency_end_time: '',
       urgency_fake_views: 0,
       combo_rules: [{ id: crypto.randomUUID(), name: '', price: 0 }],
-      features: [{ text: '' }]
+      features: [{ text: '' }],
+      header_logo_url: '',
+      header_cta_text: '',
+      footer_content: ''
     }
   });
 
@@ -47,7 +51,10 @@ export const LandingPagesTab: React.FC<LandingPagesTabProps> = ({ API_BASE_URL, 
       const payload = {
         ...formData,
         combo_rules_json: JSON.stringify(formData.combo_rules),
-        features_json: JSON.stringify(formData.features.map((f: any) => f.text.trim()).filter(Boolean))
+        features_json: JSON.stringify(formData.features.map((f: any) => f.text.trim()).filter(Boolean)),
+        header_logo_url: formData.header_logo_url,
+        header_cta_text: formData.header_cta_text,
+        footer_content: formData.footer_content
       };
 
       const method = currentId ? 'PUT' : 'POST';
@@ -94,7 +101,10 @@ export const LandingPagesTab: React.FC<LandingPagesTabProps> = ({ API_BASE_URL, 
       urgency_end_time: lp.urgency_end_time && !isNaN(new Date(lp.urgency_end_time).getTime()) ? new Date(lp.urgency_end_time).toISOString().slice(0, 16) : '',
       urgency_fake_views: lp.urgency_fake_views || 0,
       combo_rules: combos.length > 0 ? combos : [{ id: crypto.randomUUID(), name: '', price: 0 }],
-      features: features.length > 0 ? features.map((f: string) => ({ text: f })) : [{ text: '' }]
+      features: features.length > 0 ? features.map((f: string) => ({ text: f })) : [{ text: '' }],
+      header_logo_url: lp.header_logo_url || '',
+      header_cta_text: lp.header_cta_text || '',
+      footer_content: lp.footer_content || ''
     });
     setIsEditing(true);
   };
@@ -126,7 +136,8 @@ export const LandingPagesTab: React.FC<LandingPagesTabProps> = ({ API_BASE_URL, 
           <button className="btn-primary" onClick={() => {
             reset({
               title: '', slug: '', product_id: '', seo_title: '', seo_description: '', facebook_pixel_id: '', tiktok_pixel_id: '',
-              urgency_end_time: '', urgency_fake_views: 0, combo_rules: [{ id: crypto.randomUUID(), name: '', price: 0 }], features: [{ text: '' }]
+              urgency_end_time: '', urgency_fake_views: 0, combo_rules: [{ id: crypto.randomUUID(), name: '', price: 0 }], features: [{ text: '' }],
+              header_logo_url: '', header_cta_text: '', footer_content: ''
             });
             setCurrentId(null);
             setIsEditing(true);
@@ -147,6 +158,14 @@ export const LandingPagesTab: React.FC<LandingPagesTabProps> = ({ API_BASE_URL, 
               <div>
                 <label className="input-label">Slug</label>
                 <input {...register('slug', { required: true })} className="input-field" placeholder="campaign-2026" />
+              </div>
+              <div>
+                <label className="input-label">Header Logo URL</label>
+                <input {...register('header_logo_url')} className="input-field" placeholder="/assets/logo.png" />
+              </div>
+              <div>
+                <label className="input-label">Header CTA Text</label>
+                <input {...register('header_cta_text')} className="input-field" placeholder="Mua Ngay" />
               </div>
               <div>
                 <label className="input-label">Linked Product (Sản phẩm)</label>
@@ -240,6 +259,25 @@ export const LandingPagesTab: React.FC<LandingPagesTabProps> = ({ API_BASE_URL, 
                     </button>
                   </div>
                 ))}
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <label className="input-label">Footer Content (Markdown / Rich Text)</label>
+              <div data-color-mode="dark">
+                <Controller
+                  name="footer_content"
+                  control={control}
+                  render={({ field }) => (
+                    <MDEditor
+                      value={field.value}
+                      onChange={field.onChange}
+                      preview="edit"
+                      height={200}
+                      style={{ borderRadius: '8px', overflow: 'hidden' }}
+                    />
+                  )}
+                />
               </div>
             </div>
 

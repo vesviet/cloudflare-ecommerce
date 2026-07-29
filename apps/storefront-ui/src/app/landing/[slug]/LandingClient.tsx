@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Script from 'next/script';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import ReactMarkdown from 'react-markdown';
 
 export default function LandingClient({ lp: initialLp, comboRules: initialComboRules, initialSlug, apiUrl }: { lp?: any, comboRules?: any[], initialSlug?: string, apiUrl: string }) {
   const params = useParams();
@@ -200,6 +201,26 @@ export default function LandingClient({ lp: initialLp, comboRules: initialComboR
         </Script>
       )}
 
+      {/* Header Sticky */}
+      {(lp.header_logo_url || lp.header_cta_text) && (
+        <header style={{ position: 'sticky', top: 0, zIndex: 50, backgroundColor: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(5px)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 20px', borderBottom: '1px solid #e5e7eb', margin: '-40px -20px 20px -20px' }}>
+          <div style={{ flex: 1 }}>
+            {lp.header_logo_url ? (
+              <img src={lp.header_logo_url} alt="Logo" style={{ maxHeight: '40px', objectFit: 'contain' }} />
+            ) : (
+              <span style={{ fontWeight: 'bold', fontSize: '1.2rem', color: '#111827' }}>{lp.title}</span>
+            )}
+          </div>
+          {lp.header_cta_text && (
+            <button 
+              onClick={() => { document.getElementById('checkout-form')?.scrollIntoView({ behavior: 'smooth' }) }}
+              style={{ padding: '8px 16px', backgroundColor: '#ea580c', color: '#fff', fontWeight: 'bold', border: 'none', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+              {lp.header_cta_text}
+            </button>
+          )}
+        </header>
+      )}
+
       {/* Hero Section */}
       <div style={{ marginBottom: '40px' }}>
         {/* Fake Urgency Viewers */}
@@ -322,7 +343,7 @@ export default function LandingClient({ lp: initialLp, comboRules: initialComboR
       </div>
 
       {/* Checkout Form */}
-      <div style={{ backgroundColor: '#f9fafb', padding: '30px', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
+      <div id="checkout-form" style={{ backgroundColor: '#f9fafb', padding: '30px', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
         <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '20px' }}>Đặt Hàng Ngay</h2>
         
         {successMsg ? (
@@ -439,6 +460,12 @@ export default function LandingClient({ lp: initialLp, comboRules: initialComboR
            // No need for extra event listeners.
         `}
       </Script>
+      {/* Footer Rich Text */}
+      {lp.footer_content && (
+        <footer style={{ marginTop: '40px', paddingTop: '20px', borderTop: '1px solid #e5e7eb', fontSize: '0.9rem', color: '#4b5563', lineHeight: '1.6' }}>
+          <ReactMarkdown>{lp.footer_content}</ReactMarkdown>
+        </footer>
+      )}
 
     </div>
   );
