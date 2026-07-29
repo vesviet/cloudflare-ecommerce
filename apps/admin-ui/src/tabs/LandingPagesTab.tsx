@@ -15,10 +15,13 @@ export const LandingPagesTab: React.FC<LandingPagesTabProps> = ({ API_BASE_URL, 
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+
   const { data, mutate } = useSWR('/landing-pages');
   const { data: productsData } = useSWR('/products');
 
-  const { register, control, handleSubmit, reset } = useForm({
+  const { register, control, handleSubmit, reset, setValue } = useForm({
     defaultValues: {
       title: '',
       slug: '',
@@ -49,26 +52,48 @@ export const LandingPagesTab: React.FC<LandingPagesTabProps> = ({ API_BASE_URL, 
 
   const onSubmit = async (formData: any) => {
     try {
-      const payload = {
-        ...formData,
-        combo_rules_json: JSON.stringify(formData.combo_rules),
-        features_json: JSON.stringify(formData.features.map((f: any) => f.text.trim()).filter(Boolean)),
-        header_logo_url: formData.header_logo_url,
-        header_cta_text: formData.header_cta_text,
-        footer_content: formData.footer_content
-      };
-
       const method = currentId ? 'PUT' : 'POST';
       const url = currentId 
         ? `${API_BASE_URL}/landing-pages/${currentId}` 
         : `${API_BASE_URL}/landing-pages`;
 
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        credentials: 'include'
-      });
+      let res;
+      if (logoFile) {
+        const uploadData = new FormData();
+        Object.entries(formData).forEach(([key, value]) => {
+           if (key === 'combo_rules') {
+             uploadData.append('combo_rules_json', JSON.stringify(value));
+           } else if (key === 'features') {
+             uploadData.append('features_json', JSON.stringify((value as any).map((f: any) => f.text.trim()).filter(Boolean)));
+           } else if (value !== null && value !== undefined) {
+             uploadData.append(key, value as string);
+           }
+        });
+        uploadData.append('header_logo_file', logoFile);
+        
+        res = await fetch(url, {
+          method,
+          body: uploadData,
+          credentials: 'include'
+        });
+      } else {
+        const payload = {
+          ...formData,
+          combo_rules_json: JSON.stringify(formData.combo_rules),
+          features_json: JSON.stringify(formData.features.map((f: any) => f.text.trim()).filter(Boolean)),
+          header_logo_url: formData.header_logo_url,
+          header_cta_text: formData.header_cta_text,
+          footer_content: formData.footer_content
+        };
+  
+        res = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          credentials: 'include'
+        });
+      }
+
       const result = await res.json();
       
       if (result.success) {
@@ -107,6 +132,8 @@ export const LandingPagesTab: React.FC<LandingPagesTabProps> = ({ API_BASE_URL, 
       header_cta_text: lp.header_cta_text || '',
       footer_content: lp.footer_content || ''
     });
+    setLogoFile(null);
+    setLogoPreview(lp.header_logo_url || null);
     setIsEditing(true);
   };
 
@@ -143,6 +170,8 @@ export const LandingPagesTab: React.FC<LandingPagesTabProps> = ({ API_BASE_URL, 
               header_logo_url: '', header_cta_text: '', footer_content: ''
             });
             setCurrentId(null);
+            setLogoFile(null);
+            setLogoPreview(null);
             setIsEditing(true);
           }}>
             <Plus className="w-4 h-4 mr-2" /> New Landing Page
@@ -163,8 +192,31 @@ export const LandingPagesTab: React.FC<LandingPagesTabProps> = ({ API_BASE_URL, 
                 <input {...register('slug', { required: true })} className="input-field" placeholder="campaign-2026" />
               </div>
               <div>
-                <label className="input-label">Header Logo URL</label>
-                <input {...register('header_logo_url')} className="input-field" placeholder="/assets/logo.png" />
+                <label className="input-label">Header Logo Upload</label>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                  {logoPreview ? (
+                    <div style={{ position: 'relative', width: '100px', height: '100px' }}>
+                      <img src={logoPreview.startsWith('http') || logoPreview.startsWith('blob:') ? logoPreview : `${API_BASE_URL.replace('/api', '')}${logoPreview}`} alt="Logo Preview" style={{ width: '100%', height: '100%', objectFit: 'contain', background: 'rgba(255,255,255,0.05)', borderRadius: '6px', border: '1px solid var(--glass-border)' }} />
+                      <button type="button" onClick={() => {
+                        if (logoPreview.startsWith('blob:')) URL.revokeObjectURL(logoPreview);
+                        setLogoFile(null);
+                        setLogoPreview(null);
+                        setValue('header_logo_url', '');
+                      }} style={{ position: 'absolute', top: -8, right: -8, background: 'var(--accent-red)', color: 'white', borderRadius: '50%', border: 'none', width: '24px', height: '24px', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>×</button>
+                    </div>
+                  ) : (
+                    <div style={{ flex: 1 }}>
+                      <input type="file" accept="image/*" onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setLogoFile(file);
+                          setLogoPreview(URL.createObjectURL(file));
+                        }
+                      }} className="input-field" style={{ padding: '8px' }} />
+                    </div>
+                  )}
+                  <input type="hidden" {...register('header_logo_url')} />
+                </div>
               </div>
               <div>
                 <label className="input-label">Header CTA Text</label>

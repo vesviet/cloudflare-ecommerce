@@ -5,6 +5,7 @@ import { Bindings } from '../types';
 import { requireRole } from '../middleware/auth';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
+import { buildUploadKey } from './uploadKey';
 
 const landingPages = new Hono<{ Bindings: Bindings }>();
 
@@ -20,7 +21,7 @@ const landingPageSchema = z.object({
   facebook_pixel_id: z.string().regex(/^[A-Za-z0-9._-]*$/, 'Invalid pixel id').max(64).optional(),
   tiktok_pixel_id: z.string().regex(/^[A-Za-z0-9._-]*$/, 'Invalid pixel id').max(64).optional(),
   urgency_end_time: z.string().optional(),
-  urgency_fake_views: z.number().optional(),
+  urgency_fake_views: z.coerce.number().optional(),
   combo_rules_json: z.string().optional(),
   features_json: z.string().optional(),
   header_logo_url: z.string().optional(),
@@ -50,12 +51,44 @@ const toIsoStringOrNull = (value?: string | null): string | null => {
   return isNaN(parsed.getTime()) ? null : parsed.toISOString();
 };
 
-landingPages.post('/landing-pages', requireRole(['superadmin', 'manager', 'editor']), zValidator('json', landingPageSchema), async (c) => {
+landingPages.post('/landing-pages', requireRole(['superadmin', 'manager', 'editor']), async (c) => {
   try {
     const db = createDb(c.env.DB);
-    const body = c.req.valid('json');
-    const id = crypto.randomUUID();
+    
+    let rawBody: any = {};
+    let logoFile: File | undefined;
+    const contentType = c.req.header('Content-Type') || '';
+    if (contentType.includes('multipart/form-data')) {
+      const formData = await c.req.parseBody({ all: true });
+      rawBody = { ...formData };
+      if (rawBody.header_logo_file instanceof File) {
+        logoFile = rawBody.header_logo_file;
+      }
+    } else {
+      rawBody = await c.req.json();
+    }
+    
+    const parsed = landingPageSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return c.json({ success: false, error: parsed.error.errors[0].message, details: parsed.error.errors }, 400);
+    }
+    const body = parsed.data;
+    
+    if (logoFile) {
+      if (logoFile.size > 5 * 1024 * 1024) {
+        return c.json({ success: false, error: 'Logo file exceeds 5MB limit' }, 400);
+      }
+      if (!logoFile.type.match(/^image\/(jpeg|png|webp|svg\+xml)$/)) {
+        return c.json({ success: false, error: 'Invalid logo format. Only JPG, PNG, WEBP, SVG are allowed.' }, 400);
+      }
+      const filename = buildUploadKey(logoFile.name);
+      await c.env.PRODUCTS_R2.put(`lp-logo-${filename}`, logoFile.stream(), {
+        httpMetadata: { contentType: logoFile.type },
+      });
+      body.header_logo_url = `/media/products/lp-logo-${filename}`;
+    }
 
+    const id = crypto.randomUUID();
     await db.insert(schema.landingPages).values({
       id,
       title: body.title,
@@ -82,11 +115,43 @@ landingPages.post('/landing-pages', requireRole(['superadmin', 'manager', 'edito
 });
 
 // PUT: Update Landing Page
-landingPages.put('/landing-pages/:id', requireRole(['superadmin', 'manager', 'editor']), zValidator('json', landingPageSchema), async (c) => {
+landingPages.put('/landing-pages/:id', requireRole(['superadmin', 'manager', 'editor']), async (c) => {
   const id = c.req.param('id');
   try {
     const db = createDb(c.env.DB);
-    const body = c.req.valid('json');
+    
+    let rawBody: any = {};
+    let logoFile: File | undefined;
+    const contentType = c.req.header('Content-Type') || '';
+    if (contentType.includes('multipart/form-data')) {
+      const formData = await c.req.parseBody({ all: true });
+      rawBody = { ...formData };
+      if (rawBody.header_logo_file instanceof File) {
+        logoFile = rawBody.header_logo_file;
+      }
+    } else {
+      rawBody = await c.req.json();
+    }
+    
+    const parsed = landingPageSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return c.json({ success: false, error: parsed.error.errors[0].message, details: parsed.error.errors }, 400);
+    }
+    const body = parsed.data;
+    
+    if (logoFile) {
+      if (logoFile.size > 5 * 1024 * 1024) {
+        return c.json({ success: false, error: 'Logo file exceeds 5MB limit' }, 400);
+      }
+      if (!logoFile.type.match(/^image\/(jpeg|png|webp|svg\+xml)$/)) {
+        return c.json({ success: false, error: 'Invalid logo format. Only JPG, PNG, WEBP, SVG are allowed.' }, 400);
+      }
+      const filename = buildUploadKey(logoFile.name);
+      await c.env.PRODUCTS_R2.put(`lp-logo-${filename}`, logoFile.stream(), {
+        httpMetadata: { contentType: logoFile.type },
+      });
+      body.header_logo_url = `/media/products/lp-logo-${filename}`;
+    }
 
     await db.update(schema.landingPages).set({
       title: body.title,
