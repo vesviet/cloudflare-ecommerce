@@ -7,7 +7,7 @@ import { hashPassword, verifyPassword, signJWT, verifyJWT } from '@ecommerce/dat
 import { WishlistService } from '@ecommerce/core-services';
 import { rateLimit, clientIp, type RateLimiter } from './rate-limit';
 import { zValidator } from '@hono/zod-validator';
-import { CustomerRegisterSchema, CustomerLoginSchema } from '@ecommerce/contract';
+import { CustomerRegisterSchema, CustomerLoginSchema, CustomerAddressSchema, CustomerProfileUpdateSchema } from '@ecommerce/contract';
 type Bindings = {
   DB: D1Database;
   JWT_SECRET: string;
@@ -327,11 +327,11 @@ customerApp.get('/customer/addresses', async (c) => {
   }
 });
 
-customerApp.post('/customer/addresses', async (c) => {
+customerApp.post('/customer/addresses', zValidator('json', CustomerAddressSchema), async (c) => {
   try {
     const payload = c.get('jwtPayload') as any;
     const customerId = payload.customer_id;
-    const data = await c.req.json();
+    const data = c.req.valid('json');
     
     const addressId = crypto.randomUUID();
     const db = createDb(c.env.DB);
@@ -429,11 +429,11 @@ customerApp.get('/customer/me', async (c) => {
   }
 });
 
-customerApp.put('/customer/me', async (c) => {
+customerApp.put('/customer/me', zValidator('json', CustomerProfileUpdateSchema), async (c) => {
   try {
     const payload = c.get('jwtPayload') as any;
     const customerId = payload.customer_id;
-    const data = await c.req.json();
+    const data = c.req.valid('json');
     const db = createDb(c.env.DB);
     
     await db.update(schema.customers)
@@ -457,12 +457,12 @@ customerApp.put('/customer/me', async (c) => {
   }
 });
 
-customerApp.put('/customer/addresses/:id', async (c) => {
+customerApp.put('/customer/addresses/:id', zValidator('json', CustomerAddressSchema), async (c) => {
   try {
     const payload = c.get('jwtPayload') as any;
     const customerId = payload.customer_id;
     const addressId = c.req.param('id');
-    const data = await c.req.json();
+    const data = c.req.valid('json');
     const db = createDb(c.env.DB);
     
     await db.update(schema.customerAddresses)

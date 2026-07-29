@@ -92,7 +92,10 @@ describe('Daily Data Retention Cron Job (Slice 6) - Comprehensive Empirical Test
 
     const secondQueryText = extractSqlText(secondCallArg);
     expect(secondQueryText).toContain('DELETE FROM carts');
-    expect(secondQueryText).toContain("status = 'abandoned'");
+    // Carts are never explicitly marked 'abandoned'; retention targets non-converted,
+    // inactive carts older than 7 days (created_at) with a last_active_at safety guard.
+    expect(secondQueryText).toContain("status != 'converted'");
+    expect(secondQueryText).toContain('last_active_at');
     expect(secondQueryText).toContain("datetime(created_at) < datetime('now', '-7 days')");
 
     const thirdQueryText = extractSqlText(thirdCallArg);

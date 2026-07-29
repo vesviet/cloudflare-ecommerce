@@ -13,6 +13,8 @@ export default [
       "**/.turbo/**",
       "**/.wrangler/",
       "**/.wrangler/**",
+      "**/.vercel/",
+      "**/.vercel/**",
       "**/out/",
       "**/out/**",
       "**/build/",

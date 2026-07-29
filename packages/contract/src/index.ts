@@ -189,9 +189,21 @@ export const CustomerAddressSchema = z.object({
   delivery_instructions: z.string().optional().nullable(),
 })
 
+// Profile self-service update (PUT /customer/me). All fields optional so partial
+// updates are allowed; unknown keys are stripped by Zod's default object behavior.
+export const CustomerProfileUpdateSchema = z.object({
+  first_name: z.string().max(100).optional().nullable(),
+  last_name: z.string().max(100).optional().nullable(),
+  phone: z.string().max(30).optional().nullable(),
+  dob: z.string().optional().nullable(),
+  gender: z.string().max(30).optional().nullable(),
+  company_name: z.string().max(200).optional().nullable(),
+  vat_tax_id: z.string().max(50).optional().nullable(),
+  accepts_marketing: z.union([z.boolean(), z.number().transform(v => Boolean(v))]).optional(),
+})
+
 // Re-export admin schemas
 export * from './admin'
-
 // Export Inferred Types
 export type Product = z.infer<typeof ProductSchema>;
 export type CheckoutInput = z.infer<typeof CheckoutSchema>;
@@ -222,3 +234,4 @@ export type AddToCartInput = z.infer<typeof AddToCartSchema>;
 export type CustomerRegisterInput = z.infer<typeof CustomerRegisterSchema>;
 export type CustomerLoginInput = z.infer<typeof CustomerLoginSchema>;
 export type CustomerAddressInput = z.infer<typeof CustomerAddressSchema>;
+export type CustomerProfileUpdateInput = z.infer<typeof CustomerProfileUpdateSchema>;
