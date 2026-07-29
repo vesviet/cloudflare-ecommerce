@@ -13,6 +13,7 @@ interface LandingPagesTabProps {
 export const LandingPagesTab: React.FC<LandingPagesTabProps> = ({ API_BASE_URL, addToast }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [currentId, setCurrentId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const { data, mutate } = useSWR('/landing-pages');
   const { data: productsData } = useSWR('/products');
@@ -109,10 +110,10 @@ export const LandingPagesTab: React.FC<LandingPagesTabProps> = ({ API_BASE_URL, 
     setIsEditing(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if(!confirm('Are you sure you want to delete this landing page?')) return;
+  const handleDeleteConfirm = async () => {
+    if (!deletingId) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/landing-pages/${id}`, { method: 'DELETE', credentials: 'include' });
+      const res = await fetch(`${API_BASE_URL}/landing-pages/${deletingId}`, { method: 'DELETE', credentials: 'include' });
       const result = await res.json();
       if(result.success) {
         addToast('Deleted successfully', 'success');
@@ -122,6 +123,8 @@ export const LandingPagesTab: React.FC<LandingPagesTabProps> = ({ API_BASE_URL, 
       }
     } catch(e: any) {
       addToast(e.message, 'error');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -288,35 +291,41 @@ export const LandingPagesTab: React.FC<LandingPagesTabProps> = ({ API_BASE_URL, 
           </form>
         </GlassCard>
       ) : (
-        <GlassCard>
+        <GlassCard className="p-6 overflow-x-auto">
           <div className="table-responsive">
-            <table className="admin-table">
+            <table className="glass-table w-full">
               <thead>
                 <tr>
-                  <th>Title</th>
-                  <th>Slug</th>
-                  <th>Pixels</th>
-                  <th>Status</th>
-                  <th className="text-right">Actions</th>
+                  <th style={{ width: '30%' }}>Title</th>
+                  <th style={{ width: '20%' }}>Slug</th>
+                  <th style={{ width: '20%' }}>Pixels</th>
+                  <th style={{ width: '15%' }}>Status</th>
+                  <th className="text-center" style={{ width: '15%' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {data?.data?.map((lp: any) => (
                   <tr key={lp.id}>
-                    <td>{lp.title}</td>
-                    <td><a href={`/landing/${lp.slug}`} target="_blank" rel="noreferrer" style={{color: 'var(--primary-accent)'}}>{lp.slug} <ExternalLink className="w-3 h-3 inline" /></a></td>
-                    <td>
+                    <td style={{ verticalAlign: 'middle' }}>{lp.title}</td>
+                    <td style={{ verticalAlign: 'middle' }}>
+                      <a href={`/landing/${lp.slug}`} target="_blank" rel="noreferrer" style={{color: 'var(--primary-accent)', fontWeight: 500}}>
+                        {lp.slug} <ExternalLink className="w-3 h-3 inline" />
+                      </a>
+                    </td>
+                    <td style={{ verticalAlign: 'middle' }}>
                       {lp.facebook_pixel_id && <span className="status-badge" style={{background: '#1877F2', color: '#fff', marginRight: 4}}>FB</span>}
                       {lp.tiktok_pixel_id && <span className="status-badge" style={{background: '#000', color: '#fff'}}>TT</span>}
                     </td>
-                    <td>
+                    <td style={{ verticalAlign: 'middle' }}>
                       <span className={`status-badge ${lp.status === 'published' ? 'published' : 'draft'}`}>
                         {lp.status || 'draft'}
                       </span>
                     </td>
-                    <td className="text-right">
-                      <button className="icon-btn" onClick={() => handleEdit(lp)}><Edit className="w-4 h-4" /></button>
-                      <button className="icon-btn text-danger" onClick={() => handleDelete(lp.id)}><Trash className="w-4 h-4" /></button>
+                    <td style={{ verticalAlign: 'middle' }}>
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                        <button className="icon-btn" onClick={() => handleEdit(lp)}><Edit className="w-4 h-4" /></button>
+                        <button className="icon-btn text-danger" onClick={() => setDeletingId(lp.id)}><Trash className="w-4 h-4" /></button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -327,6 +336,18 @@ export const LandingPagesTab: React.FC<LandingPagesTabProps> = ({ API_BASE_URL, 
             </table>
           </div>
         </GlassCard>
+      )}
+      {deletingId && (
+        <div className="modal-overlay">
+          <div className="modal-card">
+            <h3 className="modal-title">Delete Landing Page</h3>
+            <p className="modal-body">Are you sure you want to delete this landing page? This action cannot be undone.</p>
+            <div className="modal-actions">
+              <button className="btn-secondary" onClick={() => setDeletingId(null)}>Cancel</button>
+              <button className="btn-submit" style={{ background: 'var(--accent-red)', boxShadow: '0 4px 12px var(--accent-red-glow)', marginTop: 0 }} onClick={handleDeleteConfirm}>Delete</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

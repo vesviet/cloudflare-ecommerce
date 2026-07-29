@@ -1,0 +1,36 @@
+{
+  "components": [
+    {
+      "name": "LandingPageList",
+      "props": {
+        "landingPages": "LandingPageData[]",
+        "loading": "boolean",
+        "API_BASE_URL": "string",
+        "onCreateNew": "() => void",
+        "onEdit": "(page: LandingPageData) => void",
+        "onDelete": "(id: string) => Promise<void>",
+        "addToast": "(msg: string, type: 'success'|'error') => void"
+      },
+      "state": [
+        "searchQuery",
+        "deletingId", 
+        "showDeleteConfirmationModal"
+      ],
+      "designTokens": {
+        "containerPadding": "16px 24px",
+        "tableHeaderPadding": "12px 16px",
+        "tableCellPadding": "12px 16px",
+        "actionButtonGap": "8px",
+        "rowBorderBottom": "1px solid var(--color-border-subtle)"
+      },
+      "uxRules": [
+        "Table Layout: Use a strict grid or set min-widths for columns (Title: 30%, Slug: 20%, Pixels: 20%, Status: 15%, Actions: 15%) to prevent cramped text.",
+        "Alignment: Vertical-align middle for all table cells. Left-align text, center-align Actions.",
+        "Destructive Action Guard: onDelete MUST trigger a confirmation modal (Preview-before-apply) before executing the deletion.",
+        "Accessibility (WCAG 2.2 AA): Ensure the external link icon (Slug column) and Action icons have sufficient contrast against the dark background.",
+        "Empty State: Display a clear 'No landing pages found' message with a primary button to create one when landingPages array is empty."
+      ],
+      "description": "Renders the list of landing pages in a data table. Standardizes layout spacing, alignment, and implements a safety guardrail for deletion."
+    }
+  ]
+}
