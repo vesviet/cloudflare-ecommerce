@@ -127,7 +127,7 @@ export function SearchAutocomplete() {
                   }}>
                     <div style={{ width: '40px', height: '40px', borderRadius: '4px', background: 'rgba(255,255,255,0.1)', overflow: 'hidden', flexShrink: 0 }}>
                       {product.images?.[0] ? (
-                        <img src={product.images[0].url} alt={product.images[0].alt_text || product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <img src={product.images[0].url?.startsWith('http') ? product.images[0].url : `${process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com'}${product.images[0].url}`} alt={product.images[0].alt_text || product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       ) : null}
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column' }}>

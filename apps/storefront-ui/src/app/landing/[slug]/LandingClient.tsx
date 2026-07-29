@@ -205,7 +205,7 @@ export default function LandingClient({ lp: initialLp, comboRules: initialComboR
         {lp?.product?.images && lp.product.images.length > 0 && (
           <div style={{ position: 'relative', marginBottom: '5px' }}>
             <img 
-              src={lp.product.images[activeImageIndex]?.url} 
+              src={lp.product.images[activeImageIndex]?.url?.startsWith('http') ? lp.product.images[activeImageIndex].url : `${apiUrl}${lp.product.images[activeImageIndex]?.url}`} 
               alt={lp.product.images[activeImageIndex]?.alt_text || lp.seo_title || 'Product Image'} 
               style={{ width: '100%', height: 'auto', borderRadius: '4px', display: 'block', objectFit: 'cover', aspectRatio: '4/5' }} 
             />
@@ -234,7 +234,7 @@ export default function LandingClient({ lp: initialLp, comboRules: initialComboR
             {lp.product.images.slice(0, 4).map((img: any, idx: number) => (
               <img 
                 key={idx}
-                src={img.url}
+                src={img.url?.startsWith('http') ? img.url : `${apiUrl}${img.url}`}
                 onClick={() => setActiveImageIndex(idx)}
                 style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', borderRadius: '4px', cursor: 'pointer', opacity: activeImageIndex === idx ? 1 : 0.6 }}
               />
