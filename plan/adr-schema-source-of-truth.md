@@ -1,6 +1,6 @@
 # ADR: Database Schema Source of Truth (DEBT-013)
 
-- Status: **Proposed — needs decision**
+- Status: **Accepted 2026-07-29 (Option B)** — execution steps in `plan/runbook-debt-013-schema-baseline.md`; gated on a drizzle-kit upgrade + D1 introspection run by a maintainer (needs a scoped D1 API token or a locally-migrated D1)
 - Date: 2026-07-29
 - Owner: Technical Architect
 - Related debt: DEBT-013 (P1), and the duplicate-schema drift noted during the 2026-07 audit.

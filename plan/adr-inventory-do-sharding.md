@@ -1,6 +1,6 @@
 # ADR: Inventory Durable Object Sharding (DEBT-012)
 
-- Status: **Proposed — needs decision**
+- Status: **Accepted 2026-07-29** — phase 1 (shard by `location_id`) implemented in `InventoryRepository`; per-product / parent-child escalation deferred and metric-gated
 - Date: 2026-07-29
 - Owner: Technical Architect
 - Related debt: DEBT-012 (P1). Correctness is already sound (DEBT-006/008 resolved: DO write-through to D1, location-scoped deductions).

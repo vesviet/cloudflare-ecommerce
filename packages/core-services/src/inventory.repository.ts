@@ -1,3 +1,14 @@
+/**
+ * Inventory access layer. When the Durable Object binding is present, stock
+ * mutations are routed to a per-location DO instance keyed `inventory:<locationId>`
+ * (DEBT-012). Sharding by location follows Cloudflare's "one DO per atom of
+ * coordination" guidance and removes the single global-object bottleneck
+ * (~200-500 rps ceiling for storage-write ops). Because a checkout carries a
+ * single locationId, all items in an order still resolve to one DO, so
+ * multi-item checkout stays atomic without a cross-shard protocol. If a single
+ * location later exceeds the per-DO ceiling, escalate to per-product sharding
+ * per plan/adr-inventory-do-sharding.md.
+ */
 export class InventoryRepository {
   /**
    * Atomically deducts stock for multiple items using D1 raw prepared statements.
@@ -12,7 +23,7 @@ export class InventoryRepository {
 
     if (env.INVENTORY_DO) {
       try {
-        const id = env.INVENTORY_DO.idFromName('GLOBAL_INVENTORY');
+        const id = env.INVENTORY_DO.idFromName(`inventory:${locationId}`);
         const stub = env.INVENTORY_DO.get(id);
         const res = await stub.fetch('http://do/deduct', {
           method: 'POST',
@@ -74,7 +85,7 @@ export class InventoryRepository {
 
     if (env.INVENTORY_DO) {
       try {
-        const id = env.INVENTORY_DO.idFromName('GLOBAL_INVENTORY');
+        const id = env.INVENTORY_DO.idFromName(`inventory:${locationId}`);
         const stub = env.INVENTORY_DO.get(id);
         await stub.fetch('http://do/restock', {
           method: 'POST',
@@ -116,7 +127,7 @@ export class InventoryRepository {
   ): Promise<void> {
     if (env.INVENTORY_DO) {
       try {
-        const id = env.INVENTORY_DO.idFromName('GLOBAL_INVENTORY');
+        const id = env.INVENTORY_DO.idFromName(`inventory:${locationId}`);
         const stub = env.INVENTORY_DO.get(id);
         await stub.fetch('http://do/invalidate', {
           method: 'POST',

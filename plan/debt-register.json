@@ -142,10 +142,12 @@
       "severity": "P1",
       "title": "Inventory Durable Object is a single global instance",
       "description": "InventoryRepository addresses the Durable Object through idFromName('GLOBAL_INVENTORY'), and the object serialises every request through one promise queue. Correctness is sound but all inventory movement in the platform funnels through a single object, which caps checkout throughput and concentrates failure. Sharding changes how the inventory lock is keyed, so it needs an architecture decision before implementation.",
-      "status": "New",
+      "status": "Resolved",
       "identified_at": "2026-07-28T12:15:00Z",
       "owner": "Technical Architect",
-      "repayment_plan": "Raise an ADR covering the shard key (product_id or product_id plus location_id), cross-shard ordering guarantees for multi-item checkouts, and the migration path from the single global object. Implementation follows the accepted ADR."
+      "repayment_plan": "Raise an ADR covering the shard key (product_id or product_id plus location_id), cross-shard ordering guarantees for multi-item checkouts, and the migration path from the single global object. Implementation follows the accepted ADR.",
+      "resolved_at": "2026-07-29T10:14:00Z",
+      "resolution_evidence": "ADR plan/adr-inventory-do-sharding.md accepted (shard by location_id), backed by Cloudflare Rules of Durable Objects (global-singleton anti-pattern; ~200-500 rps ceiling for storage-write ops). Implemented in InventoryRepository: DO now keyed idFromName(`inventory:${locationId}`) in deductStock/restock/invalidateCache instead of 'GLOBAL_INVENTORY'. Because each checkout carries a single locationId, all items resolve to one DO so multi-item checkout stays atomic without a cross-shard protocol. Verified 2026-07-29: core-services 114 tests pass (incl. TC-INV-LOC-09 location isolation + do-sync suite), public-api 49 tests pass, core-services tsc --noEmit clean. Per-product / parent-child escalation is deferred and metric-gated per the ADR."
     },
     {
       "id": "DEBT-013",
@@ -153,10 +155,12 @@
       "severity": "P1",
       "title": "drizzle-kit cannot run against the pinned drizzle-orm",
       "description": "drizzle-kit 0.20.18 fails on Node 22 with 'Failed to find Response internal state key' and expects drizzle-orm 0.30.x, while the root pnpm override pins drizzle-orm to 0.45.2. Migrations are therefore hand written, and the drizzle journal has no snapshots for 0007, 0014 or 0015, so the snapshot chain no longer describes the deployed schema. Upgrading the tool without first baselining the snapshots would let a future generate emit already-applied DDL.",
-      "status": "New",
+      "status": "In Progress",
       "identified_at": "2026-07-28T12:15:00Z",
       "owner": "Technical Architect",
-      "repayment_plan": "Decide the schema source of truth first: either baseline the snapshot chain against the deployed schema, or declare migrations hand written and drop the journal. Upgrade drizzle-kit and migrate drizzle.config.ts only as part of that decision. Do not renumber or rename any applied migration file, because the D1 tracking table keys on file name and a rename replays the migration."
+      "repayment_plan": "Decide the schema source of truth first: either baseline the snapshot chain against the deployed schema, or declare migrations hand written and drop the journal. Upgrade drizzle-kit and migrate drizzle.config.ts only as part of that decision. Do not renumber or rename any applied migration file, because the D1 tracking table keys on file name and a rename replays the migration.",
+      "decision": "Accepted Option B (introspect a baseline via drizzle-kit pull --init, then collapse the two ORM schemas into one source of truth). See plan/adr-schema-source-of-truth.md.",
+      "blocked_on": "Execution is a maintainer task: requires upgrading drizzle-kit (validated by running it) and either a scoped Cloudflare D1 API token or a locally-migrated D1 to introspect. Not runnable in this environment without prod credentials. Step-by-step execution documented in plan/runbook-debt-013-schema-baseline.md."
     },
     {
       "id": "DEBT-014",
