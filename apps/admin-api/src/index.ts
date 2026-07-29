@@ -17,7 +17,6 @@ import adminUsersRoutes from './routes/adminUsers';
 import settingsRoutes from './routes/settings';
 
 import { adminAuth, type Env } from './middleware/auth';
-import { runCartCleanup } from './workers/cart-cleanup.cron';
 
 const app = new Hono<Env>().basePath('/api');
 
@@ -82,14 +81,6 @@ export default {
         console.error(`[DLQ Consumer] Failed to persist DLQ message ${msg.id}:`, err);
         msg.retry();
       }
-    }
-  },
-  async scheduled(event: any, env: Bindings, _ctx: any): Promise<void> {
-    console.log(`[Cron Admin] Triggered cron=${event.cron} at ${new Date().toISOString()}`);
-    const db = createDb(env.DB);
-    
-    if (event.cron === '0 0 * * *') {
-      await runCartCleanup(db);
     }
   }
 };

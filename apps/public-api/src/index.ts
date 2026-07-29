@@ -415,15 +415,15 @@ export default {
         sql`DELETE FROM idempotency_keys WHERE (expires_at IS NULL AND datetime(processed_at) < datetime('now', '-7 days')) OR (expires_at IS NOT NULL AND expires_at < unixepoch('now'))`
       ).catch((err: any) => console.error('[Cron] Error cleaning up idempotency_keys:', err.message))
 
-      // 2. Delete abandoned carts older than 7 days.
-      // "Abandoned" = not converted to an order and no activity in the last 7 days.
-      // NOTE: carts.status is never explicitly set to 'abandoned' anywhere in the codebase,
-      // so the previous `status = 'abandoned'` predicate matched nothing and the retention
-      // job was a silent no-op. We instead target non-converted carts that were created
-      // over 7 days ago (per R1's created_at window) and have been inactive for 7+ days,
-      // so live/recent carts are never purged. cart_items rows cascade on cart delete.
+      // 2. Cart retention (single owner: this worker; admin-api cron removed).
+      //    a) "Abandoned" carts = not converted, created >7 days ago (R1 window) and
+      //       inactive for 7+ days (last_active_at guard) so live carts are never purged.
+      //    b) Converted carts (already turned into an order) are historical; purge after
+      //       30 days. This preserves the behaviour of the former admin-api cart-cleanup cron.
+      //    carts.status is never explicitly set to 'abandoned' anywhere, so a
+      //    status = 'abandoned' predicate would match nothing. cart_items cascade on delete.
       await db.run(
-        sql`DELETE FROM carts WHERE (status IS NULL OR status != 'converted') AND datetime(created_at) < datetime('now', '-7 days') AND (last_active_at IS NULL OR last_active_at < (unixepoch('now') - 604800))`
+        sql`DELETE FROM carts WHERE ((status IS NULL OR status != 'converted') AND datetime(created_at) < datetime('now', '-7 days') AND (last_active_at IS NULL OR last_active_at < (unixepoch('now') - 604800))) OR (status = 'converted' AND datetime(created_at) < datetime('now', '-30 days'))`
       ).catch((err: any) => console.error('[Cron] Error cleaning up abandoned carts:', err.message))
 
       // 3. Delete expired checkout idempotency keys

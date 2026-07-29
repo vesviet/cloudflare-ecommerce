@@ -68,6 +68,3 @@ max_retries = 1
 name = "INVENTORY_DO"
 class_name = "InventoryLockManagerDO"
 script_name = "public-api-worker"
-
-[triggers]
-crons = ["0 0 * * *"] # Daily at midnight
