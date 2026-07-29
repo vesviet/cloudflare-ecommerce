@@ -17,7 +17,7 @@
     "setup:secrets": "node -e \"const fs = require('fs'); ['public-api', 'admin-api'].forEach(app => { const p = 'apps/'+app+'/.dev.vars'; if (!fs.existsSync(p)) fs.copyFileSync('apps/public-api/.dev.vars.example', p); })\""
   },
   "devDependencies": {
-    "turbo": "latest"
+    "turbo": "2.9.14"
   },
   "packageManager": "pnpm@9.1.0",
   "resolutions": {

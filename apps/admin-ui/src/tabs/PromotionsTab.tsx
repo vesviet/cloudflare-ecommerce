@@ -40,7 +40,7 @@ export const PromotionsTab: React.FC<PromotionsTabProps> = ({ API_BASE_URL, addT
   const handleDelete = async (id: string) => {
     if (!window.confirm('Delete this coupon?')) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/coupons/${id}`, { method: 'DELETE', credentials: 'omit' });
+      const res = await fetch(`${API_BASE_URL}/coupons/${id}`, { method: 'DELETE', credentials: 'include' });
       const data = await res.json();
       if (data.success) {
         addToast('Coupon deleted', 'success');
@@ -55,7 +55,7 @@ export const PromotionsTab: React.FC<PromotionsTabProps> = ({ API_BASE_URL, addT
 
   const handleToggle = async (id: string) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/coupons/${id}/toggle`, { method: 'PATCH', credentials: 'omit' });
+      const res = await fetch(`${API_BASE_URL}/coupons/${id}/toggle`, { method: 'PATCH', credentials: 'include' });
       const data = await res.json();
       if (data.success) {
         mutate();
@@ -86,7 +86,7 @@ export const PromotionsTab: React.FC<PromotionsTabProps> = ({ API_BASE_URL, addT
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-        credentials: 'omit' // relying on JWT/cf access headers externally or if using standard fetch
+        credentials: 'include' // relying on JWT/cf access headers externally or if using standard fetch
       });
       const data = await res.json();
       if (data.success) {

@@ -18,7 +18,7 @@ importers:
   .:
     devDependencies:
       turbo:
-        specifier: latest
+        specifier: 2.9.14
         version: 2.9.14
 
   apps/admin-api:

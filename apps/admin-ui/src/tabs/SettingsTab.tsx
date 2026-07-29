@@ -13,7 +13,7 @@ export const SettingsTab: React.FC = () => {
   const fetchSettings = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/settings`, { credentials: 'omit' });
+      const res = await fetch(`${API_BASE}/api/settings`, { credentials: 'include' });
       const data = await res.json();
       if (data.success) {
         setSettings(data.data);
@@ -48,6 +48,7 @@ export const SettingsTab: React.FC = () => {
       const res = await fetch(`${API_BASE}/api/settings/batch`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ settings: changedSettings }),
       });
       const data = await res.json();

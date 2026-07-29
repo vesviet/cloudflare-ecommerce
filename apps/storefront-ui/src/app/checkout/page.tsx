@@ -14,6 +14,17 @@ import { Turnstile } from '@marsidev/react-turnstile';
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com';
 const FLAT_SHIPPING_FEE = 9.99;
 
+// Only ever redirect to an HTTPS Stripe-hosted checkout URL. Prevents an
+// open-redirect if the API response is ever tampered with.
+function isTrustedCheckoutUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.protocol === 'https:' && (u.hostname === 'stripe.com' || u.hostname.endsWith('.stripe.com'));
+  } catch {
+    return false;
+  }
+}
+
 const EMPTY_GUEST: GuestAddress = {
   first_name: '', last_name: '', company: '',
   address_1: '', address_2: '', city: '',
@@ -172,8 +183,11 @@ function CheckoutInner() {
       });
       const data = await res.json();
 
-      if (data.success && data.checkout_url) {
+      if (data.success && data.checkout_url && isTrustedCheckoutUrl(data.checkout_url)) {
         window.location.href = data.checkout_url;
+      } else if (data.success && data.checkout_url) {
+        setStatus('error');
+        setErrorMessage('Received an unexpected checkout URL. Please try again.');
       } else {
         setStatus('error');
         setErrorMessage(data.error || 'Failed to place order. Please try again.');
