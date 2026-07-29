@@ -31,9 +31,24 @@ D1 tracks applied migrations **by file name**. Renaming or renumbering any alrea
 ### Option C — Hybrid
 - Upgrade `drizzle-kit`, `introspect` to rebuild the baseline, keep the journal going forward. Same as B but explicitly keeps the journal for history.
 
+## Research — Drizzle official guidance
+
+Sources: https://orm.drizzle.team/docs/get-started/d1-existing , https://orm.drizzle.team/docs/drizzle-kit-pull , drizzle-team/drizzle-orm#5528
+
+- Drizzle documents an explicit **brownfield / "database-first"** flow for existing D1: `npx drizzle-kit pull --init` with `driver: 'd1-http'` (accountId + databaseId + API token) **introspects the deployed database** and regenerates `schema.ts`, the `meta` snapshot baseline, a migration file, and `relations.ts`. Introspection is **read-only** against the DB, so it is safe to run to rebuild an accurate baseline.
+- Drizzle's docs confirm the exact drift mechanism we hit: `generate` diffs the schema against the **checked-in snapshot history**; when snapshots are missing or migrations land out of chronological order, `generate` can emit DDL that is already applied (issue #5528). This is why our missing 0007/0014/0015 snapshots are dangerous.
+- Drizzle also ships `drizzle-kit export`, `check`, plus "Custom migrations" and "Migrations for teams" docs for hand-written SQL — the supported path if we choose Option A.
+
 ## Recommendation
 
-Adopt **Option A now** (lowest risk, matches the hand-written reality) and, in the same change, **collapse the two ORM schemas into one source of truth** (make `core-services/local-schema.ts` re-export from `packages/database/src/schema.ts`, or vice-versa) so the ORM definition matches the deployed columns. Revisit Option B only if the team wants generated migrations back, and do the baseline against a **pulled prod schema on a scratch DB** first.
+**Option B, implemented via the documented `drizzle-kit pull --init` brownfield flow**, is now the preferred path because it: (1) is read-only against production, (2) rebuilds a correct snapshot baseline pinned at the current head (0015), and (3) simultaneously **resolves the duplicate-schema drift** by producing one introspected `schema.ts` to adopt as the single source of truth.
+
+Guard rails when executing (post-approval):
+- Do **not** re-apply the generated baseline migration to the live D1 — it would try to recreate existing tables. Keep the existing `0000`–`0015` files unrenamed as history; treat the freshly introspected snapshot as the baseline for future `generate` only.
+- Requires bumping `drizzle-kit` to a build compatible with `drizzle-orm@0.45.x` (or `drizzle-kit@rc`) and a scoped D1 API token for the `d1-http` driver.
+- Collapse the two ORM schemas: adopt the introspected schema as the single file and have the other module re-export it.
+
+**Option A** (declare migrations hand-written, drop the journal, use `export`/custom-migrations going forward) remains the lower-effort fallback if the team does not want generated migrations back.
 
 ## Decision required from the team
 

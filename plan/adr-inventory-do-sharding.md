@@ -29,9 +29,19 @@ One DO per fulfilment location. Aligns with the location-scoped inventory model 
 ### Option D — Shard by `product_id` + `location_id`
 Finest granularity, highest parallelism, highest cross-shard complexity for any multi-line order.
 
+## Research — Cloudflare official guidance (Rules of Durable Objects, updated 2026-07-15)
+
+Source: https://developers.cloudflare.com/durable-objects/best-practices/rules-of-durable-objects/
+
+- **Explicit anti-pattern — "Do not use a single Durable Object as a global singleton":** *"A single Durable Object handling all traffic becomes a bottleneck."* Cloudflare names global counters/limiters as the classic mistake. Our `idFromName('GLOBAL_INVENTORY')` is exactly this pattern.
+- **Concrete throughput ceiling:** one DO handles ~1,000 req/s for simple pass-through, **~500–750 with JSON parsing/validation, and ~200–500 for complex operations with storage writes**. Our deduct/restock does JSON + SQLite writes + a D1 write-through, so the global object's realistic ceiling is ~200–500 checkouts/s for the entire platform. Sizing formula: `Required DOs = total_rps / per_DO_capacity`.
+- **Design principle — model one DO per "atom of coordination":** Cloudflare lists *"inventory management, booking systems"* as canonical strong-consistency cases, and its **seat-booking example shards per event** via `idFromName(eventId)`. That is directly analogous to sharding inventory per `location_id` (all products at one location in one object), which keeps the common single-location, multi-item checkout atomic inside a single object.
+- **Parent-child pattern** (coordinator + per-entity child DOs) enables parallelism while each child keeps single-threaded consistency — the path to finer granularity if a location gets hot.
+- **Implementation notes for any shard key:** route with deterministic `getByName(key)` (not `newUniqueId()`); and note that `blockConcurrencyWhile()` across I/O (our constructor seeds from D1) plus per-request D1 write-through is itself throughput-limiting — Cloudflare recommends `transaction()` for atomic read-modify-write and keeping blocking init minimal.
+
 ## Recommendation
 
-Start with **Option C (shard by `location_id`)**: it matches the existing location-scoped inventory semantics, keeps the common single-location checkout atomic inside one DO, and is a small, reversible keying change (`idFromName(location_id)` instead of `'GLOBAL_INVENTORY'`). Only move to B/D if per-location contention is later proven by metrics — and only with a defined multi-shard acquisition protocol.
+**Shard by `location_id`** (Option C), now backed by Cloudflare's own guidance: it matches the "atom of coordination" model (mirrors the seat-booking-per-event example), keeps the common single-location checkout atomic, and is a small change (`getByName(location_id)` instead of `'GLOBAL_INVENTORY'`). Escalate to per-`product_id` (Option B) or a parent-child design **only if** a single location is measured to exceed the ~200–500 rps complex-op ceiling (use the sizing formula). Any multi-shard checkout must acquire shards in a deterministic sorted order with a compensation path.
 
 ## Decision required from the team
 
