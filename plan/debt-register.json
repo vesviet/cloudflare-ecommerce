@@ -168,10 +168,12 @@
       "severity": "P3",
       "title": "Legacy landing page urgency timestamps stored as epoch",
       "description": "landing_pages.urgency_end_time is declared as an ISO string but the admin API wrote epoch seconds until this cycle. Rows saved earlier still hold epoch values. The storefront tolerates both formats through accumulated parsing branches; the admin form parses an epoch value as milliseconds and displays 1970.",
-      "status": "New",
+      "status": "In Progress",
       "identified_at": "2026-07-28T12:15:00Z",
       "owner": "Technical Lead",
-      "repayment_plan": "Normalise existing rows to ISO strings with a one-off script, then remove the multi-format parsing branches in the storefront. The data write is irreversible and needs explicit approval plus a verified backup before it runs."
+      "repayment_plan": "Normalise existing rows to ISO strings with a one-off script, then remove the multi-format parsing branches in the storefront. The data write is irreversible and needs explicit approval plus a verified backup before it runs.",
+      "progress": "Write path already fixed: admin-api landing-pages.ts normalises input via toIsoStringOrNull(), so new rows are ISO. Remaining: the one-off normalisation of legacy epoch rows, then storefront parsing-branch cleanup.",
+      "blocked_on": "The normalisation is an irreversible prod data write; per the repayment plan it needs explicit approval + a verified D1 backup and must NOT be an auto-applied migration. Gated maintainer steps (backup, dry-run, convert, verify, then code cleanup) documented in plan/runbook-debt-014-urgency-timestamp-normalization.md. The tolerant parsing branches are intentionally retained until the data is normalised."
     }
   ],
   "last_reviewed_at": "2026-07-28T12:15:00Z",

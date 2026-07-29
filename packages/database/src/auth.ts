@@ -47,12 +47,15 @@ export async function verifyPassword(password: string, storedHash: string): Prom
   );
   
   const actualHash = new Uint8Array(hashBuffer);
-  
+
+  // Constant-time comparison: accumulate any differing bits so the comparison
+  // time does not depend on the position of the first mismatching byte.
   if (actualHash.length !== expectedHash.length) return false;
+  let mismatch = 0;
   for (let i = 0; i < actualHash.length; i++) {
-    if (actualHash[i] !== expectedHash[i]) return false;
+    mismatch |= actualHash[i] ^ expectedHash[i];
   }
-  return true;
+  return mismatch === 0;
 }
 
 // Helper to sign JWT
