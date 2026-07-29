@@ -33,7 +33,7 @@ catalog.get('/', async (c) => {
     return c.json({ success: true, data });
   } catch (err: any) {
     console.error('Catalog get list error:', err);
-    return c.json({ success: false, error: err.message, stack: err.stack }, 500);
+    return c.json({ success: false, error: 'Internal server error' }, 500);
   }
 });
 
@@ -61,7 +61,8 @@ catalog.get('/search', async (c) => {
     c.header('X-Cache', 'MISS');
     return c.json({ success: true, data });
   } catch (err: any) {
-    return c.json({ success: false, error: err.message }, 500);
+    console.error('Catalog search error:', err);
+    return c.json({ success: false, error: 'Internal server error' }, 500);
   }
 });
 
@@ -90,7 +91,8 @@ catalog.get('/:slug', async (c) => {
     c.header('X-Cache', 'MISS');
     return c.json({ success: true, data });
   } catch (err: any) {
-    return c.json({ success: false, error: err.message }, 500);
+    console.error('Catalog get item error:', err);
+    return c.json({ success: false, error: 'Internal server error' }, 500);
   }
 });
 

@@ -2,6 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
+import ReactMarkdown from 'react-markdown';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com';
 
@@ -64,17 +65,18 @@ export default async function DynamicCmsPage({ params }: { params: Promise<{ slu
         </div>
       )}
 
-      {/* Render Markdown or HTML content */}
-      {/* Assuming metadata_json has content, or if there's a dedicated content column. Wait, cmsEntries has metadata_json but the API returns excerpt and metadata_json. Content is usually in metadata_json.content */}
+      {/* Render CMS content as Markdown. react-markdown does NOT render embedded
+          raw HTML by default, which neutralizes stored-XSS from CMS content. */}
       <div 
         className="cms-content" 
         style={{ lineHeight: 1.8, fontSize: '1.1rem', color: '#e0e0e0' }}
-        dangerouslySetInnerHTML={{ 
-          __html: page.metadata_json 
-            ? JSON.parse(page.metadata_json).content || page.excerpt 
-            : page.excerpt 
-        }} 
-      />
+      >
+        <ReactMarkdown>
+          {(page.metadata_json
+            ? (() => { try { return JSON.parse(page.metadata_json).content; } catch { return null; } })() || page.excerpt
+            : page.excerpt) || ''}
+        </ReactMarkdown>
+      </div>
     </main>
   );
 }

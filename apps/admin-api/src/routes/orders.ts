@@ -318,6 +318,20 @@ orders.post('/orders/:id/approve', requireRole(['superadmin', 'manager', 'suppor
   const orderId = c.req.param('id');
   try {
     const db = createDb(c.env.DB);
+
+    // Guard the state machine: never re-open an order that is in a terminal/locked state.
+    const current = await db.select({ status: localSchema.orders.status })
+      .from(localSchema.orders)
+      .where(eq(localSchema.orders.id, orderId))
+      .get();
+    if (!current) {
+      return c.json({ success: false, error: 'Order not found' }, 404);
+    }
+    const LOCKED_STATUSES = ['processing', 'shipped', 'completed', 'cancelled', 'refunded'];
+    if (current.status && LOCKED_STATUSES.includes(current.status)) {
+      return c.json({ success: false, error: `Order cannot be approved from status: ${current.status}` }, 400);
+    }
+
     await db.update(localSchema.orders)
       .set({ status: 'processing', updated_at: sql`CURRENT_TIMESTAMP` })
       .where(eq(localSchema.orders.id, orderId));
@@ -337,6 +351,21 @@ orders.post('/orders/:id/cancel', requireRole(['superadmin', 'manager', 'support
   const orderId = c.req.param('id');
   try {
     const db = createDb(c.env.DB);
+
+    // Guard the state machine: cannot cancel an order that is already shipped,
+    // completed, cancelled, or refunded.
+    const current = await db.select({ status: localSchema.orders.status })
+      .from(localSchema.orders)
+      .where(eq(localSchema.orders.id, orderId))
+      .get();
+    if (!current) {
+      return c.json({ success: false, error: 'Order not found' }, 404);
+    }
+    const UNCANCELLABLE_STATUSES = ['shipped', 'completed', 'cancelled', 'refunded'];
+    if (current.status && UNCANCELLABLE_STATUSES.includes(current.status)) {
+      return c.json({ success: false, error: `Order cannot be cancelled from status: ${current.status}` }, 400);
+    }
+
     await db.update(localSchema.orders)
       .set({ status: 'cancelled', updated_at: sql`CURRENT_TIMESTAMP` })
       .where(eq(localSchema.orders.id, orderId));

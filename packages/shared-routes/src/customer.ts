@@ -7,7 +7,7 @@ import { hashPassword, verifyPassword, signJWT, verifyJWT } from '@ecommerce/dat
 import { WishlistService } from '@ecommerce/core-services';
 import { rateLimit, clientIp, type RateLimiter } from './rate-limit';
 import { zValidator } from '@hono/zod-validator';
-import { CustomerRegisterSchema, CustomerLoginSchema, CustomerAddressSchema, CustomerProfileUpdateSchema } from '@ecommerce/contract';
+import { CustomerRegisterSchema, CustomerLoginSchema, CustomerAddressSchema, CustomerProfileUpdateSchema, WishlistAddSchema, WishlistMergeSchema } from '@ecommerce/contract';
 type Bindings = {
   DB: D1Database;
   JWT_SECRET: string;
@@ -536,13 +536,11 @@ customerApp.get('/customer/wishlist', async (c) => {
   }
 });
 
-customerApp.post('/customer/wishlist', async (c) => {
+customerApp.post('/customer/wishlist', zValidator('json', WishlistAddSchema), async (c) => {
   try {
     const payload = c.get('jwtPayload') as any;
     const customerId = payload.customer_id;
-    const { productId } = await c.req.json();
-    
-    if (!productId) return c.json({ success: false, error: 'Product ID is required' }, 400);
+    const { productId } = c.req.valid('json');
 
     const db = createDb(c.env.DB);
     const item = await WishlistService.addItem(db, customerId, productId);
@@ -568,15 +566,11 @@ customerApp.delete('/customer/wishlist/:productId', async (c) => {
   }
 });
 
-customerApp.post('/customer/wishlist/merge', async (c) => {
+customerApp.post('/customer/wishlist/merge', zValidator('json', WishlistMergeSchema), async (c) => {
   try {
     const payload = c.get('jwtPayload') as any;
     const customerId = payload.customer_id;
-    const { productIds } = await c.req.json();
-    
-    if (!productIds || !Array.isArray(productIds)) {
-      return c.json({ success: false, error: 'productIds array is required' }, 400);
-    }
+    const { productIds } = c.req.valid('json');
 
     const db = createDb(c.env.DB);
     const items = await WishlistService.mergeWishlist(db, customerId, productIds);

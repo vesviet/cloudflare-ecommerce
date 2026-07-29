@@ -148,6 +148,15 @@ export const AddToCartSchema = z.object({
   quantity: z.number().int().positive().default(1),
 })
 
+// --- WISHLIST INPUT SCHEMAS ---
+export const WishlistAddSchema = z.object({
+  productId: z.string().min(1).max(64),
+})
+
+export const WishlistMergeSchema = z.object({
+  productIds: z.array(z.string().min(1).max(64)).max(200),
+})
+
 // --- SHARED ROUTE SCHEMAS ---
 export const CustomerRegisterSchema = z.object({
   email: z.string().email(),
@@ -231,6 +240,8 @@ export type ProductForm = z.infer<typeof productFormSchema>;
 export type CartItem = z.infer<typeof CartItemSchema>;
 export type Cart = z.infer<typeof CartSchema>;
 export type AddToCartInput = z.infer<typeof AddToCartSchema>;
+export type WishlistAddInput = z.infer<typeof WishlistAddSchema>;
+export type WishlistMergeInput = z.infer<typeof WishlistMergeSchema>;
 export type CustomerRegisterInput = z.infer<typeof CustomerRegisterSchema>;
 export type CustomerLoginInput = z.infer<typeof CustomerLoginSchema>;
 export type CustomerAddressInput = z.infer<typeof CustomerAddressSchema>;

@@ -14,8 +14,11 @@ const landingPageSchema = z.object({
   product_id: z.string().optional(),
   seo_title: z.string().optional(),
   seo_description: z.string().optional(),
-  facebook_pixel_id: z.string().optional(),
-  tiktok_pixel_id: z.string().optional(),
+  // Pixel IDs are interpolated into inline analytics <script> on the storefront.
+  // Restrict to safe token characters so they cannot break out of the string
+  // literal and inject script (XSS). Empty string allowed to clear the value.
+  facebook_pixel_id: z.string().regex(/^[A-Za-z0-9._-]*$/, 'Invalid pixel id').max(64).optional(),
+  tiktok_pixel_id: z.string().regex(/^[A-Za-z0-9._-]*$/, 'Invalid pixel id').max(64).optional(),
   urgency_end_time: z.string().optional(),
   urgency_fake_views: z.number().optional(),
   combo_rules_json: z.string().optional(),
