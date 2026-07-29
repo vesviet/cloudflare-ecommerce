@@ -40,6 +40,9 @@ jobs:
       - name: 🔍 Run Linter (ESLint)
         run: pnpm run lint
 
+      - name: 🔎 Type-check core-services (standalone, DEBT-011)
+        run: pnpm --filter @ecommerce/core-services typecheck
+
       - name: 🧪 Run Automated Tests (Vitest)
         run: pnpm test
 

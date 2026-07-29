@@ -129,10 +129,12 @@
       "severity": "P2",
       "title": "core-services tsconfig omits Cloudflare Workers types",
       "description": "packages/core-services/tsconfig.json declares no Workers type package, so a standalone type-check of that package reports 21 errors for cloudflare:workers, KVNamespace, DurableObjectState and the DurableObject ctx/env members. The code is correct and compiles inside both workers; the package cannot be type-checked on its own, which hides real errors and blocks adding it to CI.",
-      "status": "New",
+      "status": "Resolved",
       "identified_at": "2026-07-28T12:15:00Z",
       "owner": "Backend Developer",
-      "repayment_plan": "Add @cloudflare/workers-types to the package devDependencies and reference it via compilerOptions.types, then verify a standalone type-check is clean and wire the check into CI."
+      "repayment_plan": "Add @cloudflare/workers-types to the package devDependencies and reference it via compilerOptions.types, then verify a standalone type-check is clean and wire the check into CI.",
+      "resolved_at": "2026-07-29T09:55:00Z",
+      "resolution_evidence": "Verified 2026-07-29: @cloudflare/workers-types was already a devDependency; added `lib: [ES2022]` and `types: [@cloudflare/workers-types]` to packages/core-services/tsconfig.json and a `typecheck` script. `pnpm --filter @ecommerce/core-services typecheck` (tsc --noEmit) now exits 0 (was 21 errors for cloudflare:workers/KVNamespace/DurableObjectState). Wired as a dedicated step in the CI quality-gates job in .github/workflows/deploy.yml."
     },
     {
       "id": "DEBT-012",
