@@ -2,7 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import ReactMarkdown from 'react-markdown';
+import MarkdownRenderer from '@/components/MarkdownRenderer';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com';
 
@@ -71,11 +71,11 @@ export default async function DynamicCmsPage({ params }: { params: Promise<{ slu
         className="cms-content" 
         style={{ lineHeight: 1.8, fontSize: '1.1rem', color: '#e0e0e0' }}
       >
-        <ReactMarkdown>
+        <MarkdownRenderer>
           {(page.metadata_json
             ? (() => { try { return JSON.parse(page.metadata_json).content; } catch { return null; } })() || page.excerpt
             : page.excerpt) || ''}
-        </ReactMarkdown>
+        </MarkdownRenderer>
       </div>
     </main>
   );

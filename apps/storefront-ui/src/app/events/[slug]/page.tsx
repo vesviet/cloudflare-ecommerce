@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import ReactMarkdown from 'react-markdown';
+import MarkdownRenderer from '@/components/MarkdownRenderer';
 import Link from 'next/link';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com';
@@ -90,7 +90,7 @@ export default function EventDetail() {
       </div>
 
       <div className="markdown-content" style={{ fontSize: '1.1rem', lineHeight: 1.8, color: 'rgba(255,255,255,0.8)' }}>
-        <ReactMarkdown>{event.content || ''}</ReactMarkdown>
+        <MarkdownRenderer>{event.content || ''}</MarkdownRenderer>
       </div>
     </main>
   );
