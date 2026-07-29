@@ -206,7 +206,7 @@ export default function LandingClient({ lp: initialLp, comboRules: initialComboR
         <header style={{ position: 'sticky', top: 0, zIndex: 50, backgroundColor: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(5px)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 20px', borderBottom: '1px solid #e5e7eb', margin: '-40px -20px 20px -20px' }}>
           <div style={{ flex: 1 }}>
             {lp.header_logo_url ? (
-              <img src={lp.header_logo_url} alt="Logo" style={{ maxHeight: '40px', objectFit: 'contain' }} />
+              <img src={lp.header_logo_url?.startsWith('http') ? lp.header_logo_url : `${apiUrl}${lp.header_logo_url}`} alt="Logo" style={{ maxHeight: '40px', objectFit: 'contain' }} />
             ) : (
               <span style={{ fontWeight: 'bold', fontSize: '1.2rem', color: '#111827' }}>{lp.title}</span>
             )}

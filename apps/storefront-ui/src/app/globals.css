@@ -24,6 +24,7 @@ body {
                     radial-gradient(circle at 85% 30%, rgba(200, 88, 255, 0.05), transparent 25%);
   background-attachment: fixed;
   min-height: 100vh;
+  overflow-x: hidden;
 }
 
 a {
