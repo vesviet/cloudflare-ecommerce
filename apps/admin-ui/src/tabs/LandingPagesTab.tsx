@@ -216,7 +216,6 @@ export const LandingPagesTab: React.FC<LandingPagesTabProps> = ({ API_BASE_URL, 
                   </div>
                 ))}
               </div>
-              </div>
             </div>
 
             <div className="mb-6">
