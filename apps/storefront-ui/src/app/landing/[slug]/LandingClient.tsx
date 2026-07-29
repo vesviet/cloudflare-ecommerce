@@ -35,13 +35,21 @@ export default function LandingClient({ lp: initialLp, comboRules: initialComboR
       });
   }, [slug, lp, apiUrl]);
 
-  // Parse combo rules safely
   let comboRules: any[] = initialComboRules || [];
   if (!initialComboRules && lp && lp.combo_rules_json) {
     try {
       comboRules = typeof lp.combo_rules_json === 'string'
         ? JSON.parse(lp.combo_rules_json)
         : (Array.isArray(lp.combo_rules_json) ? lp.combo_rules_json : []);
+    } catch (e) {}
+  }
+
+  let parsedFeatures: string[] = [];
+  if (lp && lp.features_json) {
+    try {
+      parsedFeatures = typeof lp.features_json === 'string'
+        ? JSON.parse(lp.features_json)
+        : (Array.isArray(lp.features_json) ? lp.features_json : []);
     } catch (e) {}
   }
 
@@ -276,16 +284,16 @@ export default function LandingClient({ lp: initialLp, comboRules: initialComboR
         </div>
 
         {/* Features Bullet Points */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '0 20px', fontSize: '1.1rem', color: '#374151', marginBottom: '20px' }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-            <span style={{ color: '#d1d5db', fontSize: '1.2rem' }}>●</span>
-            <span>Màu sắc: Trắng - Xanh - Be - Nâu</span>
+        {parsedFeatures && parsedFeatures.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '0 20px', fontSize: '1.1rem', color: '#374151', marginBottom: '20px' }}>
+            {parsedFeatures.map((feature, idx) => (
+              <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                <span style={{ color: '#d1d5db', fontSize: '1.2rem' }}>●</span>
+                <span>{feature}</span>
+              </div>
+            ))}
           </div>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-            <span style={{ color: '#d1d5db', fontSize: '1.2rem' }}>●</span>
-            <span>Phù hợp mặc: Đi làm, dự tiệc, vui chơi dã ngoại, hằng ngày</span>
-          </div>
-        </div>
+        )}
 
         {(() => {
           if (!lp.urgency_end_time) return null;

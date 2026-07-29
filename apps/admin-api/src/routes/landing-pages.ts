@@ -22,6 +22,7 @@ const landingPageSchema = z.object({
   urgency_end_time: z.string().optional(),
   urgency_fake_views: z.number().optional(),
   combo_rules_json: z.string().optional(),
+  features_json: z.string().optional(),
 });
 
 // GET: List Landing Pages
@@ -64,6 +65,7 @@ landingPages.post('/landing-pages', requireRole(['superadmin', 'manager', 'edito
       urgency_end_time: toIsoStringOrNull(body.urgency_end_time),
       urgency_fake_views: body.urgency_fake_views,
       combo_rules_json: body.combo_rules_json,
+      features_json: body.features_json,
       status: 'published',
     });
 
@@ -91,6 +93,7 @@ landingPages.put('/landing-pages/:id', requireRole(['superadmin', 'manager', 'ed
       urgency_end_time: toIsoStringOrNull(body.urgency_end_time),
       urgency_fake_views: body.urgency_fake_views,
       combo_rules_json: body.combo_rules_json,
+      features_json: body.features_json,
     }).where(eq(schema.landingPages.id, id));
 
     return c.json({ success: true, message: 'Landing page updated' });

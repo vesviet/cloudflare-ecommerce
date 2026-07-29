@@ -500,6 +500,7 @@ export const landingPages = sqliteTable('landing_pages', {
   urgency_end_time: text('urgency_end_time'), // ISO String
   urgency_fake_views: integer('urgency_fake_views').default(0),
   combo_rules_json: text('combo_rules_json'), // JSON string
+  features_json: text('features_json'), // JSON string array
   
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
   updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),

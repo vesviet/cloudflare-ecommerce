@@ -27,7 +27,8 @@ export const LandingPagesTab: React.FC<LandingPagesTabProps> = ({ API_BASE_URL, 
       tiktok_pixel_id: '',
       urgency_end_time: '',
       urgency_fake_views: 0,
-      combo_rules: [{ id: crypto.randomUUID(), name: '', price: 0 }]
+      combo_rules: [{ id: crypto.randomUUID(), name: '', price: 0 }],
+      features: [{ text: '' }]
     }
   });
 
@@ -36,11 +37,17 @@ export const LandingPagesTab: React.FC<LandingPagesTabProps> = ({ API_BASE_URL, 
     name: "combo_rules"
   });
 
+  const { fields: featureFields, append: appendFeature, remove: removeFeature } = useFieldArray({
+    control,
+    name: "features"
+  });
+
   const onSubmit = async (formData: any) => {
     try {
       const payload = {
         ...formData,
-        combo_rules_json: JSON.stringify(formData.combo_rules)
+        combo_rules_json: JSON.stringify(formData.combo_rules),
+        features_json: JSON.stringify(formData.features.map((f: any) => f.text.trim()).filter(Boolean))
       };
 
       const method = currentId ? 'PUT' : 'POST';
@@ -73,6 +80,8 @@ export const LandingPagesTab: React.FC<LandingPagesTabProps> = ({ API_BASE_URL, 
     setCurrentId(lp.id);
     let combos = [];
     try { combos = JSON.parse(lp.combo_rules_json || '[]'); } catch { /* ignore */ }
+    let features = [];
+    try { features = JSON.parse(lp.features_json || '[]'); } catch { /* ignore */ }
     
     reset({
       title: lp.title,
@@ -84,7 +93,8 @@ export const LandingPagesTab: React.FC<LandingPagesTabProps> = ({ API_BASE_URL, 
       tiktok_pixel_id: lp.tiktok_pixel_id,
       urgency_end_time: lp.urgency_end_time && !isNaN(new Date(lp.urgency_end_time).getTime()) ? new Date(lp.urgency_end_time).toISOString().slice(0, 16) : '',
       urgency_fake_views: lp.urgency_fake_views || 0,
-      combo_rules: combos.length > 0 ? combos : [{ id: crypto.randomUUID(), name: '', price: 0 }]
+      combo_rules: combos.length > 0 ? combos : [{ id: crypto.randomUUID(), name: '', price: 0 }],
+      features: features.length > 0 ? features.map((f: string) => ({ text: f })) : [{ text: '' }]
     });
     setIsEditing(true);
   };
@@ -116,7 +126,7 @@ export const LandingPagesTab: React.FC<LandingPagesTabProps> = ({ API_BASE_URL, 
           <button className="btn-primary" onClick={() => {
             reset({
               title: '', slug: '', product_id: '', seo_title: '', seo_description: '', facebook_pixel_id: '', tiktok_pixel_id: '',
-              urgency_end_time: '', urgency_fake_views: 0, combo_rules: [{ id: crypto.randomUUID(), name: '', price: 0 }]
+              urgency_end_time: '', urgency_fake_views: 0, combo_rules: [{ id: crypto.randomUUID(), name: '', price: 0 }], features: [{ text: '' }]
             });
             setCurrentId(null);
             setIsEditing(true);
@@ -201,6 +211,32 @@ export const LandingPagesTab: React.FC<LandingPagesTabProps> = ({ API_BASE_URL, 
                       style={{ flex: 1 }}
                     />
                     <button type="button" onClick={() => remove(index)} className="btn-secondary" style={{ color: 'var(--danger-accent)', borderColor: 'var(--danger-accent)' }}>
+                      <Trash className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <div className="flex justify-between items-center mb-4">
+                <label className="input-label" style={{ marginBottom: 0 }}>Features Bullet Points</label>
+                <button type="button" onClick={() => appendFeature({ text: '' })} className="btn-secondary text-sm">
+                  <Plus className="w-4 h-4 mr-1" /> Add Feature
+                </button>
+              </div>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {featureFields.map((field, index) => (
+                  <div key={field.id} style={{ display: 'flex', gap: '10px', alignItems: 'center', background: 'rgba(255,255,255,0.05)', padding: '10px', borderRadius: '8px' }}>
+                    <input
+                      {...register(`features.${index}.text`, { required: true })}
+                      placeholder="e.g., Màu sắc: Trắng - Xanh - Be - Nâu"
+                      className="input-field"
+                      style={{ flex: 1 }}
+                    />
+                    <button type="button" onClick={() => removeFeature(index)} className="btn-secondary" style={{ color: 'var(--danger-accent)', borderColor: 'var(--danger-accent)' }}>
                       <Trash className="w-4 h-4" />
                     </button>
                   </div>
