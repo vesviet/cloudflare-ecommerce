@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { createDb, schema, hashPassword } from '@ecommerce/database';
 import { Bindings } from '../types';
 import { requireRole } from '../middleware/auth';
@@ -92,7 +92,7 @@ customers.put('/customers/:id', requireRole(['superadmin', 'manager']), zValidat
       company_name, vat_tax_id, accepts_marketing, tags_json, note 
     } = c.req.valid('json');
     
-    let finalStatus = status || 'active';
+    const finalStatus = status || 'active';
     if (!['active', 'suspended', 'verification_pending', 'invited'].includes(finalStatus)) {
       return c.json({ success: false, error: 'Invalid status value' }, 400);
     }

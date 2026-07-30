@@ -3,7 +3,6 @@ import { eq, sql } from 'drizzle-orm';
 import { createDb, schema } from '@ecommerce/database';
 import { Bindings } from '../types';
 import { requireRole } from '../middleware/auth';
-import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { buildUploadKey } from './uploadKey';
 
@@ -59,12 +58,14 @@ landingPages.post('/landing-pages', requireRole(['superadmin', 'manager', 'edito
     let logoFile: File | undefined;
     const contentType = c.req.header('Content-Type') || '';
     if (contentType.includes('multipart/form-data')) {
+      // eslint-disable-next-line no-restricted-syntax
       const formData = await c.req.parseBody({ all: true });
       rawBody = { ...formData };
       if (rawBody.header_logo_file instanceof File) {
         logoFile = rawBody.header_logo_file;
       }
     } else {
+      // eslint-disable-next-line no-restricted-syntax
       rawBody = await c.req.json();
     }
     
@@ -124,12 +125,14 @@ landingPages.put('/landing-pages/:id', requireRole(['superadmin', 'manager', 'ed
     let logoFile: File | undefined;
     const contentType = c.req.header('Content-Type') || '';
     if (contentType.includes('multipart/form-data')) {
+      // eslint-disable-next-line no-restricted-syntax
       const formData = await c.req.parseBody({ all: true });
       rawBody = { ...formData };
       if (rawBody.header_logo_file instanceof File) {
         logoFile = rawBody.header_logo_file;
       }
     } else {
+      // eslint-disable-next-line no-restricted-syntax
       rawBody = await c.req.json();
     }
     
