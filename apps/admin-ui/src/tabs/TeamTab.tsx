@@ -35,12 +35,17 @@ export const TeamTab: React.FC<TeamTabProps> = ({ API_BASE_URL, addToast }) => {
     
     setIsAdding(true);
     try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+      };
+      if (import.meta.env.DEV) {
+        const localEmail = localStorage.getItem('admin_email');
+        if (localEmail) headers['X-Local-Admin-Email'] = localEmail;
+      }
+
       const res = await fetch(`${API_BASE_URL}/admin-users`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Local-Admin-Email': localStorage.getItem('admin_email') || 'admin@local.dev'
-        },
+        headers,
         body: JSON.stringify({ name: newName, email: newEmail, role: newRole })
       });
       const data = await res.json();
@@ -64,9 +69,15 @@ export const TeamTab: React.FC<TeamTabProps> = ({ API_BASE_URL, addToast }) => {
   const handleDelete = async (id: string) => {
     if (!window.confirm('Are you sure you want to remove this member?')) return;
     try {
+      const headers: Record<string, string> = {};
+      if (import.meta.env.DEV) {
+        const localEmail = localStorage.getItem('admin_email');
+        if (localEmail) headers['X-Local-Admin-Email'] = localEmail;
+      }
+      
       const res = await fetch(`${API_BASE_URL}/admin-users/${id}`, {
         method: 'DELETE',
-        headers: { 'X-Local-Admin-Email': localStorage.getItem('admin_email') || 'admin@local.dev' }
+        headers
       });
       const data = await res.json();
       if (data.success) {
