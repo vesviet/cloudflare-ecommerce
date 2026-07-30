@@ -122,6 +122,11 @@ function App() {
     setLocalEmail(null);
     setUser(null);
     setAuthStatus('login');
+
+    if (!import.meta.env.DEV) {
+      // In production, log out from Cloudflare Access
+      window.location.href = `/cdn-cgi/access/logout?returnTo=${encodeURIComponent(window.location.origin)}`;
+    }
   };
 
   if (authStatus === 'loading') {
