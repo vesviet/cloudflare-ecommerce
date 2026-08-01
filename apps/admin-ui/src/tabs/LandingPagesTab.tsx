@@ -196,7 +196,7 @@ export const LandingPagesTab: React.FC<LandingPagesTabProps> = ({ API_BASE_URL, 
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
                   {logoPreview ? (
                     <div style={{ position: 'relative', width: '100px', height: '100px' }}>
-                      <img src={logoPreview.startsWith('http') || logoPreview.startsWith('blob:') ? logoPreview : `${API_BASE_URL.replace('/api', '')}${logoPreview}`} alt="Logo Preview" style={{ width: '100%', height: '100%', objectFit: 'contain', background: 'rgba(255,255,255,0.05)', borderRadius: '6px', border: '1px solid var(--glass-border)' }} />
+                      <img src={logoPreview.startsWith('http') || logoPreview.startsWith('blob:') ? logoPreview : `${API_BASE_URL}${logoPreview}`} alt="Logo Preview" style={{ width: '100%', height: '100%', objectFit: 'contain', background: 'rgba(255,255,255,0.05)', borderRadius: '6px', border: '1px solid var(--glass-border)' }} />
                       <button type="button" onClick={() => {
                         if (logoPreview.startsWith('blob:')) URL.revokeObjectURL(logoPreview);
                         setLogoFile(null);
