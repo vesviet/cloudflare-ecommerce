@@ -290,39 +290,47 @@ export default function LandingClient({ lp: initialLp, comboRules: initialComboR
 
         {/* Price Section */}
         {(() => {
-          const salePrice = selectedCombo ? selectedCombo.price : 189000;
-          // Product regular price is stored in minor units, divide by 100 for VND
+          const salePrice = selectedCombo ? selectedCombo.price : (lp?.product?.price ? lp.product.price / 100 : 189000);
           const originalPrice = lp?.product?.regular_price ? lp.product.regular_price / 100 : 0;
           
-          if (originalPrice && originalPrice > salePrice) {
-            const savings = originalPrice - salePrice;
-            const discountPercent = Math.round((savings / originalPrice) * 100);
-            return (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '25px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '1.1rem', fontWeight: '600', color: '#4b5563' }}>Giá chỉ:</span>
-                  <span style={{ fontSize: '2.2rem', fontWeight: '900', color: '#ea580c' }}>
-                    {salePrice.toLocaleString('vi-VN')} VNĐ
-                  </span>
-                  <span style={{ backgroundColor: '#fbbf24', color: '#fff', fontWeight: 'bold', padding: '4px 10px', borderRadius: '20px', fontSize: '0.9rem' }}>
-                    GIẢM {discountPercent}%
-                  </span>
-                </div>
-                <div style={{ color: '#6b7280', fontSize: '1rem', marginTop: '5px' }}>
-                  Tiết kiệm <span style={{ fontWeight: 'bold' }}>{savings.toLocaleString('vi-VN')} vnđ</span> so với giá niêm yết
-                </div>
-              </div>
-            );
-          }
-          
+          const isDiscount = originalPrice > salePrice;
+          const savings = isDiscount ? originalPrice - salePrice : 0;
+          const discountPercent = isDiscount ? Math.round((savings / originalPrice) * 100) : 0;
+
           return (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '25px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '25px', gap: '4px' }}>
+              
+              {/* Always show original price if available */}
+              {originalPrice > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '1.1rem', fontWeight: '500', color: '#6b7280' }}>Giá gốc sản phẩm:</span>
+                  <span style={{ fontSize: '1.2rem', fontWeight: '600', color: isDiscount ? '#9ca3af' : '#374151', textDecoration: isDiscount ? 'line-through' : 'none' }}>
+                    {originalPrice.toLocaleString('vi-VN')} VNĐ
+                  </span>
+                </div>
+              )}
+
+              {/* Combo or Sale Price */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '1.1rem', fontWeight: '600', color: '#4b5563' }}>Giá chỉ:</span>
+                <span style={{ fontSize: '1.2rem', fontWeight: '600', color: '#4b5563' }}>
+                  {selectedCombo ? 'Giá Combo:' : 'Giá chỉ:'}
+                </span>
                 <span style={{ fontSize: '2.2rem', fontWeight: '900', color: '#ea580c' }}>
                   {salePrice.toLocaleString('vi-VN')} VNĐ
                 </span>
+                {isDiscount && (
+                  <span style={{ backgroundColor: '#fbbf24', color: '#fff', fontWeight: 'bold', padding: '4px 10px', borderRadius: '20px', fontSize: '0.9rem' }}>
+                    GIẢM {discountPercent}%
+                  </span>
+                )}
               </div>
+
+              {/* Savings */}
+              {isDiscount && (
+                <div style={{ color: '#6b7280', fontSize: '1rem', marginTop: '2px' }}>
+                  Tiết kiệm <span style={{ fontWeight: 'bold' }}>{savings.toLocaleString('vi-VN')} vnđ</span>
+                </div>
+              )}
             </div>
           );
         })()}
