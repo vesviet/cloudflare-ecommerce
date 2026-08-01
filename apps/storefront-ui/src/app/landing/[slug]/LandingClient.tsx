@@ -290,7 +290,8 @@ export default function LandingClient({ lp: initialLp, comboRules: initialComboR
 
         {/* Price Section */}
         {(() => {
-          const salePrice = selectedCombo ? selectedCombo.price : (lp?.product?.price ? lp.product.price / 100 : 189000);
+          // UX FIX: Hero price displays the main product's price to avoid confusing the user with cheaper combo accessory prices.
+          const salePrice = lp?.product?.price ? lp.product.price / 100 : 189000;
           const originalPrice = lp?.product?.regular_price ? lp.product.regular_price / 100 : 0;
           
           const isDiscount = originalPrice > salePrice;
@@ -298,23 +299,28 @@ export default function LandingClient({ lp: initialLp, comboRules: initialComboR
           const discountPercent = isDiscount ? Math.round((savings / originalPrice) * 100) : 0;
 
           return (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '25px', gap: '4px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '25px', gap: '6px' }}>
               
-              {/* Always show original price if available */}
+              {/* Original Price */}
               {originalPrice > 0 && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '1.1rem', fontWeight: '500', color: '#6b7280' }}>Giá gốc sản phẩm:</span>
+                  <span style={{ fontSize: '1.1rem', fontWeight: '500', color: '#6b7280' }}>Giá niêm yết:</span>
                   <span style={{ fontSize: '1.2rem', fontWeight: '600', color: isDiscount ? '#9ca3af' : '#374151', textDecoration: isDiscount ? 'line-through' : 'none' }}>
                     {originalPrice.toLocaleString('vi-VN')} VNĐ
                   </span>
                 </div>
               )}
 
-              {/* Combo or Sale Price */}
+              {/* Combo Upsell Indicator (Small) - Placed above promotional price */}
+              {selectedCombo && (
+                <div style={{ color: '#059669', fontSize: '0.95rem', fontWeight: '600', backgroundColor: '#d1fae5', padding: '4px 12px', borderRadius: '6px', border: '1px dashed #34d399', marginBottom: '2px' }}>
+                  🎁 Tùy chọn mua kèm: {selectedCombo.name} - Giá: {selectedCombo.price.toLocaleString('vi-VN')} VNĐ
+                </div>
+              )}
+
+              {/* Main Product Sale Price */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '1.2rem', fontWeight: '600', color: '#4b5563' }}>
-                  {selectedCombo ? 'Giá Combo:' : 'Giá chỉ:'}
-                </span>
+                <span style={{ fontSize: '1.2rem', fontWeight: '600', color: '#4b5563' }}>Giá ưu đãi:</span>
                 <span style={{ fontSize: '2.2rem', fontWeight: '900', color: '#ea580c' }}>
                   {salePrice.toLocaleString('vi-VN')} VNĐ
                 </span>
@@ -327,7 +333,7 @@ export default function LandingClient({ lp: initialLp, comboRules: initialComboR
 
               {/* Savings */}
               {isDiscount && (
-                <div style={{ color: '#6b7280', fontSize: '1rem', marginTop: '2px' }}>
+                <div style={{ color: '#6b7280', fontSize: '1rem', marginTop: '-2px' }}>
                   Tiết kiệm <span style={{ fontWeight: 'bold' }}>{savings.toLocaleString('vi-VN')} vnđ</span>
                 </div>
               )}
