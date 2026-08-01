@@ -291,8 +291,9 @@ export default function LandingClient({ lp: initialLp, comboRules: initialComboR
         {/* Price Section */}
         {(() => {
           // UX FIX: Hero price displays the main product's price to avoid confusing the user with cheaper combo accessory prices.
-          const salePrice = lp?.product?.price ? lp.product.price / 100 : 189000;
+          // If no specific sale price (.price) is provided, fallback to the regular_price.
           const originalPrice = lp?.product?.regular_price ? lp.product.regular_price / 100 : 0;
+          const salePrice = lp?.product?.price ? lp.product.price / 100 : originalPrice;
           
           const isDiscount = originalPrice > salePrice;
           const savings = isDiscount ? originalPrice - salePrice : 0;
