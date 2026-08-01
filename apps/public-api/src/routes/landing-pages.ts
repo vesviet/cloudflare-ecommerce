@@ -56,6 +56,9 @@ landingPages.get('/:slug', async (c) => {
       productData = await db.select().from(schema.products).where(eq(schema.products.id, data.product_id)).get();
       variantsData = await db.select().from(schema.products).where(eq(schema.products.parent_id, data.product_id)).all();
 
+      const priceRow = await db.select({ price: schema.priceListItems.price }).from(schema.priceListItems).where(eq(schema.priceListItems.product_id, data.product_id)).get();
+      const productPrice = priceRow ? priceRow.price : null;
+
       const stockedIds = variantsData.length > 0 ? variantsData.map(v => v.id) : [data.product_id];
       const stockRows = await db
         .select({
@@ -96,6 +99,7 @@ landingPages.get('/:slug', async (c) => {
       if (productData) {
         (productData as any).stock = stockByProduct.get(productData.id) ?? 0;
         (productData as any).images = imagesByProduct.get(productData.id) ?? [];
+        (productData as any).regular_price = productPrice;
       }
       variantsData = variantsData.map(v => ({
         ...v,

@@ -289,20 +289,43 @@ export default function LandingClient({ lp: initialLp, comboRules: initialComboR
         </div>
 
         {/* Price Section */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '25px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '1.1rem', fontWeight: '600', color: '#4b5563' }}>Giá chỉ:</span>
-            <span style={{ fontSize: '2.2rem', fontWeight: '900', color: '#ea580c' }}>
-              {selectedCombo ? selectedCombo.price.toLocaleString('vi-VN') : '189.000'} VNĐ
-            </span>
-            <span style={{ backgroundColor: '#fbbf24', color: '#fff', fontWeight: 'bold', padding: '4px 10px', borderRadius: '20px', fontSize: '0.9rem' }}>
-              GIẢM 50%
-            </span>
-          </div>
-          <div style={{ color: '#6b7280', fontSize: '1rem', marginTop: '5px' }}>
-            Tiết kiệm <span style={{ fontWeight: 'bold' }}>{selectedCombo ? selectedCombo.price.toLocaleString('vi-VN') : '190.000'} vnđ</span> so với giá niêm yết
-          </div>
-        </div>
+        {(() => {
+          const salePrice = selectedCombo ? selectedCombo.price : 189000;
+          // Product regular price is stored in minor units, divide by 100 for VND
+          const originalPrice = lp?.product?.regular_price ? lp.product.regular_price / 100 : 0;
+          
+          if (originalPrice && originalPrice > salePrice) {
+            const savings = originalPrice - salePrice;
+            const discountPercent = Math.round((savings / originalPrice) * 100);
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '25px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '1.1rem', fontWeight: '600', color: '#4b5563' }}>Giá chỉ:</span>
+                  <span style={{ fontSize: '2.2rem', fontWeight: '900', color: '#ea580c' }}>
+                    {salePrice.toLocaleString('vi-VN')} VNĐ
+                  </span>
+                  <span style={{ backgroundColor: '#fbbf24', color: '#fff', fontWeight: 'bold', padding: '4px 10px', borderRadius: '20px', fontSize: '0.9rem' }}>
+                    GIẢM {discountPercent}%
+                  </span>
+                </div>
+                <div style={{ color: '#6b7280', fontSize: '1rem', marginTop: '5px' }}>
+                  Tiết kiệm <span style={{ fontWeight: 'bold' }}>{savings.toLocaleString('vi-VN')} vnđ</span> so với giá niêm yết
+                </div>
+              </div>
+            );
+          }
+          
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '25px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '1.1rem', fontWeight: '600', color: '#4b5563' }}>Giá chỉ:</span>
+                <span style={{ fontSize: '2.2rem', fontWeight: '900', color: '#ea580c' }}>
+                  {salePrice.toLocaleString('vi-VN')} VNĐ
+                </span>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Features Bullet Points */}
         {parsedFeatures && parsedFeatures.length > 0 && (
