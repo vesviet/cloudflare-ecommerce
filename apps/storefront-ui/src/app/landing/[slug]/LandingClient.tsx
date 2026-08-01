@@ -302,26 +302,21 @@ export default function LandingClient({ lp: initialLp, comboRules: initialComboR
           return (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '25px', gap: '6px' }}>
               
-              {/* Original Price */}
-              {originalPrice > 0 && (
+              {/* Original Price (ONLY show if there is a real discount) */}
+              {originalPrice > 0 && isDiscount && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ fontSize: '1.1rem', fontWeight: '500', color: '#6b7280' }}>Giá niêm yết:</span>
-                  <span style={{ fontSize: '1.2rem', fontWeight: '600', color: isDiscount ? '#9ca3af' : '#374151', textDecoration: isDiscount ? 'line-through' : 'none' }}>
+                  <span style={{ fontSize: '1.2rem', fontWeight: '600', color: '#9ca3af', textDecoration: 'line-through' }}>
                     {originalPrice.toLocaleString('vi-VN')} VNĐ
                   </span>
                 </div>
               )}
 
-              {/* Combo Upsell Indicator (Small) - Placed above promotional price */}
-              {selectedCombo && (
-                <div style={{ color: '#059669', fontSize: '0.95rem', fontWeight: '600', backgroundColor: '#d1fae5', padding: '4px 12px', borderRadius: '6px', border: '1px dashed #34d399', marginBottom: '2px' }}>
-                  🎁 Tùy chọn mua kèm: {selectedCombo.name} - Giá: {selectedCombo.price.toLocaleString('vi-VN')} VNĐ
-                </div>
-              )}
-
               {/* Main Product Sale Price */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '1.2rem', fontWeight: '600', color: '#4b5563' }}>Giá ưu đãi:</span>
+                <span style={{ fontSize: '1.2rem', fontWeight: '600', color: '#4b5563' }}>
+                  {isDiscount ? 'Giá ưu đãi:' : 'Giá bán:'}
+                </span>
                 <span style={{ fontSize: '2.2rem', fontWeight: '900', color: '#ea580c' }}>
                   {salePrice.toLocaleString('vi-VN')} VNĐ
                 </span>
@@ -336,6 +331,13 @@ export default function LandingClient({ lp: initialLp, comboRules: initialComboR
               {isDiscount && (
                 <div style={{ color: '#6b7280', fontSize: '1rem', marginTop: '-2px' }}>
                   Tiết kiệm <span style={{ fontWeight: 'bold' }}>{savings.toLocaleString('vi-VN')} vnđ</span>
+                </div>
+              )}
+
+              {/* Combo Upsell Indicator (Small) - Placed below the price block for better visual hierarchy */}
+              {selectedCombo && (
+                <div style={{ color: '#059669', fontSize: '0.95rem', fontWeight: '600', backgroundColor: '#d1fae5', padding: '4px 12px', borderRadius: '6px', border: '1px dashed #34d399', marginTop: '4px' }}>
+                  🎁 Tùy chọn mua kèm: {selectedCombo.name} - Giá: {selectedCombo.price.toLocaleString('vi-VN')} VNĐ
                 </div>
               )}
             </div>
