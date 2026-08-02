@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { apiFetch } from './lib/apiFetch';
 import './App.css';
 import type { Toast } from './types';
 import { Sidebar } from './components/Sidebar';
@@ -71,16 +72,8 @@ function App() {
 
       setAuthStatus('loading');
       try {
-        const headers: Record<string, string> = {};
-        if (isLocalDev && localEmail) {
-          headers['X-Local-Admin-Email'] = localEmail;
-        }
-
         // On production, Cloudflare Access handles the JWT automatically in cookies/headers
-        const res = await fetch(`${API_BASE_URL}/me`, { 
-          headers,
-          credentials: 'include' // Must include credentials for cross-domain CF cookies
-        });
+        const res = await apiFetch('/me');
         
         if (res.status === 403 || res.status === 401) {
           setAuthStatus('forbidden');
@@ -89,19 +82,9 @@ function App() {
         
         const data = await res.json();
         if (data.success) {
-          setUser(data.data);
-          setAuthStatus('authorized');
-          
-          // RBAC Route Protection
-          const role = data.data.role;
-          const currentPath = location.pathname;
-          
-          if (role === 'editor' && !['/cms', '/categories'].includes(currentPath)) {
-             navigate('/cms', { replace: true });
-          } else if (role === 'support' && !['/orders', '/customers'].includes(currentPath)) {
-             navigate('/orders', { replace: true });
-          }
-        } else {
+        setUser(data.data);
+        setAuthStatus('authorized');
+      } else {
           setAuthStatus('forbidden');
         }
       } catch (e) {
@@ -110,7 +93,7 @@ function App() {
       }
     };
     fetchUser();
-  }, [localEmail, navigate, location.pathname]);
+  }, [localEmail, navigate]);
 
   const handleLogin = (email: string) => {
     localStorage.setItem('admin_email', email);
@@ -155,6 +138,13 @@ function App() {
         </div>
       );
     }
+  }
+
+  if (user?.role === 'editor' && !['/cms', '/categories'].includes(location.pathname)) {
+    return <Navigate to="/cms" replace />;
+  }
+  if (user?.role === 'support' && !['/orders', '/customers'].includes(location.pathname)) {
+    return <Navigate to="/orders" replace />;
   }
 
   return (

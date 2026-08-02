@@ -3,6 +3,7 @@ import useSWR from 'swr';
 import { GlassCard } from '../components/ui/GlassCard';
 import { SkeletonLoader } from '../components/ui/SkeletonLoader';
 import { Users, UserPlus, Trash2 } from 'lucide-react';
+import { apiFetch } from '../lib/apiFetch';
 
 interface TeamMember {
   id: string;
@@ -35,17 +36,9 @@ export const TeamTab: React.FC<TeamTabProps> = ({ API_BASE_URL, addToast }) => {
     
     setIsAdding(true);
     try {
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json'
-      };
-      if (import.meta.env.DEV) {
-        const localEmail = localStorage.getItem('admin_email');
-        if (localEmail) headers['X-Local-Admin-Email'] = localEmail;
-      }
-
-      const res = await fetch(`${API_BASE_URL}/admin-users`, {
+      const res = await apiFetch('/admin-users', {
         method: 'POST',
-        headers,
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newName, email: newEmail, role: newRole })
       });
       const data = await res.json();
@@ -69,15 +62,8 @@ export const TeamTab: React.FC<TeamTabProps> = ({ API_BASE_URL, addToast }) => {
   const handleDelete = async (id: string) => {
     if (!window.confirm('Are you sure you want to remove this member?')) return;
     try {
-      const headers: Record<string, string> = {};
-      if (import.meta.env.DEV) {
-        const localEmail = localStorage.getItem('admin_email');
-        if (localEmail) headers['X-Local-Admin-Email'] = localEmail;
-      }
-      
-      const res = await fetch(`${API_BASE_URL}/admin-users/${id}`, {
-        method: 'DELETE',
-        headers
+      const res = await apiFetch(`/admin-users/${id}`, {
+        method: 'DELETE'
       });
       const data = await res.json();
       if (data.success) {
@@ -172,6 +158,7 @@ export const TeamTab: React.FC<TeamTabProps> = ({ API_BASE_URL, addToast }) => {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <button 
+                          aria-label="Remove member"
                           className="p-1.5 rounded-md text-danger-accent/70 hover:text-danger-accent hover:bg-danger-accent/10 transition-colors" 
                           onClick={() => handleDelete(member.id)} 
                           title="Remove Member"

@@ -4,6 +4,7 @@ import { GlassCard } from '../components/ui/GlassCard';
 import { SkeletonLoader } from '../components/ui/SkeletonLoader';
 import { Plus, Edit2, Trash2, CheckCircle, XCircle } from 'lucide-react';
 import type { CouponData } from '../types';
+import { apiFetch } from '../lib/apiFetch';
 
 interface PromotionsTabProps {
   API_BASE_URL: string;
@@ -40,7 +41,7 @@ export const PromotionsTab: React.FC<PromotionsTabProps> = ({ API_BASE_URL, addT
   const handleDelete = async (id: string) => {
     if (!window.confirm('Delete this coupon?')) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/coupons/${id}`, { method: 'DELETE', credentials: 'include' });
+      const res = await apiFetch(`/coupons/${id}`, { method: 'DELETE' });
       const data = await res.json();
       if (data.success) {
         addToast('Coupon deleted', 'success');
@@ -55,7 +56,7 @@ export const PromotionsTab: React.FC<PromotionsTabProps> = ({ API_BASE_URL, addT
 
   const handleToggle = async (id: string) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/coupons/${id}/toggle`, { method: 'PATCH', credentials: 'include' });
+      const res = await apiFetch(`/coupons/${id}/toggle`, { method: 'PATCH' });
       const data = await res.json();
       if (data.success) {
         mutate();
@@ -71,7 +72,7 @@ export const PromotionsTab: React.FC<PromotionsTabProps> = ({ API_BASE_URL, addT
     e.preventDefault();
     try {
       const method = editingCoupon ? 'PUT' : 'POST';
-      const url = editingCoupon ? `${API_BASE_URL}/coupons/${editingCoupon.id}` : `${API_BASE_URL}/coupons`;
+      const url = editingCoupon ? `/coupons/${editingCoupon.id}` : '/coupons';
       
       const payload = {
         ...formData,
@@ -82,7 +83,7 @@ export const PromotionsTab: React.FC<PromotionsTabProps> = ({ API_BASE_URL, addT
         expires_at: formData.expires_at ? Number(formData.expires_at) : null,
       };
 
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -132,10 +133,10 @@ export const PromotionsTab: React.FC<PromotionsTabProps> = ({ API_BASE_URL, addT
                   </button>
                 </td>
                 <td className="p-4 flex justify-end gap-3">
-                  <button onClick={() => handleOpenEdit(c)} className="text-white/60 hover:text-white transition-colors">
+                  <button aria-label="Edit coupon" onClick={() => handleOpenEdit(c)} className="text-white/60 hover:text-white transition-colors">
                     <Edit2 size={18} />
                   </button>
-                  <button onClick={() => handleDelete(c.id)} className="text-red-400/60 hover:text-red-400 transition-colors">
+                  <button aria-label="Delete coupon" onClick={() => handleDelete(c.id)} className="text-red-400/60 hover:text-red-400 transition-colors">
                     <Trash2 size={18} />
                   </button>
                 </td>

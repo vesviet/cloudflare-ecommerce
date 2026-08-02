@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { GlassCard } from '../ui/GlassCard';
 
 interface ResetPasswordModalProps {
@@ -21,8 +21,16 @@ export const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({ target, 
     }
   };
 
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" role="dialog" aria-modal="true" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <GlassCard className="w-full max-w-md p-6">
         <h2 className="text-xl font-bold mb-2">🔑 Reset Password</h2>
         <p className="text-sm text-text-muted mb-6">

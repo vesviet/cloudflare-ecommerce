@@ -7,6 +7,8 @@ import { CustomerList } from '../components/customers/CustomerList';
 import { CustomerDetails } from '../components/customers/CustomerDetails';
 import { AddCustomerModal } from '../components/customers/AddCustomerModal';
 import { ResetPasswordModal } from '../components/customers/ResetPasswordModal';
+import { apiFetch } from '../lib/apiFetch';
+import { Pagination, type PaginationMeta } from '../components/ui/Pagination';
 
 interface CustomersTabProps {
   API_BASE_URL: string;
@@ -14,7 +16,13 @@ interface CustomersTabProps {
 }
 
 export const CustomersTab: React.FC<CustomersTabProps> = ({ API_BASE_URL, addToast }) => {
-  const { data: result, error, isLoading, mutate } = useSWR<{ success: boolean, data: CustomerData[] }>('/customers');
+  const [offset, setOffset] = useState(0);
+  const limit = 50;
+  const { data: result, error, isLoading, mutate } = useSWR<{
+    success: boolean;
+    data: CustomerData[];
+    pagination?: PaginationMeta;
+  }>(`/customers?limit=${limit}&offset=${offset}`);
   const [viewingCustomer, setViewingCustomer] = useState<any | null>(null);
 
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
@@ -28,7 +36,7 @@ export const CustomersTab: React.FC<CustomersTabProps> = ({ API_BASE_URL, addToa
 
   const fetchCustomerDetails = async (id: string) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/customers/${id}`);
+      const res = await apiFetch(`/customers/${id}`);
       const data = await res.json();
       if (data.success) {
         setViewingCustomer(data.data);
@@ -44,7 +52,7 @@ export const CustomersTab: React.FC<CustomersTabProps> = ({ API_BASE_URL, addToa
     if (data.password && data.password.length < 8) { addToast('Password must be at least 8 characters', 'error'); return; }
 
     try {
-      const res = await fetch(`${API_BASE_URL}/customers`, {
+      const res = await apiFetch('/customers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
@@ -64,7 +72,7 @@ export const CustomersTab: React.FC<CustomersTabProps> = ({ API_BASE_URL, addToa
 
   const handleUpdateCustomer = async (updatedCustomer: any) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/customers/${updatedCustomer.id}`, {
+      const res = await apiFetch(`/customers/${updatedCustomer.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedCustomer)
@@ -90,7 +98,7 @@ export const CustomersTab: React.FC<CustomersTabProps> = ({ API_BASE_URL, addToa
     if (newPassword.length < 8) { addToast('Password must be at least 8 characters', 'error'); return; }
 
     try {
-      const res = await fetch(`${API_BASE_URL}/customers/${resetPasswordTarget.id}/reset-password`, {
+      const res = await apiFetch(`/customers/${resetPasswordTarget.id}/reset-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ new_password: newPassword }),
@@ -132,10 +140,13 @@ export const CustomersTab: React.FC<CustomersTabProps> = ({ API_BASE_URL, addToa
       ) : isLoading ? (
         <div className="text-center text-text-muted p-12">Loading customers...</div>
       ) : (
-        <CustomerList 
-          customers={customers} 
-          onViewCustomer={fetchCustomerDetails} 
-        />
+        <>
+          <CustomerList 
+            customers={customers} 
+            onViewCustomer={fetchCustomerDetails} 
+          />
+          <Pagination pagination={result?.pagination} onPageChange={setOffset} itemLabel="customers" />
+        </>
       )}
 
       {showAddCustomerModal && (

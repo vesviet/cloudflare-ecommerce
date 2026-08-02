@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { GlassCard } from '../ui/GlassCard';
 
 interface AddCustomerModalProps {
@@ -47,8 +47,16 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ onClose, onS
     }
   };
 
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" role="dialog" aria-modal="true" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <GlassCard className="w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 scrollbar-hide">
         <h2 className="text-2xl font-bold mb-6">Add New Customer</h2>
         <form onSubmit={handleSubmit} className="space-y-4">

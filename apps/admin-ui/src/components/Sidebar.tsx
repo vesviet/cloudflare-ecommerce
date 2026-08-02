@@ -39,7 +39,7 @@ const NAV_ITEMS = [
 
 export const Sidebar: React.FC<SidebarProps> = ({ userRole, onLogout }) => {
   const [collapsed, setCollapsed] = useState(false);
-  const filteredItems = NAV_ITEMS.filter(item => !userRole || item.roles.includes(userRole));
+  const filteredItems = userRole ? NAV_ITEMS.filter(item => item.roles.includes(userRole)) : [];
 
   return (
     <aside className={cn('sidebar', collapsed ? 'collapsed' : '')}>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { ProductData, ProductVariation, CategoryData } from '../../types';
+import { apiFetch } from '../../lib/apiFetch';
 import { ProductBasicInfo } from './form/ProductBasicInfo';
 import { ProductSimpleDetails } from './form/ProductSimpleDetails';
 import { ProductVariationsConfig } from './form/ProductVariationsConfig';
@@ -39,15 +40,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({ initialData, API_BASE_
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const headers: Record<string, string> = {};
-        if (import.meta.env.DEV) {
-          const localEmail = localStorage.getItem('admin_email');
-          if (localEmail) headers['X-Local-Admin-Email'] = localEmail;
-        }
-        const res = await fetch(`${API_BASE_URL}/categories`, { 
-          headers,
-          credentials: 'include' 
-        });
+        const res = await apiFetch('/categories');
         const result = await res.json();
         if (result.success) setCategories(result.data || []);
       } catch (err: any) {
@@ -55,7 +48,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({ initialData, API_BASE_
       }
     };
     fetchCategories();
-  }, [API_BASE_URL, addToast]);
+  }, [addToast]);
 
   useEffect(() => {
     if (initialData) {
@@ -177,8 +170,13 @@ export const ProductForm: React.FC<ProductFormProps> = ({ initialData, API_BASE_
       attributes: v.attributes
     }));
 
-    const minorRegularPrice = productRegularPrice ? Math.round(parseFloat(productRegularPrice) * 100) : 0;
-    const minorSalePrice = productSalePrice ? Math.round(parseFloat(productSalePrice) * 100) : '';
+    const minorRegularPrice = productRegularPrice.trim() !== '' ? Math.round(parseFloat(productRegularPrice) * 100) : 0;
+    const minorSalePrice = productSalePrice.trim() !== '' ? Math.round(parseFloat(productSalePrice) * 100) : null;
+
+    if (!Number.isFinite(minorRegularPrice) || (minorSalePrice !== null && !Number.isFinite(minorSalePrice))) {
+      addToast('Price must be a valid number', 'error');
+      return;
+    }
 
     setIsSubmittingProduct(true);
     try {
@@ -187,7 +185,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({ initialData, API_BASE_
       if (productSku) formData.append('sku', productSku);
       formData.append('type', productType);
       formData.append('regular_price', minorRegularPrice.toString());
-      if (minorSalePrice) formData.append('sale_price', minorSalePrice.toString());
+      if (minorSalePrice !== null) formData.append('sale_price', minorSalePrice.toString());
       formData.append('stock', productStock);
       if (productWeight) formData.append('weight', productWeight);
       if (productLength) formData.append('length', productLength);
@@ -200,8 +198,8 @@ export const ProductForm: React.FC<ProductFormProps> = ({ initialData, API_BASE_
       formData.append('existing_images', JSON.stringify(existingImages));
       newImageFiles.forEach(file => formData.append('images', file));
 
-      const url = editingProductId ? `${API_BASE_URL}/products/${editingProductId}` : `${API_BASE_URL}/products`;
-      const res = await fetch(url, {
+      const url = editingProductId ? `/products/${editingProductId}` : '/products';
+      const res = await apiFetch(url, {
         method: editingProductId ? 'PUT' : 'POST',
         body: formData
       });

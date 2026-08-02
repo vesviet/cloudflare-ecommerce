@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import useSWR from 'swr';
+import { apiFetch } from '../lib/apiFetch';
 import type { CategoryData } from '../types';
 import { GlassCard } from '../components/ui/GlassCard';
 import { SkeletonLoader } from '../components/ui/SkeletonLoader';
@@ -41,7 +42,7 @@ export const CategoriesTab: React.FC<CategoriesTabProps> = ({ API_BASE_URL, addT
   const handleDeleteCategory = async (id: string) => {
     if (!window.confirm('Are you sure you want to delete this category? Subcategories will be moved to root.')) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/categories/${id}`, { method: 'DELETE' });
+      const res = await apiFetch(`/categories/${id}`, { method: 'DELETE' });
       const data = await res.json();
       if (data.success) {
         addToast('Category deleted', 'success');
@@ -60,8 +61,8 @@ export const CategoriesTab: React.FC<CategoriesTabProps> = ({ API_BASE_URL, addT
 
     setIsSubmittingCategory(true);
     try {
-      const url = editingCategoryId ? `${API_BASE_URL}/categories/${editingCategoryId}` : `${API_BASE_URL}/categories`;
-      const res = await fetch(url, {
+      const url = editingCategoryId ? `/categories/${editingCategoryId}` : '/categories';
+      const res = await apiFetch(url, {
         method: editingCategoryId ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -92,6 +93,21 @@ export const CategoriesTab: React.FC<CategoriesTabProps> = ({ API_BASE_URL, addT
   useEffect(() => {
     if (error) addToast(error.message || 'Failed to fetch categories', 'error');
   }, [error, addToast]);
+
+  const excludedParentIds = new Set<string>();
+  if (editingCategoryId) {
+    excludedParentIds.add(editingCategoryId);
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const c of categories) {
+        if (c.parent_id && excludedParentIds.has(c.parent_id) && !excludedParentIds.has(c.id)) {
+          excludedParentIds.add(c.id);
+          changed = true;
+        }
+      }
+    }
+  }
 
   return (
     <div className="w-full">
@@ -133,7 +149,7 @@ export const CategoriesTab: React.FC<CategoriesTabProps> = ({ API_BASE_URL, addT
                 <label className="block text-sm text-text-muted mb-1">Parent Category</label>
                 <select className="w-full" value={categoryParentId} onChange={e => setCategoryParentId(e.target.value)}>
                   <option value="">None (Top Level)</option>
-                  {categories.filter((c: CategoryData) => c.id !== editingCategoryId).map((c: CategoryData) => (
+                  {categories.filter((c: CategoryData) => !excludedParentIds.has(c.id)).map((c: CategoryData) => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </select>

@@ -1,18 +1,26 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 import useSWR from 'swr';
 import { useSearchParams } from 'react-router-dom';
 import type { CmsEntry } from '../types';
+import { apiFetch } from '../lib/apiFetch';
 import { CmsList } from '../components/cms/CmsList';
 import { CmsForm } from '../components/cms/CmsForm';
+import { Pagination, type PaginationMeta } from '../components/ui/Pagination';
 
 interface CmsTabProps {
   API_BASE_URL: string;
   addToast: (message: string, type: 'success' | 'error') => void;
 }
 
-export function CmsTab({ API_BASE_URL, addToast }: CmsTabProps) {
-  const { data: result, error, isLoading, mutate } = useSWR<{ success: boolean, data: CmsEntry[] }>('/cms');
+export function CmsTab({ addToast }: CmsTabProps) {
+  const [offset, setOffset] = useState(0);
+  const limit = 50;
+  const { data: result, error, isLoading, mutate } = useSWR<{
+    success: boolean;
+    data: CmsEntry[];
+    pagination?: PaginationMeta;
+  }>(`/cms?limit=${limit}&offset=${offset}`);
   const [searchParams, setSearchParams] = useSearchParams();
 
   const action = searchParams.get('action');
@@ -40,7 +48,7 @@ export function CmsTab({ API_BASE_URL, addToast }: CmsTabProps) {
   const handleDelete = async (entryId: string) => {
     if (!window.confirm('Delete this entry? This action cannot be undone.')) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/cms/${entryId}`, { method: 'DELETE' });
+      const res = await apiFetch(`/cms/${entryId}`, { method: 'DELETE' });
       const data = await res.json();
       if (data.success) { 
         addToast('Entry deleted', 'success'); 
@@ -56,7 +64,7 @@ export function CmsTab({ API_BASE_URL, addToast }: CmsTabProps) {
   const handleQuickPublish = async (entry: CmsEntry) => {
     const nextStatus = entry.status === 'published' ? 'draft' : 'published';
     try {
-      const res = await fetch(`${API_BASE_URL}/cms/${entry.id}`, {
+      const res = await apiFetch(`/cms/${entry.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...entry, status: nextStatus }),
@@ -85,20 +93,22 @@ export function CmsTab({ API_BASE_URL, addToast }: CmsTabProps) {
   return (
     <div className="w-full">
       {currentView === 'list' && (
-        <CmsList
-          entries={entries}
-          loading={isLoading}
-          onCreateNew={navigateToNew}
-          onEdit={navigateToEdit}
-          onDelete={handleDelete}
-          onQuickPublish={handleQuickPublish}
-        />
+        <>
+          <CmsList
+            entries={entries}
+            loading={isLoading}
+            onCreateNew={navigateToNew}
+            onEdit={navigateToEdit}
+            onDelete={handleDelete}
+            onQuickPublish={handleQuickPublish}
+          />
+          <Pagination pagination={result?.pagination} onPageChange={setOffset} itemLabel="entries" />
+        </>
       )}
       
       {currentView === 'form' && (
         <CmsForm
           initialData={editingEntryData}
-          API_BASE_URL={API_BASE_URL}
           onSaveSuccess={handleSaveSuccess}
           onCancel={navigateToList}
           addToast={addToast}

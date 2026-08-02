@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Save, AlertCircle } from 'lucide-react';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8788';
+import { apiFetch } from '../lib/apiFetch';
 
 export const SettingsTab: React.FC = () => {
   const [settings, setSettings] = useState<any[]>([]);
@@ -13,7 +12,7 @@ export const SettingsTab: React.FC = () => {
   const fetchSettings = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/settings`, { credentials: 'include' });
+      const res = await apiFetch('/settings');
       const data = await res.json();
       if (data.success) {
         setSettings(data.data);
@@ -45,10 +44,8 @@ export const SettingsTab: React.FC = () => {
     try {
       const changedSettings = settings.filter((s, i) => JSON.stringify(s) !== JSON.stringify(originalSettings[i]));
       
-      const res = await fetch(`${API_BASE}/api/settings/batch`, {
+      const res = await apiFetch('/settings/batch', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ settings: changedSettings }),
       });
       const data = await res.json();

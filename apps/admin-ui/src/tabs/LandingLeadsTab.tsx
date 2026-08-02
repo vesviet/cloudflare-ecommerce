@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import useSWR from 'swr';
 import { Users, CheckCircle, XCircle, Phone, Tag } from 'lucide-react';
 import { GlassCard } from '../components/ui/GlassCard';
+import { apiFetch } from '../lib/apiFetch';
+import { Pagination, type PaginationMeta } from '../components/ui/Pagination';
 
 interface LandingLeadsTabProps {
   API_BASE_URL: string;
@@ -9,13 +11,16 @@ interface LandingLeadsTabProps {
 }
 
 export const LandingLeadsTab: React.FC<LandingLeadsTabProps> = ({ API_BASE_URL, addToast }) => {
-  const { data, mutate } = useSWR('/landing-leads');
+  const [offset, setOffset] = useState(0);
+  const limit = 50;
+  const { data, mutate } = useSWR<{ success: boolean; data: any[]; pagination?: PaginationMeta }>(
+    `/landing-leads?limit=${limit}&offset=${offset}`
+  );
 
   const handleApprove = async (orderId: string) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/orders/${orderId}/approve`, {
+      const res = await apiFetch(`/orders/${orderId}/approve`, {
         method: 'POST',
-        credentials: 'include',
       });
       const result = await res.json();
       if (result.success) {
@@ -32,9 +37,8 @@ export const LandingLeadsTab: React.FC<LandingLeadsTabProps> = ({ API_BASE_URL, 
   const handleCancel = async (orderId: string) => {
     if (!confirm('Bạn có chắc chắn muốn hủy đơn hàng này không?')) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/orders/${orderId}/cancel`, {
+      const res = await apiFetch(`/orders/${orderId}/cancel`, {
         method: 'POST',
-        credentials: 'include',
       });
       const result = await res.json();
       if (result.success) {
@@ -130,6 +134,7 @@ export const LandingLeadsTab: React.FC<LandingLeadsTabProps> = ({ API_BASE_URL, 
             </tbody>
           </table>
         </div>
+        <Pagination pagination={data?.pagination} onPageChange={setOffset} itemLabel="leads" />
       </GlassCard>
     </div>
   );

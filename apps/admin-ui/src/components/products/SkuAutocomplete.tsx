@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { apiFetch } from '../../lib/apiFetch';
 
 interface SkuAutocompleteProps {
   value: string;
@@ -7,7 +8,7 @@ interface SkuAutocompleteProps {
   API_BASE_URL: string;
 }
 
-export const SkuAutocomplete: React.FC<SkuAutocompleteProps> = ({ value, onChange, onSelect, API_BASE_URL }) => {
+export const SkuAutocomplete: React.FC<SkuAutocompleteProps> = ({ value, onChange, onSelect }) => {
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -32,15 +33,7 @@ export const SkuAutocomplete: React.FC<SkuAutocompleteProps> = ({ value, onChang
     const timer = setTimeout(async () => {
       setLoading(true);
       try {
-        const headers: Record<string, string> = {};
-        if (import.meta.env.DEV) {
-          const localEmail = localStorage.getItem('admin_email');
-          if (localEmail) headers['X-Local-Admin-Email'] = localEmail;
-        }
-        const res = await fetch(`${API_BASE_URL}/products/search-sku?q=${encodeURIComponent(value)}`, { 
-          headers,
-          credentials: 'include' 
-        });
+        const res = await apiFetch(`/products/search-sku?q=${encodeURIComponent(value)}`);
         const result = await res.json();
         if (result.success) {
           setSuggestions(result.data || []);
@@ -53,7 +46,7 @@ export const SkuAutocomplete: React.FC<SkuAutocompleteProps> = ({ value, onChang
     }, 300); // 300ms debounce
 
     return () => clearTimeout(timer);
-  }, [value, isOpen, API_BASE_URL]);
+  }, [value, isOpen]);
 
   return (
     <div ref={wrapperRef} style={{ position: 'relative' }}>

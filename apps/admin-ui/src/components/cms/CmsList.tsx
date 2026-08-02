@@ -161,6 +161,7 @@ export function CmsList({ entries, loading, onCreateNew, onEdit, onDelete, onQui
                         <div ref={openMenuId === entry.id ? menuRef : undefined}>
                           <button
                             className="p-1.5 rounded-lg text-text-muted hover:text-text-main hover:bg-white/10 transition-colors"
+                            aria-label="More options"
                             onClick={() => setOpenMenuId(openMenuId === entry.id ? null : entry.id)}
                           >
                             <MoreHorizontal className="w-5 h-5" />

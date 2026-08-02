@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import useSWR from 'swr';
 import { useSearchParams } from 'react-router-dom';
 import type { ProductData } from '../types';
@@ -6,6 +6,7 @@ import { ProductList } from '../components/products/ProductList';
 import { ProductForm } from '../components/products/ProductForm';
 import { GlassCard } from '../components/ui/GlassCard';
 import { SkeletonLoader } from '../components/ui/SkeletonLoader';
+import { Pagination, type PaginationMeta } from '../components/ui/Pagination';
 
 interface ProductsTabProps {
   API_BASE_URL: string;
@@ -13,7 +14,13 @@ interface ProductsTabProps {
 }
 
 export const ProductsTab: React.FC<ProductsTabProps> = ({ API_BASE_URL, addToast }) => {
-  const { data: result, error, isLoading, mutate } = useSWR<{ success: boolean, data: ProductData[] }>('/products');
+  const [offset, setOffset] = useState(0);
+  const limit = 50;
+  const { data: result, error, isLoading, mutate } = useSWR<{
+    success: boolean;
+    data: ProductData[];
+    pagination?: PaginationMeta;
+  }>(`/products?limit=${limit}&offset=${offset}`);
   const [searchParams, setSearchParams] = useSearchParams();
 
   const action = searchParams.get('action');
@@ -61,12 +68,17 @@ export const ProductsTab: React.FC<ProductsTabProps> = ({ API_BASE_URL, addToast
       ) : (
         <>
           {(!action && !id) && (
-            <ProductList
-              products={products}
-              API_BASE_URL={API_BASE_URL}
-              onCreateNew={navigateToNew}
-              onEdit={navigateToEdit}
-            />
+            <>
+              <ProductList
+                products={products}
+                API_BASE_URL={API_BASE_URL}
+                onCreateNew={navigateToNew}
+                onEdit={navigateToEdit}
+              />
+              <GlassCard className="mt-2 p-0">
+                <Pagination pagination={result?.pagination} onPageChange={setOffset} itemLabel="products" />
+              </GlassCard>
+            </>
           )}
           
           {(action === 'new' || id) && (

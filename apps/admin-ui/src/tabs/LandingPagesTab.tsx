@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import useSWR from 'swr';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import MDEditor from '@uiw/react-md-editor';
 import { MonitorPlay, Plus, Edit, Trash, ExternalLink } from 'lucide-react';
 import { GlassCard } from '../components/ui/GlassCard';
+import { apiFetch } from '../lib/apiFetch';
 
 interface LandingPagesTabProps {
   API_BASE_URL: string;
@@ -20,6 +21,14 @@ export const LandingPagesTab: React.FC<LandingPagesTabProps> = ({ API_BASE_URL, 
 
   const { data, mutate } = useSWR('/landing-pages');
   const { data: productsData } = useSWR('/products');
+
+  useEffect(() => {
+    return () => {
+      if (logoPreview && logoPreview.startsWith('blob:')) {
+        URL.revokeObjectURL(logoPreview);
+      }
+    };
+  }, [logoPreview]);
 
   const { register, control, handleSubmit, reset, setValue } = useForm({
     defaultValues: {
@@ -54,8 +63,8 @@ export const LandingPagesTab: React.FC<LandingPagesTabProps> = ({ API_BASE_URL, 
     try {
       const method = currentId ? 'PUT' : 'POST';
       const url = currentId 
-        ? `${API_BASE_URL}/landing-pages/${currentId}` 
-        : `${API_BASE_URL}/landing-pages`;
+        ? `/landing-pages/${currentId}` 
+        : '/landing-pages';
 
       let res;
       if (logoFile) {
@@ -71,10 +80,9 @@ export const LandingPagesTab: React.FC<LandingPagesTabProps> = ({ API_BASE_URL, 
         });
         uploadData.append('header_logo_file', logoFile);
         
-        res = await fetch(url, {
+        res = await apiFetch(url, {
           method,
-          body: uploadData,
-          credentials: 'include'
+          body: uploadData
         });
       } else {
         const payload = {
@@ -86,11 +94,10 @@ export const LandingPagesTab: React.FC<LandingPagesTabProps> = ({ API_BASE_URL, 
           footer_content: formData.footer_content
         };
   
-        res = await fetch(url, {
+        res = await apiFetch(url, {
           method,
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-          credentials: 'include'
+          body: JSON.stringify(payload)
         });
       }
 
@@ -140,7 +147,7 @@ export const LandingPagesTab: React.FC<LandingPagesTabProps> = ({ API_BASE_URL, 
   const handleDeleteConfirm = async () => {
     if (!deletingId) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/landing-pages/${deletingId}`, { method: 'DELETE', credentials: 'include' });
+      const res = await apiFetch(`/landing-pages/${deletingId}`, { method: 'DELETE' });
       const result = await res.json();
       if(result.success) {
         addToast('Deleted successfully', 'success');

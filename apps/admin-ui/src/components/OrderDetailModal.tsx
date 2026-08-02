@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { OrderData } from '../types';
+import { apiFetch } from '../lib/apiFetch';
 
 interface OrderDetailModalProps {
   orderId: string;
@@ -8,7 +9,7 @@ interface OrderDetailModalProps {
   addToast: (message: string, type: 'success' | 'error') => void;
 }
 
-export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ orderId, API_BASE_URL, onClose, addToast }) => {
+export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ orderId, onClose, addToast }) => {
   const [order, setOrder] = useState<OrderData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -16,7 +17,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ orderId, API
     const fetchOrderDetails = async () => {
       setLoading(true);
       try {
-        const res = await fetch(`${API_BASE_URL}/orders/${orderId}`);
+        const res = await apiFetch(`/orders/${orderId}`);
         const result = await res.json();
         if (result.success) {
           setOrder(result.data);
@@ -32,7 +33,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ orderId, API
       }
     };
     fetchOrderDetails();
-  }, [orderId, API_BASE_URL, onClose, addToast]);
+  }, [orderId, onClose, addToast]);
 
   const formatCurrency = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
 
@@ -74,9 +75,17 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ orderId, API
 
   const shippingAddr = parseAddress(order?.shipping_address_json || null);
 
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
+
   return (
     <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal-content" style={{ maxWidth: '800px', width: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
+      <div className="modal-content" role="dialog" aria-modal="true" style={{ maxWidth: '800px', width: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
         {loading ? (
           <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>Loading order details...</div>
         ) : !order ? (

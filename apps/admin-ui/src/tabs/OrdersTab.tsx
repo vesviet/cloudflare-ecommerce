@@ -1,10 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import useSWR from 'swr';
+import { apiFetch } from '../lib/apiFetch';
 import type { OrderData } from '../types';
 import { OrderDetailModal } from '../components/OrderDetailModal';
 import { RefundModal } from '../components/RefundModal';
 import { GlassCard } from '../components/ui/GlassCard';
 import { SkeletonLoader } from '../components/ui/SkeletonLoader';
+import { Pagination, type PaginationMeta } from '../components/ui/Pagination';
 import { RefreshCw, Package, RotateCcw } from 'lucide-react';
 
 interface OrdersTabProps {
@@ -13,7 +15,13 @@ interface OrdersTabProps {
 }
 
 export const OrdersTab: React.FC<OrdersTabProps> = ({ API_BASE_URL, addToast }) => {
-  const { data: result, error, isLoading, mutate } = useSWR<{ success: boolean, data: OrderData[] }>('/orders');
+  const [offset, setOffset] = useState(0);
+  const limit = 50;
+  const { data: result, error, isLoading, mutate } = useSWR<{
+    success: boolean;
+    data: OrderData[];
+    pagination?: PaginationMeta;
+  }>(`/orders?limit=${limit}&offset=${offset}`);
 
   // Fulfill States
   const [showFulfillModal, setShowFulfillModal] = useState(false);
@@ -41,7 +49,7 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({ API_BASE_URL, addToast }) 
     setShowFulfillModal(true);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/orders/${orderId}`);
+      const res = await apiFetch(`/orders/${orderId}`);
       const data = await res.json();
       if (data.success && data.data.items) {
         const opts = data.data.items.map((i: any) => ({
@@ -67,7 +75,7 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({ API_BASE_URL, addToast }) 
     }
     setIsFulfilling(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/orders/${fulfillOrderId}/fulfill`, {
+      const res = await apiFetch(`/orders/${fulfillOrderId}/fulfill`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -95,6 +103,8 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({ API_BASE_URL, addToast }) 
   };
 
   const formatCurrency = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
+
+  const handleCloseOrderDetail = useCallback(() => setSelectedOrderId(null), []);
 
   useEffect(() => {
     if (error) addToast(error.message || 'Failed to fetch orders', 'error');
@@ -216,9 +226,10 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({ API_BASE_URL, addToast }) 
                     </tr>
                   );
                 })}
-              </tbody>
+               </tbody>
             </table>
           </div>
+          <Pagination pagination={result?.pagination} onPageChange={setOffset} itemLabel="orders" />
         </GlassCard>
       )}
 
@@ -330,7 +341,7 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({ API_BASE_URL, addToast }) 
         <OrderDetailModal
           orderId={selectedOrderId}
           API_BASE_URL={API_BASE_URL}
-          onClose={() => setSelectedOrderId(null)}
+          onClose={handleCloseOrderDetail}
           addToast={addToast}
         />
       )}

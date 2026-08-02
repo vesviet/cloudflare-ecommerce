@@ -3,6 +3,7 @@ import type { CmsEntry } from '../../types';
 import MDEditor from '@uiw/react-md-editor';
 import { GlassCard } from '../ui/GlassCard';
 import { ArrowLeft, UploadCloud, Link as LinkIcon, X } from 'lucide-react';
+import { apiFetch } from '../../lib/apiFetch';
 
 // ── Media Manager Component ──────────────────────────────────────────────────
 function MediaManager({
@@ -15,14 +16,21 @@ function MediaManager({
   const [activeTab, setActiveTab] = useState<'url' | 'upload'>('url');
   const [urlInput, setUrlInput] = useState(value);
   const [dragging, setDragging] = useState(false);
+  const [fileError, setFileError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handleUrlApply = () => onChange(urlInput);
 
   const handleFile = (file: File) => {
     if (!file.type.startsWith('image/')) {
+      setFileError('Only image files are allowed.');
       return;
     }
+    if (file.size > 5 * 1024 * 1024) {
+      setFileError('File exceeds the 5MB size limit.');
+      return;
+    }
+    setFileError(null);
     const reader = new FileReader();
     reader.onload = (e) => {
       const dataUrl = e.target?.result as string;
@@ -91,7 +99,8 @@ function MediaManager({
             <UploadCloud className="w-8 h-8 text-text-muted mb-2" />
             <p className="text-sm font-medium">Drop image here or click to browse</p>
             <small className="text-xs text-text-muted">PNG, JPG, GIF, WebP — max 5MB</small>
-            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ''; }} />
+            {fileError && <p className="text-xs" style={{ color: 'var(--danger-accent)' }}>{fileError}</p>}
           </div>
         )}
 
@@ -117,13 +126,12 @@ function MediaManager({
 
 interface CmsFormProps {
   initialData: Partial<CmsEntry> | null;
-  API_BASE_URL: string;
   onSaveSuccess: () => void;
   onCancel: () => void;
   addToast: (message: string, type: 'success' | 'error') => void;
 }
 
-export function CmsForm({ initialData, API_BASE_URL, onSaveSuccess, onCancel, addToast }: CmsFormProps) {
+export function CmsForm({ initialData, onSaveSuccess, onCancel, addToast }: CmsFormProps) {
   const [editingEntry, setEditingEntry] = useState<Partial<CmsEntry>>({
     title: '', slug: '', excerpt: '', content: '', type: 'post', status: 'draft', metadata_json: '{}'
   });
@@ -160,11 +168,11 @@ export function CmsForm({ initialData, API_BASE_URL, onSaveSuccess, onCancel, ad
 
     setIsSubmitting(true);
     const isNew = !editingEntry.id;
-    const url = isNew ? `${API_BASE_URL}/cms` : `${API_BASE_URL}/cms/${editingEntry.id}`;
+    const url = isNew ? '/cms' : `/cms/${editingEntry.id}`;
     const method = isNew ? 'POST' : 'PUT';
     
     try {
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editingEntry),
