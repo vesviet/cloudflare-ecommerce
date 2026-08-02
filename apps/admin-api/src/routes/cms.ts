@@ -17,17 +17,21 @@ const invalidateCache = async (env: Bindings) => {
 app.get('/', async (c) => {
   const db = createDb(c.env.DB);
   const type = c.req.query('type');
-  
-  const query = db.select().from(schema.cmsEntries).orderBy(desc(schema.cmsEntries.created_at)).limit(200);
-  
+  const limit = Math.min(Math.max(parseInt(c.req.query('limit') || '200', 10) || 200, 1), 200);
+  const offset = Math.max(parseInt(c.req.query('offset') || '0', 10) || 0, 0);
+
   if (type) {
-    // We can't easily chain .where() conditionally without building the query
-    const results = await db.select().from(schema.cmsEntries).where(eq(schema.cmsEntries.type, type)).orderBy(desc(schema.cmsEntries.created_at)).limit(200).all();
-    return c.json({ success: true, data: results });
+    const results = await db.select().from(schema.cmsEntries).where(eq(schema.cmsEntries.type, type))
+      .orderBy(desc(schema.cmsEntries.created_at)).limit(limit).offset(offset).all();
+    const countRow = await db.select({ total: sql<number>`COUNT(*)` }).from(schema.cmsEntries)
+      .where(eq(schema.cmsEntries.type, type)).get();
+    return c.json({ success: true, data: results, pagination: { total: countRow?.total ?? 0, limit, offset } });
   }
 
-  const allEntries = await query.all();
-  return c.json({ success: true, data: allEntries });
+  const allEntries = await db.select().from(schema.cmsEntries)
+    .orderBy(desc(schema.cmsEntries.created_at)).limit(limit).offset(offset).all();
+  const countRow = await db.select({ total: sql<number>`COUNT(*)` }).from(schema.cmsEntries).get();
+  return c.json({ success: true, data: allEntries, pagination: { total: countRow?.total ?? 0, limit, offset } });
 });
 
 // GET single CMS entry

@@ -37,7 +37,17 @@ app.post('/', requireRole(['superadmin', 'manager', 'editor']), zValidator('json
   
   const id = crypto.randomUUID();
   const slug = body.slug || body.name.toLowerCase().replace(/\s+/g, '-');
-  
+
+  if (body.parent_id) {
+    const parent = await db.select({ id: schema.categories.id })
+      .from(schema.categories)
+      .where(eq(schema.categories.id, body.parent_id))
+      .get();
+    if (!parent) {
+      return c.json({ success: false, error: 'Parent category does not exist' }, 400);
+    }
+  }
+
   try {
     await db.insert(schema.categories).values({
       id,
@@ -62,6 +72,9 @@ app.put('/:id', requireRole(['superadmin', 'manager', 'editor']), zValidator('js
   const db = createDb(c.env.DB);
   
   if (body.parent_id) {
+    if (body.parent_id === id) {
+      return c.json({ success: false, error: 'A category cannot be its own parent' }, 400);
+    }
     if (await CategoryService.hasCycle(db, id, body.parent_id)) {
       return c.json({ success: false, error: 'Cycle detected: parent_id cannot be a descendant of this category or itself' }, 400);
     }

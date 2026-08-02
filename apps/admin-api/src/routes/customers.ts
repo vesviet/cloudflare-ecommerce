@@ -27,7 +27,8 @@ customers.get('/customers', async (c) => {
       ORDER BY c.created_at DESC
       LIMIT ${limit} OFFSET ${offset}
     `);
-    return c.json({ success: true, data: results });
+    const countRow = await db.get<{ total: number }>(sql`SELECT COUNT(*) as total FROM customers`);
+    return c.json({ success: true, data: results, pagination: { total: countRow?.total ?? 0, limit, offset } });
   } catch (err: any) {
     console.error('Admin list customers error:', err);
     return c.json({ success: false, error: 'Internal server error' }, 500);

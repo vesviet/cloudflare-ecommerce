@@ -10,10 +10,19 @@ import { buildUploadKey } from './uploadKey';
 
 const products = new Hono<{ Bindings: Bindings }>();
 
+// Form-encoded decimals: cents must be a finite non-negative integer.
+const parseMoneyCents = (raw: unknown, fallback = 0): number | null => {
+  if (raw === undefined || raw === null || raw === '') return fallback;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? Math.round(n) : null;
+};
+
 // GET: Product List (Admin)
 products.get('/products', async (c) => {
   try {
     const db = createDb(c.env.DB);
+    const limit = Math.min(Math.max(parseInt(c.req.query('limit') || '100', 10) || 100, 1), 200);
+    const offset = Math.max(parseInt(c.req.query('offset') || '0', 10) || 0, 0);
     // Rewritten query to fetch data from the new relational schema
     // Note: SQLite JSON functions are used to aggregate the related items
     const results = await db.all<any>(sql`
@@ -52,6 +61,10 @@ products.get('/products', async (c) => {
       FROM products p
       WHERE p.parent_id IS NULL AND p.deleted_at IS NULL
       ORDER BY p.created_at DESC
+      LIMIT ${limit} OFFSET ${offset}
+    `);
+    const countRow = await db.get<{ total: number }>(sql`
+      SELECT COUNT(*) as total FROM products WHERE parent_id IS NULL AND deleted_at IS NULL
     `);
     
     const formattedData = results.map((row: any) => {
@@ -73,7 +86,7 @@ products.get('/products', async (c) => {
       };
     });
     
-    return c.json({ success: true, data: formattedData });
+    return c.json({ success: true, data: formattedData, pagination: { total: countRow?.total ?? 0, limit, offset } });
   } catch (err: any) {
     return c.json({ success: false, error: err.message }, 500);
   }
@@ -181,14 +194,26 @@ products.post('/products', requireRole(['superadmin', 'manager', 'editor']), zVa
       try { secondary_categories = JSON.parse(body['secondary_categories'] as string); } catch { /* ignore */ }
     }
 
+    const regularPrice = parseMoneyCents(body['regular_price'], 0);
+    const salePrice = parseMoneyCents(body['sale_price'], -1);
+    if (regularPrice === null) {
+      return c.json({ success: false, error: 'regular_price must be a non-negative number' }, 400);
+    }
+    if (body['sale_price'] && salePrice === null) {
+      return c.json({ success: false, error: 'sale_price must be a non-negative number' }, 400);
+    }
+    if (salePrice !== -1 && salePrice !== null && salePrice > regularPrice) {
+      return c.json({ success: false, error: 'sale_price cannot exceed regular_price' }, 400);
+    }
+
     const batchQueries = await ProductService.prepareUpsertProduct(db, {
       isUpdate: false,
       productId,
       name: body['name'] as string,
       sku: (body['sku'] as string) || null,
       type: (body['type'] as string) || 'simple',
-      regular_price: parseInt((body['regular_price'] as string) || '0', 10),
-      sale_price: body['sale_price'] ? parseInt(body['sale_price'] as string, 10) : null,
+      regular_price: regularPrice,
+      sale_price: salePrice === -1 ? null : salePrice,
       stock: parseInt((body['stock'] as string) || '0', 10),
       weight: body['weight'] ? parseFloat(body['weight'] as string) : null,
       length: body['length'] ? parseFloat(body['length'] as string) : null,
@@ -277,14 +302,26 @@ products.put('/products/:id', requireRole(['superadmin', 'manager', 'editor']), 
 
     const finalImageUrls = (body['existing_images'] !== undefined || files.length > 0) ? imageUrls : undefined;
 
+    const regularPrice = parseMoneyCents(body['regular_price'], 0);
+    const salePrice = parseMoneyCents(body['sale_price'], -1);
+    if (regularPrice === null) {
+      return c.json({ success: false, error: 'regular_price must be a non-negative number' }, 400);
+    }
+    if (body['sale_price'] && salePrice === null) {
+      return c.json({ success: false, error: 'sale_price must be a non-negative number' }, 400);
+    }
+    if (salePrice !== -1 && salePrice !== null && salePrice > regularPrice) {
+      return c.json({ success: false, error: 'sale_price cannot exceed regular_price' }, 400);
+    }
+
     const batchQueries = await ProductService.prepareUpsertProduct(db, {
       isUpdate: true,
       productId,
       name: body['name'] as string,
       sku: (body['sku'] as string) || null,
       type: (body['type'] as string) || 'simple',
-      regular_price: parseInt((body['regular_price'] as string) || '0', 10),
-      sale_price: body['sale_price'] ? parseInt(body['sale_price'] as string, 10) : null,
+      regular_price: regularPrice,
+      sale_price: salePrice === -1 ? null : salePrice,
       stock: parseInt((body['stock'] as string) || '0', 10),
       weight: body['weight'] ? parseFloat(body['weight'] as string) : null,
       length: body['length'] ? parseFloat(body['length'] as string) : null,

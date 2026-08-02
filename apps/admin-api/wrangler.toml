@@ -14,6 +14,8 @@ routes = [
 # Non-secret runtime config — secrets (STRIPE_SECRET_KEY) must be set via: wrangler secret put <KEY>
 TEAM_DOMAIN = "https://tanhdev.cloudflareaccess.com"
 AUDIENCE_TAG = "876ed9bd951b8a57e6144a5d7344a0999cafbb7f1a2dee69d833778bf6b26f0e"
+ENVIRONMENT = "production"
+ALLOWED_ADMIN_ORIGINS = "https://admin.tanhdev.com"
 
 [[d1_databases]]
 binding = "DB"
