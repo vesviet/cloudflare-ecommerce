@@ -3,6 +3,9 @@
 import React, { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
+import { useCartStore } from '../../../store/cartStore';
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com';
 
 export default function CartRecoveryPage() {
   return (
@@ -19,25 +22,50 @@ function CartRecoveryInner() {
 
   useEffect(() => {
     const token = searchParams.get('token');
-    
-    // Simulate API call to restore cart from token
+
     const restoreCart = async () => {
+      if (!token) {
+        setStatus('Không tìm thấy phiên giỏ hàng. Chuyển hướng...');
+        setTimeout(() => router.push('/'), 2000);
+        return;
+      }
+
       try {
-        if (!token) {
-          setStatus('Không tìm thấy phiên giỏ hàng. Chuyển hướng...');
-          setTimeout(() => router.push('/'), 2000);
+        const res = await fetch(`${API_BASE}/api/cart/recover`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ token }),
+        });
+
+        if (res.status === 404) {
+          setStatus('Link khôi phục không hợp lệ hoặc đã hết hạn.');
+          setTimeout(() => router.push('/'), 3000);
           return;
         }
 
-        // Mock delay for UI/UX demonstration (simulating fetch to /api/cart/recover)
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        
-        setStatus('Giỏ hàng đã sẵn sàng! Đang chuyển đến trang thanh toán...');
-        
-        setTimeout(() => {
-          router.push('/checkout');
-        }, 1000);
-      } catch (e) {
+        const data = await res.json().catch(() => null);
+        if (res.ok && data?.success) {
+          const recovered = data.data || data;
+          const items = Array.isArray(recovered) ? recovered : (recovered.items || []);
+          const cartStore = useCartStore.getState();
+          for (const item of items) {
+            cartStore.addItem({
+              id: item.variation_id || item.id,
+              product_id: item.product_id,
+              name: item.name || '',
+              price: typeof item.price === 'string' ? parseInt(item.price, 10) : (item.price || 0),
+              quantity: item.quantity || 1,
+              image: item.image || item.image_url || '',
+            });
+          }
+          setStatus('Giỏ hàng đã sẵn sàng! Đang chuyển đến trang thanh toán...');
+          setTimeout(() => router.push('/checkout'), 1000);
+        } else {
+          setStatus(data?.error || 'Không thể khôi phục giỏ hàng. Đang chuyển hướng...');
+          setTimeout(() => router.push('/'), 2500);
+        }
+      } catch {
         setStatus('Có lỗi xảy ra. Đang chuyển hướng...');
         setTimeout(() => router.push('/'), 2000);
       }

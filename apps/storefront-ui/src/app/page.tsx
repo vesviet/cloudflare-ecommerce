@@ -3,6 +3,8 @@ import Link from 'next/link';
 import AddToCartButton from '../components/AddToCartButton';
 import Banner from '../components/Banner';
 import ImageFallback from '../components/ImageFallback';
+import { getImageUrl } from '../lib/image';
+import { formatCurrency } from '../lib/format';
 
 // Using the same API_BASE resolution as before.
 // In Next.js SSR, we might need a absolute URL, so NEXT_PUBLIC_API_URL must be an absolute URL.
@@ -28,12 +30,6 @@ async function getProducts() {
 export default async function Home() {
   const products = await getProducts();
 
-  const formatCurrency = (minorAmountStr: string | number | null | undefined) => {
-    if (minorAmountStr == null) return '—';
-    const amount = parseInt(String(minorAmountStr), 10) / 100;
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
-  };
-
   return (
     <main>
       <Banner placement="home_hero_slider" />
@@ -57,7 +53,7 @@ export default async function Home() {
               <div className="product-image">
                 {product.images && product.images.length > 0 ? (
                   <img 
-                    src={product.images[0]?.url?.startsWith('http') ? product.images[0].url : `${API_BASE}${product.images[0]?.url}`} 
+                     src={getImageUrl(product.images[0]?.url)} 
                     alt={product.images[0]?.alt_text || displayName} 
                     style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
                     fetchPriority={index < 4 ? "high" : "auto"}

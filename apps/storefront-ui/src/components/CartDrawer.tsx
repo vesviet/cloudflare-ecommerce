@@ -3,9 +3,9 @@
 import React, { useEffect } from 'react';
 import { X, Trash2, Plus, Minus, ShoppingBag } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
+import { getImageUrl } from '../lib/image';
+import { formatCurrency } from '../lib/format';
 import Link from 'next/link';
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com';
 
 export default function CartDrawer() {
   const { items, isCartOpen, toggleCart, removeItem, updateQuantity, getCartTotal, coupon, applyCoupon, removeCoupon, getCartSubtotal, getDiscountAmount } = useCartStore();
@@ -20,10 +20,6 @@ export default function CartDrawer() {
     }
     return () => { document.body.style.overflow = 'unset'; };
   }, [isCartOpen]);
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount / 100);
-  };
 
   if (!isCartOpen) return null;
 
@@ -89,7 +85,7 @@ export default function CartDrawer() {
             items.map((item) => (
               <div key={item.id} style={{ display: 'flex', gap: '16px', background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
                 <div style={{ width: '80px', height: '80px', background: 'linear-gradient(110deg, #161b22, #21262d)', borderRadius: '6px', flexShrink: 0, overflow: 'hidden' }}>
-                  {item.image && <img src={`${API_BASE}${item.image}`} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                  {item.image && <img src={getImageUrl(item.image)} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
                 </div>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>

@@ -14,12 +14,14 @@ export function ReviewFormModal({ productId, isOpen, onClose, onSuccess }: Revie
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError('');
     try {
       // Posting a review requires the session cookie, which belongs to the API
       // origin, so call it directly instead of going through the Next rewrite.
@@ -34,10 +36,10 @@ export function ReviewFormModal({ productId, isOpen, onClose, onSuccess }: Revie
       if (data.success) {
         onSuccess();
       } else {
-        alert(data.error || 'Failed to submit review');
+        setError(data.error || 'Failed to submit review');
       }
     } catch (err) {
-      alert('An error occurred while submitting the review');
+      setError('An error occurred while submitting the review');
     } finally {
       setLoading(false);
     }
@@ -63,6 +65,11 @@ export function ReviewFormModal({ productId, isOpen, onClose, onSuccess }: Revie
         <h2 style={{ marginTop: 0, marginBottom: '24px' }}>Write a Review</h2>
         
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {error && (
+            <div style={{ padding: '10px 14px', background: 'rgba(248,113,113,0.1)', color: '#f87171', borderRadius: '8px', border: '1px solid rgba(248,113,113,0.25)', fontSize: '0.9rem' }}>
+              {error}
+            </div>
+          )}
           <div>
             <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: 500 }}>Rating</label>
             <div style={{ display: 'flex', gap: '8px' }}>

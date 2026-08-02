@@ -6,6 +6,7 @@ import { useCartStore } from '../../store/cartStore';
 import Link from 'next/link';
 import { Trash2, ShoppingCart } from 'lucide-react';
 import ImageFallback from '../../components/ImageFallback';
+import { getImageUrl } from '../../lib/image';
 
 export default function WishlistPage() {
   const { items, removeItem, fetchFromServer } = useWishlistStore();
@@ -37,7 +38,7 @@ export default function WishlistPage() {
                 <div style={{ position: 'relative', width: '100%', aspectRatio: '1', marginBottom: '15px', borderRadius: '8px', overflow: 'hidden' }}>
                   {item.imageUrl ? (
                     <img
-                      src={item.imageUrl.startsWith('http') ? item.imageUrl : `${process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com'}${item.imageUrl}`}
+                      src={getImageUrl(item.imageUrl)}
                       alt={item.name || 'Product'}
                       style={{ objectFit: 'cover', width: '100%', height: '100%' }}
                     />

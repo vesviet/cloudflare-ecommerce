@@ -3,6 +3,7 @@ import React from 'react';
 import { notFound } from 'next/navigation';
 import ProductClient from './ProductClient';
 import Link from 'next/link';
+import { getImageUrl } from '../../../lib/image';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com';
 
@@ -25,7 +26,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   
   const title = product.name || product.title;
   const description = product.description || 'Premium product from Aura Store';
-  const images = product.images?.length > 0 && product.images[0]?.url ? [`${API_BASE}${product.images[0].url}`] : [];
+  const images = product.images?.length > 0 && product.images[0]?.url ? [getImageUrl(product.images[0].url)] : [];
 
   return {
     title,
@@ -58,7 +59,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     '@context': 'https://schema.org',
     '@type': 'Product',
     name: product.name || product.title,
-    image: product.images?.length > 0 && product.images[0]?.url ? `${API_BASE}${product.images[0].url}` : '',
+    image: product.images?.length > 0 && product.images[0]?.url ? getImageUrl(product.images[0].url) : '',
     description: product.description,
     sku: product.variations?.[0]?.sku || '',
     offers: {

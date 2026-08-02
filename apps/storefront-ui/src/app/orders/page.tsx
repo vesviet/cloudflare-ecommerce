@@ -53,9 +53,9 @@ export default function OrdersPage() {
           {orders.map(order => (
             <div key={order.id} className="glass glass-card" style={{ padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <h3 style={{ color: 'var(--text-main)', margin: '0 0 8px 0', fontFamily: 'monospace' }}>#{order.id.slice(0,8).toUpperCase()}</h3>
+                <h3 style={{ color: 'var(--text-main)', margin: '0 0 8px 0', fontFamily: 'monospace' }}>#{(typeof order.id === 'string' ? order.id.slice(0, 8) : String(order.id ?? '')).toUpperCase()}</h3>
                 <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '0.9rem' }}>
-                  {new Date(order.created_at).toLocaleDateString()} &middot; <strong style={{ textTransform: 'capitalize', color: 'var(--accent-color)' }}>{order.status.replace('_', ' ')}</strong>
+                  {new Date(order.created_at).toLocaleDateString()} &middot; <strong style={{ textTransform: 'capitalize', color: 'var(--accent-color)' }}>{(typeof order.status === 'string' ? order.status.replace('_', ' ') : 'Unknown')}</strong>
                 </p>
                 <p style={{ color: 'var(--text-muted)', margin: '4px 0 0 0', fontSize: '0.9rem' }}>
                   Total: ${(order.total_amount / 100).toFixed(2)}

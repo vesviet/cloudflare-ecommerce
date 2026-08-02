@@ -20,6 +20,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const [rmaReason, setRmaReason] = useState('');
   const [rmaSubmitting, setRmaSubmitting] = useState(false);
   const [rmaSuccess, setRmaSuccess] = useState(false);
+  const [rmaError, setRmaError] = useState('');
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -57,6 +58,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const handleRmaSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setRmaSubmitting(true);
+    setRmaError('');
     try {
       const apiBase = process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com';
       const res = await fetch(`${apiBase}/api/rma`, {
@@ -73,10 +75,10 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
         setRmaSuccess(true);
         setShowRmaForm(false);
       } else {
-        alert(data.error || 'Failed to submit RMA request');
+        setRmaError(data.error || 'Failed to submit RMA request');
       }
     } catch (err: any) {
-      alert('Network error submitting RMA');
+      setRmaError('Network error submitting RMA');
     } finally {
       setRmaSubmitting(false);
     }
@@ -99,7 +101,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       <div className="glass glass-card" style={{ padding: '30px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '30px' }}>
           <div>
-            <h1 style={{ margin: '0 0 10px 0', color: 'var(--text-main)', fontFamily: 'monospace' }}>Order #{order.id.slice(0,8).toUpperCase()}</h1>
+            <h1 style={{ margin: '0 0 10px 0', color: 'var(--text-main)', fontFamily: 'monospace' }}>Order #{(typeof order.id === 'string' ? order.id.slice(0, 8) : String(order.id ?? '')).toUpperCase()}</h1>
             <p style={{ margin: 0, color: 'var(--text-muted)' }}>{new Date(order.created_at).toLocaleString()}</p>
           </div>
           <span style={{ 
@@ -111,7 +113,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
             background: 'rgba(255,255,255,0.1)',
             color: 'var(--text-main)'
           }}>
-            {order.status.replace('_', ' ')}
+            {(typeof order.status === 'string' ? order.status.replace('_', ' ') : 'Unknown')}
           </span>
         </div>
 
@@ -139,7 +141,12 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
               </div>
             ) : showRmaForm ? (
               <form onSubmit={handleRmaSubmit} style={{ background: 'rgba(0,0,0,0.2)', padding: '20px', borderRadius: '8px' }}>
-                <h3 style={{ marginTop: 0, color: 'var(--text-main)' }}>Request a Refund</h3>
+                <h3 style={{ margin: '0 0 15px 0', color: 'var(--text-main)' }}>Request a Refund</h3>
+                {rmaError && (
+                  <div style={{ padding: '10px 14px', background: 'rgba(248,113,113,0.1)', color: '#f87171', borderRadius: '8px', marginBottom: '15px', border: '1px solid rgba(248,113,113,0.25)', fontSize: '0.9rem' }}>
+                    <span>{rmaError}</span>
+                  </div>
+                )}
                 <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)' }}>Reason for return/refund:</label>
                 <textarea 
                   required

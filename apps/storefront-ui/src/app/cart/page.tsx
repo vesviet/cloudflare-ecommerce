@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import { useCartStore } from '../../store/cartStore';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { getImageUrl } from '../../lib/image';
+import { formatCurrency } from '../../lib/format';
 import { Trash2, Plus, Minus, ShoppingBag, X, Loader2 } from 'lucide-react';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com';
@@ -13,10 +15,6 @@ export default function Cart() {
   const [couponError, setCouponError] = useState('');
   const [isNavigating, setIsNavigating] = useState(false);
   const router = useRouter();
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount / 100);
-  };
 
   const handleApplyCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,7 +50,7 @@ export default function Cart() {
           {items.map(item => (
             <div key={item.id} style={{ display: 'flex', gap: '20px', padding: '16px', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
               <div style={{ width: '100px', height: '100px', background: '#161b22', borderRadius: '8px', overflow: 'hidden' }}>
-                {item.image && <img src={`${API_BASE}${item.image}`} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                {item.image && <img src={getImageUrl(item.image)} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
               </div>
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>

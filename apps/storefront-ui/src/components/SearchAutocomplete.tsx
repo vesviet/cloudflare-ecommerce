@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { Search, X, Loader2 } from 'lucide-react';
+import { getImageUrl } from '../lib/image';
 
 interface SearchResult {
   id: string;
@@ -37,25 +38,30 @@ export function SearchAutocomplete() {
       return;
     }
 
+    const controller = new AbortController();
+
     const fetchSearch = async () => {
       setLoading(true);
       setIsOpen(true);
       try {
-        const res = await fetch(`/api/products/search?q=${encodeURIComponent(query)}`);
+        const res = await fetch(`/api/products/search?q=${encodeURIComponent(query)}`, { signal: controller.signal });
         if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
         const json = await res.json();
         if (json.success) {
           setResults(json.data || []);
         }
-      } catch (e) {
-        console.error('Search failed', e);
+      } catch (e: any) {
+        if (e?.name !== 'AbortError') console.error('Search failed', e);
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     };
 
     const debounceTimer = setTimeout(fetchSearch, 300);
-    return () => clearTimeout(debounceTimer);
+    return () => {
+      controller.abort();
+      clearTimeout(debounceTimer);
+    };
   }, [query]);
 
   const clearSearch = () => {
@@ -127,7 +133,7 @@ export function SearchAutocomplete() {
                   }}>
                     <div style={{ width: '40px', height: '40px', borderRadius: '4px', background: 'rgba(255,255,255,0.1)', overflow: 'hidden', flexShrink: 0 }}>
                       {product.images?.[0] ? (
-                        <img src={product.images[0].url?.startsWith('http') ? product.images[0].url : `${process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com'}${product.images[0].url}`} alt={product.images[0].alt_text || product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <img src={getImageUrl(product.images[0].url)} alt={product.images[0].alt_text || product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       ) : null}
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column' }}>

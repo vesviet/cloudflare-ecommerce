@@ -7,6 +7,8 @@ import { ProductSwatches } from './ProductSwatches';
 import { ReviewList } from '../../../components/product/ReviewList';
 import { ReviewFormModal } from '../../../components/product/ReviewFormModal';
 import { Heart } from 'lucide-react';
+import { getImageUrl } from '../../../lib/image';
+import { formatCurrency } from '../../../lib/format';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com';
 
@@ -43,11 +45,6 @@ export default function ProductClient({ product }: { product: any }) {
 
   const isVariable = product.type === 'variable';
   const variations = product.variations || [];
-
-  const formatCurrency = (minorAmountStr: string | number) => {
-    const amount = parseInt(minorAmountStr.toString(), 10) / 100;
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
-  };
 
   const handleAddToCart = () => {
     let selectedVar = variations[0];
@@ -90,7 +87,7 @@ export default function ProductClient({ product }: { product: any }) {
               {product.images.map((img: {url: string, alt_text: string}, idx: number) => (
                 <div key={idx} className="glass" style={{ flex: '0 0 100%', scrollSnapAlign: 'start', padding: '20px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '500px', boxSizing: 'border-box' }}>
                   <img 
-                    src={img.url.startsWith('http') ? img.url : `${API_BASE}${img.url}`} 
+                    src={getImageUrl(img.url)} 
                     alt={img.alt_text || `${product.name} ${idx + 1}`} 
                     style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '8px' }} 
                   />

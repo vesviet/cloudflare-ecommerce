@@ -9,13 +9,35 @@ import Link from 'next/link';
 const API_BASE = `${process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com'}/api`;
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, customer, clearAuth } = useAuthStore();
+  const { isAuthenticated, customer, setAuth, clearAuth } = useAuthStore();
   const router = useRouter();
   const pathname = usePathname();
+  const [verified, setVerified] = React.useState(false);
 
   useEffect(() => {
-    if (!isAuthenticated) router.push('/my-account');
-  }, [isAuthenticated, router]);
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/customer/me`, { credentials: 'include' });
+        const data = await res.json();
+        if (cancelled) return;
+        if (res.ok && data.success && data.data) {
+          setAuth(data.data);
+          setVerified(true);
+        } else {
+          clearAuth();
+          router.push('/my-account');
+        }
+      } catch {
+        if (!cancelled) {
+          clearAuth();
+          router.push('/my-account');
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleLogout = async () => {
     try { await fetch(`${API_BASE}/auth/logout`, { method: 'POST', credentials: 'include' }); } catch (e) {}
@@ -23,6 +45,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     router.push('/my-account');
   };
 
+  if (!verified) return <div style={{ textAlign: 'center', padding: '100px', color: 'var(--text-muted)' }}>Verifying session...</div>;
   if (!isAuthenticated || !customer) return null;
 
   return (

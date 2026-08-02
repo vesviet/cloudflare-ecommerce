@@ -1,7 +1,8 @@
 import { Hono } from 'hono'
 import { createDb } from '@ecommerce/database'
 import { localSchema as schema } from '@ecommerce/core-services'
-import { eq } from 'drizzle-orm'
+import { schema as dbSchema, verifyJWT } from '@ecommerce/database'
+import { eq, inArray, asc } from 'drizzle-orm'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
 import { PromotionEngine } from '@ecommerce/core-services'
@@ -109,6 +110,115 @@ cart.post('/sync', zValidator('json', SyncCartSchema), async (c) => {
     return c.json(result);
   } catch (err: any) {
     console.error('[Cart Sync Error]', err)
+    return c.json({ success: false, error: 'Internal error' }, 500)
+  }
+})
+
+const RecoverCartSchema = z.object({
+  token: z.string().min(1)
+})
+
+// Recovery links are signed JWTs (scope: 'cart-recovery', 7d TTL) issued by the
+// hourly abandoned-cart cron. Prices are always re-read from the base price list;
+// the cart snapshot only carries product ids and quantities.
+cart.post('/recover', zValidator('json', RecoverCartSchema), async (c) => {
+  try {
+    const { token } = c.req.valid('json')
+
+    if (!c.env.JWT_SECRET) {
+      console.error('[Cart Recover] JWT_SECRET is not configured')
+      return c.json({ success: false, error: 'Recovery is unavailable' }, 500)
+    }
+
+    let payload: any
+    try {
+      payload = await verifyJWT(token, c.env.JWT_SECRET)
+    } catch {
+      return c.json({ success: false, error: 'Recovery link is invalid or has expired' }, 404)
+    }
+
+    if (payload?.scope !== 'cart-recovery' || typeof payload?.cart_id !== 'string') {
+      return c.json({ success: false, error: 'Recovery link is invalid' }, 404)
+    }
+
+    const db = createDb(c.env.DB)
+
+    const cart = await db.select().from(dbSchema.carts)
+      .where(eq(dbSchema.carts.id, payload.cart_id))
+      .get()
+
+    if (!cart || cart.status !== 'active') {
+      return c.json({ success: false, error: 'Cart no longer exists' }, 404)
+    }
+
+    const cartItems = await db.select().from(dbSchema.cartItems)
+      .where(eq(dbSchema.cartItems.cart_id, cart.id))
+      .all()
+
+    if (cartItems.length === 0) {
+      return c.json({ success: true, data: { items: [] } })
+    }
+
+    const productIds = cartItems.map((i: any) => i.product_id)
+
+    const variations = await db
+      .select({
+        id: dbSchema.products.id,
+        title: dbSchema.products.title,
+        parent_id: dbSchema.products.parent_id,
+        is_purchasable: dbSchema.products.is_purchasable,
+      })
+      .from(dbSchema.products)
+      .where(inArray(dbSchema.products.id, productIds))
+      .all()
+
+    const priceRows = await db
+      .select({
+        product_id: dbSchema.priceListItems.product_id,
+        price: dbSchema.priceListItems.price,
+      })
+      .from(dbSchema.priceListItems)
+      .where(inArray(dbSchema.priceListItems.product_id, productIds))
+      .all()
+
+    const assetRows = await db
+      .select({
+        product_id: dbSchema.productAssets.product_id,
+        url: dbSchema.assets.url,
+      })
+      .from(dbSchema.productAssets)
+      .innerJoin(dbSchema.assets, eq(dbSchema.productAssets.asset_id, dbSchema.assets.id))
+      .where(inArray(dbSchema.productAssets.product_id, productIds))
+      .orderBy(asc(dbSchema.productAssets.position))
+      .all()
+
+    const variationMap = new Map(variations.map((v: any) => [v.id, v]))
+    const priceMap = new Map(priceRows.map((p: any) => [p.product_id, p.price]))
+    const imageMap = new Map<string, string>()
+    for (const row of assetRows) {
+      if (!imageMap.has(row.product_id)) imageMap.set(row.product_id, row.url)
+    }
+
+    const items = []
+    for (const item of cartItems) {
+      const variation: any = variationMap.get(item.product_id)
+      const price = priceMap.get(item.product_id)
+      // Skip items that can no longer be purchased or priced — checkout would reject them anyway.
+      if (!variation || variation.is_purchasable === 0 || price === undefined) continue
+
+      items.push({
+        variation_id: variation.id,
+        product_id: variation.id,
+        name: variation.title,
+        price,
+        quantity: item.quantity,
+        image: imageMap.get(item.product_id) || '',
+      })
+    }
+
+    return c.json({ success: true, data: { items } })
+  } catch (err: any) {
+    console.error('[Cart Recover Error]', err)
     return c.json({ success: false, error: 'Internal error' }, 500)
   }
 })

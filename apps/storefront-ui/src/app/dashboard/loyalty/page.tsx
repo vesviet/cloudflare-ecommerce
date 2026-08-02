@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../../../store/authStore';
+import { formatCurrency } from '../../../lib/format';
 
 const API_BASE = `${process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com'}/api`;
 
@@ -34,9 +35,6 @@ export default function LoyaltyPage() {
 
     fetchLoyaltyData();
   }, [isAuthenticated]);
-
-  const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount / 100);
 
   if (loading) {
     return <p style={{ color: 'var(--text-muted)' }}>Loading loyalty data...</p>;
