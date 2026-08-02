@@ -328,50 +328,51 @@ landingPages.post('/leads', limitLeads, zValidator('json', LeadSubmissionSchema)
     // Previously: orders insert + orderItems insert were separate calls — if orderItems
     // failed after orders succeeded, a confirmed order with no items would be orphaned.
     // drizzle-orm/d1 wraps SQLite BEGIN/COMMIT so partial failure rolls back atomically.
-    await db.transaction(async (tx) => {
-      await tx.insert(schema.orders).values({
-        id: orderId,
-        status: orderStatus,
-        source: 'landing_page',
-        landing_page_id: landing_page_id || null,
-        total_amount: finalTotalAmount,
-        utm_source: utm_source || null,
-        utm_campaign: utm_campaign || null,
-        shipping_address_json: JSON.stringify(shippingAddress),
-      });
+    const batchStmts = [];
+    batchStmts.push(db.insert(schema.orders).values({
+      id: orderId,
+      status: orderStatus,
+      source: 'landing_page',
+      landing_page_id: landing_page_id || null,
+      total_amount: finalTotalAmount,
+      utm_source: utm_source || null,
+      utm_campaign: utm_campaign || null,
+      shipping_address_json: JSON.stringify(shippingAddress),
+    }));
 
-      // Insert order items if the landing page maps to a product
-      if (lpProduct?.product_id) {
-        const orderItemId = crypto.randomUUID();
-        await tx.insert(schema.orderItems).values({
-          id: orderItemId,
-          order_id: orderId,
-          product_id: lpProduct.product_id,
-          quantity: 1,
-          price_at_purchase: finalTotalAmount,
-        });
-      }
-
-      // Lead row linked to the same order — all three rows commit or all roll back
-      await tx.insert(schema.landingPageLeads).values({
-        id: leadId,
-        landing_page_id,
+    // Insert order items if the landing page maps to a product
+    if (lpProduct?.product_id) {
+      const orderItemId = crypto.randomUUID();
+      batchStmts.push(db.insert(schema.orderItems).values({
+        id: orderItemId,
         order_id: orderId,
-        customer_name,
-        customer_phone,
-        customer_address,
-        customer_note,
-        selected_combo_id,
-        selected_colors_json: selected_colors_json ? JSON.stringify(selected_colors_json) : null,
-        selected_sizes_json: selected_sizes_json ? JSON.stringify(selected_sizes_json) : null,
-        selected_variants_json: selected_variants_json ? JSON.stringify(selected_variants_json) : null,
-        total_amount: finalTotalAmount,
-        utm_source,
-        utm_campaign,
-        utm_content,
-        sync_status: 'pending',
-      });
-    });
+        product_id: lpProduct.product_id,
+        quantity: 1,
+        price_at_purchase: finalTotalAmount,
+      }));
+    }
+
+    // Lead row linked to the same order — all three rows commit or all roll back
+    batchStmts.push(db.insert(schema.landingPageLeads).values({
+      id: leadId,
+      landing_page_id,
+      order_id: orderId,
+      customer_name,
+      customer_phone,
+      customer_address,
+      customer_note,
+      selected_combo_id,
+      selected_colors_json: selected_colors_json ? JSON.stringify(selected_colors_json) : null,
+      selected_sizes_json: selected_sizes_json ? JSON.stringify(selected_sizes_json) : null,
+      selected_variants_json: selected_variants_json ? JSON.stringify(selected_variants_json) : null,
+      total_amount: finalTotalAmount,
+      utm_source,
+      utm_campaign,
+      utm_content,
+      sync_status: 'pending',
+    }));
+
+    await db.batch(batchStmts as any);
 
     // DEBT-012 FIX: Structured observability log — visible in CF Worker real-time logs
     // and queryable via wrangler tail. Use this to build a COD dashboard metric.
