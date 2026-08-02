@@ -1,7 +1,7 @@
 /// <reference types="@cloudflare/workers-types" />
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
-import { createDb } from '@ecommerce/database'
+import { createDb, signJWT } from '@ecommerce/database'
 import { localSchema as schema } from '@ecommerce/core-services'
 import { eq, sql, and } from 'drizzle-orm'
 import catalog from './routes/catalog'
@@ -53,7 +53,7 @@ app.use('/*', cors({
     return allowedList.includes(origin) ? origin : null
   },
   allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+  allowHeaders: ['Content-Type', 'Authorization', 'Cookie', 'Idempotency-Key'],
   credentials: true,
 }))
 
@@ -356,6 +356,12 @@ export default {
               .get();
               
             if (customer && customer.email && env.RESEND_API_KEY) {
+              // Signed recovery link lets the storefront restore this exact cart server-side.
+              const recoveryToken = await signJWT(
+                { cart_id: cart.id, scope: 'cart-recovery' },
+                env.JWT_SECRET
+              );
+              const recoveryUrl = `${env.STOREFRONT_URL || 'https://aura-shop.tanhdev.com'}/checkout/recovery?token=${encodeURIComponent(recoveryToken)}`;
               const emailRes = await fetch('https://api.resend.com/emails', {
                 method: 'POST',
                 headers: {
@@ -369,7 +375,7 @@ export default {
                   html: `
                     <h2 style="font-family:sans-serif">Your cart is waiting!</h2>
                     <p style="font-family:sans-serif;color:#666">You left some items in your cart. Come back and complete your purchase.</p>
-                    <a href="${env.STOREFRONT_URL || 'https://aura-shop.tanhdev.com'}/cart" style="display:inline-block;padding:10px 20px;background:#000;color:#fff;text-decoration:none;border-radius:4px;font-family:sans-serif;">Resume Checkout</a>
+                    <a href="${recoveryUrl}" style="display:inline-block;padding:10px 20px;background:#000;color:#fff;text-decoration:none;border-radius:4px;font-family:sans-serif;">Resume Checkout</a>
                   `,
                 }),
               });

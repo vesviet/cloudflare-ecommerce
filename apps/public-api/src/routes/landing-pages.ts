@@ -4,6 +4,7 @@ import { eq, inArray } from 'drizzle-orm';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { rateLimit, clientIp } from '@ecommerce/shared-routes';
+import { getSetting } from '../utils/settingsCache';
 
 // Rate limit lead submissions by client IP (defence-in-depth alongside Turnstile).
 const limitLeads = rateLimit({
@@ -29,6 +30,9 @@ const LeadSubmissionSchema = z.object({
   utm_campaign: z.string().optional().nullable(),
   utm_content: z.string().optional().nullable(),
   turnstile_token: z.string().optional().nullable(),
+  // COD / payment method for landing page orders.
+  // Default is 'cod' — cash on delivery confirmed at submit.
+  payment_method: z.enum(['cod', 'bank_transfer']).default('cod'),
 });
 
 const landingPages = new Hono<{ 
@@ -176,7 +180,8 @@ landingPages.post('/leads', limitLeads, zValidator('json', LeadSubmissionSchema)
     const { 
       landing_page_id, customer_name, customer_phone, customer_address, 
       customer_note, selected_combo_id, selected_colors_json, selected_sizes_json, 
-      selected_variants_json, total_amount, utm_source, utm_campaign, utm_content, turnstile_token 
+      selected_variants_json, total_amount, utm_source, utm_campaign, utm_content,
+      turnstile_token, payment_method,
     } = body;
 
     // 1. Verify Turnstile.
@@ -190,12 +195,29 @@ landingPages.post('/leads', limitLeads, zValidator('json', LeadSubmissionSchema)
       const formData = new FormData();
       formData.append('secret', c.env.TURNSTILE_SECRET_KEY);
       formData.append('response', turnstile_token);
-      
-      const verifyRes = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
-        method: 'POST',
-        body: formData
-      });
-      const outcome = await verifyRes.json() as any;
+
+      // DEF-007 FIX: Add 5s timeout on siteverify — CF Worker default is 30s which
+      // is too long; a slow Cloudflare response would block the lead submission.
+      const tsController = new AbortController();
+      const tsTimeout = setTimeout(() => tsController.abort(), 5000);
+      let outcome: any;
+      try {
+        const verifyRes = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+          method: 'POST',
+          body: formData,
+          signal: tsController.signal,
+        });
+        outcome = await verifyRes.json();
+      } catch (e: any) {
+        clearTimeout(tsTimeout);
+        if (e?.name === 'AbortError') {
+          console.error('[Landing Pages] Turnstile siteverify timed out');
+          return c.json({ success: false, error: 'Security check timed out. Please try again.' }, 503);
+        }
+        throw e; // unexpected — let outer catch handle
+      }
+      clearTimeout(tsTimeout);
+
       if (!outcome.success) {
         return c.json({ success: false, error: 'Turnstile verification failed' }, 403);
       }
@@ -213,7 +235,85 @@ landingPages.post('/leads', limitLeads, zValidator('json', LeadSubmissionSchema)
       lpProduct = await db.select().from(schema.landingPages).where(eq(schema.landingPages.id, landing_page_id)).get();
     }
 
-    // 3. Create Linked Order (Pending Status)
+    // DEF-003 FIX: Re-validate stock at submit time before setting status='confirmed'.
+    // Page-load stock check is stale by the time user submits (form fill can take minutes).
+    if (lpProduct?.product_id && payment_method === 'cod') {
+      const stockRows = await db
+        .select({ stock_quantity: schema.inventoryLevels.stock_quantity })
+        .from(schema.inventoryLevels)
+        .where(eq(schema.inventoryLevels.product_id, lpProduct.product_id))
+        .all();
+      const totalStock = stockRows.reduce((sum: number, r: any) => sum + (r.stock_quantity ?? 0), 0);
+      if (totalStock <= 0) {
+        return c.json({ success: false, error: 'Sản phẩm hiện đã hết hàng. Vui lòng thử lại sau.' }, 409);
+      }
+    }
+
+    // 2b. Server-side COD amount: recompute from the base price list so the
+    // order total never trusts the client payload. When the landing page maps
+    // to a known product we own the price; fall back to the client value only
+    // for unmapped (combo) pages, and log drift in that case.
+    let serverTotalAmount: number | null = null;
+    if (lpProduct?.product_id) {
+      let qty = 1;
+      if (selected_variants_json) {
+        try {
+          const selected = Array.isArray(selected_variants_json)
+            ? selected_variants_json
+            : JSON.parse(selected_variants_json as any);
+          const sum = (selected as any[]).reduce((s, v) => s + (Number(v?.quantity) || 0), 0);
+          if (sum > 0) qty = sum;
+        } catch { /* keep qty = 1 */ }
+      }
+
+      const targetIds = new Set<string>([lpProduct.product_id]);
+      if (selected_variants_json) {
+        try {
+          const selected = Array.isArray(selected_variants_json)
+            ? selected_variants_json
+            : JSON.parse(selected_variants_json as any);
+          for (const v of selected as any[]) {
+            if (v?.variation_id) targetIds.add(v.variation_id);
+            if (v?.product_id) targetIds.add(v.product_id);
+          }
+        } catch { /* ignore */ }
+      }
+
+      const priceRows = await db
+        .select({ product_id: schema.priceListItems.product_id, price: schema.priceListItems.price })
+        .from(schema.priceListItems)
+        .where(inArray(schema.priceListItems.product_id, [...targetIds]))
+        .all();
+
+      if (priceRows.length > 0) {
+        // Prefer the variant price when variants were selected, else the page product price.
+        const selectedPrice =
+          priceRows.find((r: any) => r.product_id !== lpProduct.product_id)?.price ??
+          priceRows.find((r: any) => r.product_id === lpProduct.product_id)?.price;
+        if (selectedPrice !== undefined) {
+          serverTotalAmount = selectedPrice * qty;
+        }
+      }
+    }
+
+    const finalTotalAmount = serverTotalAmount ?? (total_amount || 0);
+    if (serverTotalAmount !== null && total_amount && Math.abs(serverTotalAmount - total_amount) > 0) {
+      console.warn(
+        `[Landing Pages] COD amount drift: client=${total_amount} server=${serverTotalAmount} lp=${landing_page_id}`
+      );
+    }
+
+    // 3. Create Linked Order
+    // DEBT-013 FIX: Feature flag 'enable-cod-orders' (D1 settings table, default: true).
+    // When false, COD submissions are still accepted but land as 'pending' — staff reviews
+    // before confirming. Disable via: UPDATE settings SET value='false' WHERE key='enable-cod-orders'
+    // or via Admin UI. No code deploy required to kill COD flow in production.
+    const isCodEnabled = await getSetting(db, 'enable-cod-orders', true);
+    const orderStatus =
+      payment_method === 'cod' && isCodEnabled ? 'confirmed' :
+      payment_method === 'cod' && !isCodEnabled ? 'pending' : // COD disabled → staff reviews
+      'pending'; // bank_transfer always pending until proof
+
     const shippingAddress = {
       name: customer_name,
       phone: customer_phone,
@@ -221,48 +321,73 @@ landingPages.post('/leads', limitLeads, zValidator('json', LeadSubmissionSchema)
       note: customer_note,
     };
 
-    await db.insert(schema.orders).values({
-      id: orderId,
-      status: 'pending',
-      source: 'landing_page',
-      landing_page_id: landing_page_id || null,
-      total_amount: total_amount || 0,
-      utm_source: utm_source || null,
-      utm_campaign: utm_campaign || null,
-      shipping_address_json: JSON.stringify(shippingAddress),
-    });
+    // Generate a short human-readable reference (8 uppercase hex chars)
+    const orderReference = orderId.replace(/-/g, '').slice(0, 8).toUpperCase();
 
-    // Create Order Items if product_id exists
-    if (lpProduct?.product_id) {
-      const orderItemId = crypto.randomUUID();
-      await db.insert(schema.orderItems).values({
-        id: orderItemId,
-        order_id: orderId,
-        product_id: lpProduct.product_id,
-        quantity: 1,
-        price_at_purchase: total_amount || 0,
+    // DEBT-009 FIX: Wrap all 3 DB inserts in a single transaction.
+    // Previously: orders insert + orderItems insert were separate calls — if orderItems
+    // failed after orders succeeded, a confirmed order with no items would be orphaned.
+    // drizzle-orm/d1 wraps SQLite BEGIN/COMMIT so partial failure rolls back atomically.
+    await db.transaction(async (tx) => {
+      await tx.insert(schema.orders).values({
+        id: orderId,
+        status: orderStatus,
+        source: 'landing_page',
+        landing_page_id: landing_page_id || null,
+        total_amount: finalTotalAmount,
+        utm_source: utm_source || null,
+        utm_campaign: utm_campaign || null,
+        shipping_address_json: JSON.stringify(shippingAddress),
       });
-    }
 
-    // 4. Insert Lead to D1 with order_id
-    await db.insert(schema.landingPageLeads).values({
-      id: leadId,
-      landing_page_id,
-      order_id: orderId,
-      customer_name,
-      customer_phone,
-      customer_address,
-      customer_note,
-      selected_combo_id,
-      selected_colors_json: selected_colors_json ? JSON.stringify(selected_colors_json) : null,
-      selected_sizes_json: selected_sizes_json ? JSON.stringify(selected_sizes_json) : null,
-      selected_variants_json: selected_variants_json ? JSON.stringify(selected_variants_json) : null,
-      total_amount: total_amount || 0,
-      utm_source,
-      utm_campaign,
-      utm_content,
-      sync_status: 'pending'
+      // Insert order items if the landing page maps to a product
+      if (lpProduct?.product_id) {
+        const orderItemId = crypto.randomUUID();
+        await tx.insert(schema.orderItems).values({
+          id: orderItemId,
+          order_id: orderId,
+          product_id: lpProduct.product_id,
+          quantity: 1,
+          price_at_purchase: finalTotalAmount,
+        });
+      }
+
+      // Lead row linked to the same order — all three rows commit or all roll back
+      await tx.insert(schema.landingPageLeads).values({
+        id: leadId,
+        landing_page_id,
+        order_id: orderId,
+        customer_name,
+        customer_phone,
+        customer_address,
+        customer_note,
+        selected_combo_id,
+        selected_colors_json: selected_colors_json ? JSON.stringify(selected_colors_json) : null,
+        selected_sizes_json: selected_sizes_json ? JSON.stringify(selected_sizes_json) : null,
+        selected_variants_json: selected_variants_json ? JSON.stringify(selected_variants_json) : null,
+        total_amount: finalTotalAmount,
+        utm_source,
+        utm_campaign,
+        utm_content,
+        sync_status: 'pending',
+      });
     });
+
+    // DEBT-012 FIX: Structured observability log — visible in CF Worker real-time logs
+    // and queryable via wrangler tail. Use this to build a COD dashboard metric.
+    // Query pattern: wrangler tail --format json | jq 'select(.logs[].message | contains("[COD Order]"))'
+    console.log(JSON.stringify({
+      event: '[COD Order]',
+      order_id: orderId,
+      order_reference: orderReference,
+      order_status: orderStatus,
+      payment_method,
+      landing_page_id: landing_page_id || null,
+      total_amount_cents: finalTotalAmount,
+      cod_flag_enabled: isCodEnabled,
+      has_product: !!lpProduct?.product_id,
+      ts: new Date().toISOString(),
+    }));
 
     // 5. Webhook Async Execution
     if (c.env.WEBHOOK_CRM_URL) {
@@ -273,13 +398,16 @@ landingPages.post('/leads', limitLeads, zValidator('json', LeadSubmissionSchema)
           body: JSON.stringify({
             lead_id: leadId,
             order_id: orderId,
+            order_reference: orderReference,
             landing_page_id,
             customer_name,
             customer_phone,
             customer_address,
             customer_note,
             selected_combo_id,
-            total_amount,
+            total_amount: finalTotalAmount,
+            payment_method,
+            order_status: orderStatus,
             utm_source,
             utm_campaign
           })
@@ -302,10 +430,20 @@ landingPages.post('/leads', limitLeads, zValidator('json', LeadSubmissionSchema)
       );
     }
 
-    return c.json({ success: true, message: 'Lead submitted successfully', data: { id: leadId, order_id: orderId } });
+    return c.json({
+      success: true,
+      message: 'Đặt hàng thành công!',
+      data: {
+        id: leadId,
+        order_id: orderId,
+        order_reference: orderReference,
+        payment_method,
+        order_status: orderStatus,
+        estimated_delivery: payment_method === 'cod' ? '2-3 ngày làm việc' : 'Sau khi xác nhận thanh toán',
+      }
+    });
   } catch (err: any) {
-    console.error("Lead submission error:", err);
-    console.error('[public-api] landing-pages error:', err);
+    console.error('[public-api] landing-pages lead submission error:', err);
     return c.json({ success: false, error: 'Internal server error' }, 500);
   }
 });

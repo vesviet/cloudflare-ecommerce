@@ -5,6 +5,7 @@ import Script from 'next/script';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
+import { getImageUrl } from '../../../lib/image';
 
 export default function LandingClient({ lp: initialLp, comboRules: initialComboRules, initialSlug, apiUrl }: { lp?: any, comboRules?: any[], initialSlug?: string, apiUrl: string }) {
   const params = useParams();
@@ -70,30 +71,30 @@ export default function LandingClient({ lp: initialLp, comboRules: initialComboR
   }, [comboRules]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState('');
+  // S4 FIX: turnstileToken React state removed — token is read directly from FormData
+  // (cf-turnstile-response hidden input injected by the Turnstile widget) which is
+  // the correct and reliable approach. The unused state and orphaned CustomEvent
+  // dispatch have been removed to avoid confusion.
+  const [successData, setSuccessData] = useState<{
+    order_reference: string;
+    payment_method: string;
+    order_status: string;
+    estimated_delivery: string;
+  } | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
 
   const selectedCombo = comboRules.find((c: any) => c.id === formData.comboId) || comboRules[0];
 
-  useEffect(() => {
-    // Inject Turnstile Script
-    const script = document.createElement('script');
-    script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js";
-    script.async = true;
-    script.defer = true;
-    document.head.appendChild(script);
-
-    return () => {
-      document.head.removeChild(script);
-    };
-  }, []);
+  // S4 FIX: Removed manual <script> injection via useEffect that caused double-injection
+  // on component re-renders. Turnstile script is now loaded via Next.js <Script> component
+  // below with strategy="afterInteractive" which handles deduplication automatically.
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setErrorMsg('');
     
-    // Read turnstile token from the form
+    // S4 FIX: Read token from FormData — this is the correct approach as Turnstile
+    // automatically injects a hidden input named 'cf-turnstile-response' into the form.
     const formElement = e.currentTarget;
     const formDataObj = new FormData(formElement);
     const tToken = formDataObj.get('cf-turnstile-response') as string;
@@ -117,13 +118,20 @@ export default function LandingClient({ lp: initialLp, comboRules: initialComboR
           selected_combo_id: formData.comboId,
           selected_variants_json: formData.selectedVariantId ? [formData.selectedVariantId] : (lp?.variants?.[0]?.id ? [lp.variants[0].id] : []),
           total_amount: selectedCombo ? selectedCombo.price : 0,
+          payment_method: 'cod', // S7: Landing page always uses COD
           turnstile_token: tToken,
         }),
       });
 
       const data = await res.json();
       if (res.ok && data.success) {
-        setSuccessMsg('Đặt hàng thành công! Chúng tôi sẽ liên hệ với bạn sớm nhất.');
+        // S7: Store full confirmation data instead of plain text message
+        setSuccessData({
+          order_reference: data.data?.order_reference || '',
+          payment_method: data.data?.payment_method || 'cod',
+          order_status: data.data?.order_status || 'confirmed',
+          estimated_delivery: data.data?.estimated_delivery || '2-3 ngày làm việc',
+        });
         setFormData({ name: '', phone: '', address: '', note: '', comboId: formData.comboId, selectedVariantId: '' });
         
         // Tracking Purchase event for FB/TikTok if window.fbq or window.ttq exists
@@ -143,10 +151,9 @@ export default function LandingClient({ lp: initialLp, comboRules: initialComboR
       setErrorMsg('Lỗi kết nối. Vui lòng thử lại.');
     } finally {
       setIsSubmitting(false);
-      // Reset turnstile
+      // Reset Turnstile widget so user can re-submit on error
       if (typeof window !== 'undefined' && (window as any).turnstile) {
         (window as any).turnstile.reset();
-        setTurnstileToken(null);
       }
     }
   };
@@ -206,7 +213,7 @@ export default function LandingClient({ lp: initialLp, comboRules: initialComboR
         <header style={{ position: 'sticky', top: 0, zIndex: 50, backgroundColor: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(5px)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 20px', borderBottom: '1px solid #e5e7eb', margin: '-40px -20px 20px -20px' }}>
           <div style={{ flex: 1 }}>
             {lp.header_logo_url ? (
-              <img src={lp.header_logo_url?.startsWith('http') ? lp.header_logo_url : `${apiUrl}${lp.header_logo_url}`} alt="Logo" style={{ maxHeight: '40px', objectFit: 'contain' }} />
+              <img src={getImageUrl(lp.header_logo_url)} alt="Logo" style={{ maxHeight: '40px', objectFit: 'contain' }} />
             ) : (
               <span style={{ fontWeight: 'bold', fontSize: '1.2rem', color: '#111827' }}>{lp.title}</span>
             )}
@@ -223,18 +230,20 @@ export default function LandingClient({ lp: initialLp, comboRules: initialComboR
 
       {/* Hero Section */}
       <div style={{ marginBottom: '40px' }}>
-        {/* Fake Urgency Viewers */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '10px', backgroundColor: '#fdf2f8', color: '#be123c', fontWeight: 'bold', fontSize: '1.1rem', marginBottom: '15px', borderRadius: '8px' }}>
-          <span>👁️ Đang có</span>
-          <span style={{ color: '#e11d48', fontSize: '1.2rem' }}>{lp.urgency_fake_views || 800}</span>
-          <span>người xem sản phẩm này</span>
-        </div>
+        {/* Fake Urgency Viewers — count comes from DB config, shows nothing if not set */}
+        {lp.urgency_fake_views > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '10px', backgroundColor: '#fdf2f8', color: '#be123c', fontWeight: 'bold', fontSize: '1.1rem', marginBottom: '15px', borderRadius: '8px' }}>
+            <span>👁️ Đang có</span>
+            <span style={{ color: '#e11d48', fontSize: '1.2rem' }}>{lp.urgency_fake_views}</span>
+            <span>người xem sản phẩm này</span>
+          </div>
+        )}
 
         {/* Image Gallery */}
         {lp?.product?.images && lp.product.images.length > 0 && (
           <div style={{ position: 'relative', marginBottom: '5px' }}>
             <img 
-              src={lp.product.images[activeImageIndex]?.url?.startsWith('http') ? lp.product.images[activeImageIndex].url : `${apiUrl}${lp.product.images[activeImageIndex]?.url}`} 
+              src={getImageUrl(lp.product.images[activeImageIndex]?.url)}
               alt={lp.product.images[activeImageIndex]?.alt_text || lp.seo_title || 'Product Image'} 
               style={{ width: '100%', height: 'auto', borderRadius: '4px', display: 'block', objectFit: 'cover', aspectRatio: '4/5' }} 
             />
@@ -263,7 +272,7 @@ export default function LandingClient({ lp: initialLp, comboRules: initialComboR
             {lp.product.images.slice(0, 4).map((img: any, idx: number) => (
               <img 
                 key={idx}
-                src={img.url?.startsWith('http') ? img.url : `${apiUrl}${img.url}`}
+                src={getImageUrl(img.url)}
                 onClick={() => setActiveImageIndex(idx)}
                 style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', borderRadius: '4px', cursor: 'pointer', opacity: activeImageIndex === idx ? 1 : 0.6 }}
               />
@@ -386,9 +395,29 @@ export default function LandingClient({ lp: initialLp, comboRules: initialComboR
       <div id="checkout-form" style={{ backgroundColor: '#f9fafb', padding: '30px', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
         <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '20px' }}>Đặt Hàng Ngay</h2>
         
-        {successMsg ? (
-          <div style={{ backgroundColor: '#d1fae5', color: '#065f46', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
-            {successMsg}
+        {/* S7: COD Order Confirmation Panel */}
+        {successData ? (
+          <div style={{ backgroundColor: '#f0fdf4', border: '2px solid #86efac', padding: '24px', borderRadius: '12px', textAlign: 'center' }}>
+            <div style={{ fontSize: '2.5rem', marginBottom: '12px' }}>✅</div>
+            <h3 style={{ color: '#166534', fontWeight: '700', fontSize: '1.3rem', marginBottom: '8px' }}>Đặt hàng thành công!</h3>
+            
+            <div style={{ background: '#fff', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '16px', marginBottom: '16px' }}>
+              <p style={{ color: '#6b7280', fontSize: '0.85rem', marginBottom: '4px' }}>Mã đơn hàng</p>
+              <p style={{ fontFamily: 'monospace', fontSize: '1.4rem', fontWeight: '900', color: '#111827', letterSpacing: '0.1em' }}>#{successData.order_reference}</p>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', justifyContent: 'center', padding: '6px 14px', background: '#dcfce7', borderRadius: '20px', fontSize: '0.9rem', fontWeight: '600', color: '#166534' }}>
+                💵 Thanh toán khi nhận hàng (COD)
+              </div>
+              <p style={{ color: '#4b5563', fontSize: '0.9rem' }}>
+                🚚 Dự kiến giao: <strong>{successData.estimated_delivery}</strong>
+              </p>
+            </div>
+
+            <p style={{ color: '#6b7280', fontSize: '0.82rem', lineHeight: 1.5 }}>
+              Chúng tôi sẽ liên hệ xác nhận đơn hàng qua số điện thoại bạn đã cung cấp.
+            </p>
           </div>
         ) : (
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
@@ -467,7 +496,6 @@ export default function LandingClient({ lp: initialLp, comboRules: initialComboR
               <div 
                 className="cf-turnstile" 
                 data-sitekey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "1x00000000000000000000AA"} 
-                data-callback="onTurnstileSuccess"
               ></div>
             </div>
 
@@ -485,21 +513,16 @@ export default function LandingClient({ lp: initialLp, comboRules: initialComboR
         )}
       </div>
       
-      <Script id="turnstile-callback" strategy="afterInteractive">
-        {`
-          window.onTurnstileSuccess = function(token) {
-            // Trigger react state update
-            const customEvent = new CustomEvent('turnstileTokenReceived', { detail: token });
-            window.dispatchEvent(customEvent);
-          };
-        `}
-      </Script>
-      <Script id="turnstile-listener" strategy="lazyOnload">
-        {`
-           // Turnstile automatically injects a hidden input with name "cf-turnstile-response"
-           // No need for extra event listeners.
-        `}
-      </Script>
+      {/* S4 FIX: Turnstile script loaded via Next.js Script component (deduplication handled automatically).
+          The manual useEffect DOM injection was removed. */}
+      <Script
+        id="cf-turnstile-script"
+        src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+        strategy="afterInteractive"
+        async
+        defer
+      />
+
       {/* Footer Rich Text */}
       {lp.footer_content && (
         <footer style={{ marginTop: '40px', paddingTop: '20px', borderTop: '1px solid #e5e7eb', fontSize: '0.9rem', color: '#4b5563', lineHeight: '1.6' }}>

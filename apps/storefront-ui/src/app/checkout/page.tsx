@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, Suspense, useRef } from 'react';
 import { useCartStore } from '../../store/cartStore';
 import { useAuthStore } from '../../store/authStore';
 import { useSearchParams } from 'next/navigation';
@@ -12,7 +12,14 @@ import { OrderSummary } from '../../components/checkout/OrderSummary';
 import { Turnstile } from '@marsidev/react-turnstile';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com';
-const FLAT_SHIPPING_FEE = 9.99;
+
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+const isProd = typeof process !== 'undefined' && process.env.NODE_ENV === 'production';
+const TURNSTILE_MISSING_IN_PROD = isProd && !TURNSTILE_SITE_KEY;
+
+if (TURNSTILE_MISSING_IN_PROD) {
+  console.error('[Checkout] NEXT_PUBLIC_TURNSTILE_SITE_KEY is not set in production. Turnstile protection is disabled.');
+}
 
 // Only ever redirect to an HTTPS Stripe-hosted checkout URL. Prevents an
 // open-redirect if the API response is ever tampered with.
@@ -40,9 +47,10 @@ export default function CheckoutPage() {
 }
 
 function CheckoutInner() {
-  const { items, getCartSubtotal, updateQuantity, coupon } = useCartStore();
+  const { items, getCartSubtotal, coupon } = useCartStore();
   const { isAuthenticated, customer } = useAuthStore();
   const searchParams = useSearchParams();
+  const updatePrices = useCartStore((s: any) => s.updatePrices);
 
   // --- State ---
   const [email, setEmail] = useState('');
@@ -57,10 +65,18 @@ function CheckoutInner() {
   const [priceChanged, setPriceChanged] = useState(false);
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  const [addressError, setAddressError] = useState(''); // S8: address fetch error state
   const [turnstileToken, setTurnstileToken] = useState<string>('');
   const [mounted, setMounted] = useState(false);
   const [loyaltyBalance, setLoyaltyBalance] = useState(0);
   const [redeemPoints, setRedeemPoints] = useState(0);
+
+  // S1: Server-authoritative shipping fee (in cents). Default=5000 while fetching.
+  const [shippingFeeCents, setShippingFeeCents] = useState<number>(5000);
+  const [shippingLoading, setShippingLoading] = useState(false);
+
+  // S3: Idempotency key — generated once on mount, regenerated after successful submit.
+  const idempotencyKey = useRef<string>(crypto.randomUUID());
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -75,6 +91,34 @@ function CheckoutInner() {
     }
   }, [searchParams]);
 
+  // S1: Fetch shipping estimate from server whenever the active postcode changes.
+  const fetchShippingEstimate = useCallback(async (postcode: string) => {
+    setShippingLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/checkout/shipping-estimate?postcode=${encodeURIComponent(postcode)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && typeof data.shipping_fee_cents === 'number') {
+          setShippingFeeCents(data.shipping_fee_cents);
+        }
+      }
+    } catch {
+      // Fail open: keep the current estimate, do not block checkout
+    } finally {
+      setShippingLoading(false);
+    }
+  }, []);
+
+  // Derive active postcode from selected source (authenticated vs guest)
+  const activePostcode = isAuthenticated && selectedAddressId
+    ? savedAddresses.find(a => a.id === selectedAddressId)?.postcode || ''
+    : guestAddress.postcode;
+
+  useEffect(() => {
+    fetchShippingEstimate(activePostcode);
+  }, [activePostcode, fetchShippingEstimate]);
+
+  // S8: Load user data with explicit error handling for each fetch
   const loadUserData = useCallback(async () => {
     if (!isAuthenticated || !customer) return;
     setEmail(customer.email);
@@ -89,52 +133,89 @@ function CheckoutInner() {
       setAcceptsMarketing(customer.accepts_marketing === 1);
     }
 
+    // Address fetch — explicit error boundary so failures are surfaced to user
     try {
       const res = await fetch(`${API_BASE}/api/customer/addresses`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`Address fetch failed: ${res.status}`);
       const data = await res.json();
       if (data.success && data.data.length > 0) {
         setSavedAddresses(data.data);
         const def = data.data.find((a: any) => a.is_default_shipping === 1) || data.data[0];
         setSelectedAddressId(def.id);
       }
-      
+    } catch (e) {
+      console.error('[Checkout] Address fetch failed:', e);
+      setAddressError('Could not load saved addresses. Please enter your address below.');
+      // Graceful: show guest form as fallback — do not block checkout
+    }
+
+    // Loyalty fetch — failures are non-blocking
+    try {
       const loyaltyRes = await fetch(`${API_BASE}/api/customer/loyalty`, { credentials: 'include' });
-      const loyaltyData = await loyaltyRes.json();
-      if (loyaltyData.success) {
-        setLoyaltyBalance(loyaltyData.data.balance);
+      if (loyaltyRes.ok) {
+        const loyaltyData = await loyaltyRes.json();
+        if (loyaltyData.success) {
+          setLoyaltyBalance(loyaltyData.data.balance);
+        }
       }
-    } catch (e) { console.error(e); }
+    } catch {
+      setLoyaltyBalance(0); // non-blocking, loyalty just won't be shown
+    }
   }, [isAuthenticated, customer]);
 
   useEffect(() => { loadUserData(); }, [loadUserData]);
 
+  // S5: Batch price validation — single request replaces N+1 sequential loop.
+  // Handles both simple and variable products (variation_id vs product_id lookup).
   useEffect(() => {
     if (items.length === 0) return;
     const validatePrices = async () => {
-      let changed = false;
-      for (const item of items) {
-        try {
-          const res = await fetch(`${API_BASE}/api/products/${item.product_id}`);
-          if (!res.ok) continue;
-          const data = await res.json();
-          const variation = data.data?.variations?.find((v: any) => v.id === item.id);
-          if (variation) {
-            const serverPrice = variation.sale_price ?? variation.regular_price;
-            if (serverPrice !== item.price) {
-              changed = true;
-              updateQuantity(item.id, item.quantity);
-            }
+      try {
+        const res = await fetch(`${API_BASE}/api/checkout/validate-prices`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            // DEF-004 FIX: Guard against items with undefined product_id (legacy cart hydration)
+            items: items
+              .filter(item => item.id && (item.product_id || item.id))
+              .map(item => ({ id: item.id, product_id: item.product_id ?? item.id })),
+          }),
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.success && Array.isArray(data.updates)) {
+          const priceUpdates = data.updates
+            .filter((u: any) => {
+              const localItem = items.find(i => i.id === u.id);
+              return localItem && localItem.price !== u.price;
+            })
+            .map((u: any) => ({ id: u.id, price: u.price }));
+
+          if (priceUpdates.length > 0) {
+            updatePrices(priceUpdates);
+            setPriceChanged(true);
           }
-        } catch { /* fail silently */ }
+        }
+      } catch {
+        // fail silently — price validation is best-effort
       }
-      if (changed) setPriceChanged(true);
     };
     validatePrices();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [items.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (items.length === 0) return;
+
+    // DEF-005 FIX: When address fetch failed and user is authenticated, they fall back
+    // to guestAddress form. Validate it has at least address_1 + phone before submitting.
+    if (addressError || !isAuthenticated) {
+      if (!guestAddress.address_1?.trim() || !guestAddress.phone?.trim()) {
+        setStatus('error');
+        setErrorMessage('Please enter your shipping address and phone number before proceeding.');
+        return;
+      }
+    }
     
     if (!turnstileToken) {
       setStatus('error');
@@ -146,7 +227,8 @@ function CheckoutInner() {
     setErrorMessage('');
 
     const selectedAddress = savedAddresses.find(a => a.id === selectedAddressId) || null;
-    const shippingAddressJson = isAuthenticated && selectedAddress ? selectedAddress : guestAddress;
+    // S8: if addressError was set and user is authenticated with no addresses, use guestAddress
+    const shippingAddressJson = (isAuthenticated && selectedAddress && !addressError) ? selectedAddress : guestAddress;
 
     const finalAddressJson = shippingAddressJson ? { ...shippingAddressJson } : null;
     if (finalAddressJson && isB2B && b2bCompany) {
@@ -177,13 +259,19 @@ function CheckoutInner() {
     try {
       const res = await fetch(`${API_BASE}/api/checkout`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          // S3: Send idempotency key to prevent double-order on double-click/retry
+          'Idempotency-Key': idempotencyKey.current,
+        },
         credentials: 'include',
         body: JSON.stringify(payload),
       });
       const data = await res.json();
 
       if (data.success && data.checkout_url && isTrustedCheckoutUrl(data.checkout_url)) {
+        // Regenerate key so a future retry (e.g. after browser back) gets a fresh key
+        idempotencyKey.current = crypto.randomUUID();
         window.location.href = data.checkout_url;
       } else if (data.success && data.checkout_url) {
         setStatus('error');
@@ -220,8 +308,15 @@ function CheckoutInner() {
           {/* Left: Form */}
         <div className="glass glass-card" style={{ padding: '32px' }}>
           {priceChanged && (
-            <div style={{ padding: '10px 14px', background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.3)', borderRadius: '8px', marginBottom: '20px', color: '#fbbf24', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div role="alert" style={{ padding: '10px 14px', background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.3)', borderRadius: '8px', marginBottom: '20px', color: '#fbbf24', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
               ⚠️ Some prices were updated since you added items. Your total reflects the latest prices.
+            </div>
+          )}
+
+          {/* S8: Surface address fetch errors gracefully */}
+          {addressError && (
+            <div role="alert" style={{ padding: '10px 14px', background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.3)', borderRadius: '8px', marginBottom: '20px', color: '#fbbf24', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              ⚠️ {addressError}
             </div>
           )}
 
@@ -229,7 +324,7 @@ function CheckoutInner() {
             <ContactForm email={email} onChangeEmail={setEmail} />
             
             <AddressSelector 
-              isAuthenticated={isAuthenticated}
+              isAuthenticated={isAuthenticated && !addressError}
               savedAddresses={savedAddresses}
               selectedAddressId={selectedAddressId}
               guestAddress={guestAddress}
@@ -255,19 +350,25 @@ function CheckoutInner() {
             )}
 
             <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'center' }}>
-              <Turnstile 
-                siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '1x00000000000000000000AA'} 
+            {TURNSTILE_MISSING_IN_PROD ? (
+              <div style={{ padding: '12px 16px', background: 'rgba(248,113,113,0.1)', color: '#f87171', borderRadius: '8px', border: '1px solid rgba(248,113,113,0.25)', fontSize: '0.9rem' }}>
+                Security check is not configured. Please contact support.
+              </div>
+            ) : (
+              <Turnstile
+                siteKey={TURNSTILE_SITE_KEY || '1x00000000000000000000AA'}
                 onSuccess={(token) => setTurnstileToken(token)}
                 onError={() => setErrorMessage('Turnstile verification failed. Please try again.')}
                 options={{ theme: 'auto' }}
               />
-            </div>
+            )}
+          </div>
 
-            <button
-              className="btn" type="submit"
-              disabled={status === 'loading'}
-              style={{ width: '100%', padding: '16px', fontSize: '1.05rem', letterSpacing: '0.02em' }}
-            >
+          <button
+            className="btn" type="submit"
+            disabled={status === 'loading' || TURNSTILE_MISSING_IN_PROD}
+            style={{ width: '100%', padding: '16px', fontSize: '1.05rem', letterSpacing: '0.02em', opacity: TURNSTILE_MISSING_IN_PROD ? 0.6 : 1, cursor: TURNSTILE_MISSING_IN_PROD ? 'not-allowed' : 'pointer' }}
+          >
               {status === 'loading' ? 'Redirecting to payment...' : '🔒 Proceed to Payment'}
             </button>
 
@@ -282,8 +383,8 @@ function CheckoutInner() {
           items={items}
           isB2B={isB2B}
           subtotal={getCartSubtotal()}
-          flatShippingFee={(isAuthenticated && savedAddresses.find(a => a.id === selectedAddressId)?.postcode?.startsWith('7')) || (!isAuthenticated && guestAddress?.postcode?.startsWith('7')) ? 30.00 : 50.00}
-          isCalculating={status === 'loading'}
+          shippingFeeCents={shippingFeeCents}
+          isCalculating={status === 'loading' || shippingLoading}
           loyaltyBalance={loyaltyBalance}
           redeemPoints={redeemPoints}
           onRedeemPointsChange={setRedeemPoints}

@@ -1,7 +1,8 @@
 import { Hono } from 'hono'
 import { createDb, schema } from '@ecommerce/database'
-import { eq, lt } from 'drizzle-orm'
+import { eq, lt, inArray } from 'drizzle-orm'
 import { zValidator } from '@hono/zod-validator'
+import { z } from 'zod'
 import { CheckoutSchema } from '@ecommerce/contract'
 import { InventoryService, PaymentService, OrderService } from '@ecommerce/core-services'
 import { rateLimit, clientIp, type RateLimiter } from '@ecommerce/shared-routes'
@@ -17,9 +18,77 @@ type Bindings = {
   CHECKOUT_RATE_LIMITER?: RateLimiter
 }
 
-const FLAT_SHIPPING_FEE_CENTS = 999 
+// Shipping fee tiers in cents — server is the single source of truth.
+// Zone 7xx postcodes (e.g. Ho Chi Minh City) get discounted rate.
+const SHIPPING_ZONE_7_CENTS = 3000  // $30.00
+const SHIPPING_DEFAULT_CENTS = 5000 // $50.00
+const FLAT_SHIPPING_FEE_CENTS = 999 // legacy Stripe path — kept for backwards-compat
 
 const checkout = new Hono<{ Bindings: Bindings }>()
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/checkout/shipping-estimate?postcode=<code>
+// Returns the authoritative shipping fee for a given postcode.
+// Client MUST use this value — never hardcode shipping on the frontend.
+// ─────────────────────────────────────────────────────────────────────────────
+checkout.get('/shipping-estimate', (c) => {
+  const postcode = (c.req.query('postcode') || '').trim()
+  const feeCents = postcode.startsWith('7') ? SHIPPING_ZONE_7_CENTS : SHIPPING_DEFAULT_CENTS
+  return c.json({
+    success: true,
+    shipping_fee_cents: feeCents,
+    shipping_fee_display: `$${(feeCents / 100).toFixed(2)}`,
+    zone: postcode.startsWith('7') ? 'zone-7' : 'default',
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/checkout/validate-prices
+// Batch price validation — replaces N+1 sequential fetches on the checkout page.
+// Handles both simple products and variable products (variations).
+// ─────────────────────────────────────────────────────────────────────────────
+const ValidatePricesSchema = z.object({
+  items: z.array(z.object({
+    id: z.string(),          // variation_id or product_id (CartItem.id)
+    product_id: z.string(),  // always the parent product_id
+  })).min(1).max(50),
+})
+
+checkout.post('/validate-prices', zValidator('json', ValidatePricesSchema), async (c) => {
+  try {
+    const { items } = c.req.valid('json')
+    const db = createDb(c.env.DB)
+
+    // Collect all variation_ids and product_ids to query in one batch
+    const allIds = [...new Set(items.flatMap(i => [i.id, i.product_id]))]
+
+    // Batch fetch prices from price_list_items
+    const priceRows = await db
+      .select({
+        product_id: schema.priceListItems.product_id,
+        price: schema.priceListItems.price,
+      })
+      .from(schema.priceListItems)
+      .where(inArray(schema.priceListItems.product_id, allIds))
+      .all()
+
+    const priceMap = new Map(priceRows.map(r => [r.product_id, r.price]))
+
+    const updates: Array<{ id: string; price: number; changed: boolean }> = []
+    for (const item of items) {
+      // Look up variation_id first, then fall back to product_id (simple products)
+      const serverPrice = priceMap.get(item.id) ?? priceMap.get(item.product_id)
+      if (serverPrice !== undefined && serverPrice !== null) {
+        updates.push({ id: item.id, price: serverPrice, changed: false })
+      }
+    }
+
+    return c.json({ success: true, updates })
+  } catch (err: any) {
+    console.error('[Checkout] validate-prices error:', err)
+    return c.json({ success: false, error: 'Price validation failed' }, 500)
+  }
+})
 
 // Runs after zValidator so the identity comes from the already-validated payload.
 const limitCheckout = rateLimit({

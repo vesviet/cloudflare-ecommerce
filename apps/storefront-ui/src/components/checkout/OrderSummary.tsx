@@ -1,6 +1,7 @@
 import React from 'react';
 import { useCartStore } from '../../store/cartStore';
 import { X } from 'lucide-react';
+import { formatCurrency } from '../../lib/format';
 
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '11px 14px', borderRadius: '8px',
@@ -12,8 +13,13 @@ const inputStyle: React.CSSProperties = {
 interface OrderSummaryProps {
   items: any[];
   isB2B: boolean;
-  subtotal: number; // Subtotal before discount
-  flatShippingFee: number;
+  subtotal: number; // Subtotal in cents, before discount
+  /**
+   * S2 FIX: shippingFeeCents (in cents) — must come from server via /api/checkout/shipping-estimate.
+   * The old flatShippingFee (in dollars) prop has been removed to eliminate the client-side
+   * unit confusion and the incorrect * 100 multiplication.
+   */
+  shippingFeeCents: number;
   isCalculating?: boolean;
   loyaltyBalance?: number;
   redeemPoints?: number;
@@ -21,13 +27,10 @@ interface OrderSummaryProps {
 }
 
 export const OrderSummary: React.FC<OrderSummaryProps> = ({
-  items, isB2B, subtotal, flatShippingFee, isCalculating = false,
+  items, isB2B, subtotal, shippingFeeCents, isCalculating = false,
   loyaltyBalance = 0, redeemPoints = 0, onRedeemPointsChange
 }) => {
   const [couponError, setCouponError] = React.useState('');
-
-  const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount / 100);
 
   const { coupon, applyCoupon, removeCoupon, getDiscountAmount } = useCartStore();
 
@@ -44,14 +47,19 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
 
   const discountAmount = getDiscountAmount();
   const isFreeShip = coupon?.type === 'freeship';
-  const effectiveShippingFee = isFreeShip ? 0 : flatShippingFee;
-  // Loyalty redemption assumes 1 point = 1 VND (using cents). Wait, Subtotal is in cents.
-  // 1 point = 1 cent in our API.
-  const loyaltyDiscount = redeemPoints; 
-  
-  const partialTotal = Math.max(0, subtotal - discountAmount - loyaltyDiscount) + effectiveShippingFee * 100;
-  const taxAmount = Math.round(partialTotal * 0.1); // 10% VAT
-  const finalTotal = partialTotal + taxAmount;
+  // S2 FIX: shippingFeeCents is already in cents — no * 100 needed.
+  const effectiveShippingCents = isFreeShip ? 0 : shippingFeeCents;
+
+  // Loyalty: 1 point = 1 cent
+  const loyaltyDiscount = redeemPoints;
+
+  // S2 FIX: All values are now consistently in cents throughout this component.
+  // VAT is intentionally removed from client-side calculation:
+  //   - VAT is applied server-side by Stripe / PaymentService.calculatePricing
+  //   - Displaying a client-calculated VAT that differs from Stripe's total confuses users
+  //   - We show "Included in total" for transparency without the risk of mismatch
+  const afterDiscountCents = Math.max(0, subtotal - discountAmount - loyaltyDiscount);
+  const finalTotal = afterDiscountCents + effectiveShippingCents;
 
   // Max points they can redeem is their balance OR the remaining subtotal after coupon discount
   const maxRedeemable = Math.min(loyaltyBalance, Math.max(0, subtotal - discountAmount));
@@ -121,6 +129,8 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
                 max={maxRedeemable} 
                 value={redeemPoints} 
                 onChange={(e) => onRedeemPointsChange?.(Number(e.target.value))}
+                aria-label="Loyalty points to redeem"
+                aria-valuetext={redeemPoints > 0 ? `${formatCurrency(redeemPoints)} off` : 'No points redeemed'}
                 style={{ flex: 1, accentColor: '#38bdf8' }}
               />
               <span style={{ fontSize: '0.9rem', fontWeight: 600, minWidth: '60px', textAlign: 'right' }}>
@@ -159,16 +169,13 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
           ) : isFreeShip ? (
              <span style={{ color: '#4ade80' }}>Free</span>
           ) : (
-             <span>{formatCurrency(effectiveShippingFee * 100)}</span>
+             <span>{formatCurrency(effectiveShippingCents)}</span>
           )}
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-          <span>Tax (10% VAT)</span>
-          {isCalculating ? (
-             <span className="skeleton-loader" style={{ width: '40px', height: '16px', borderRadius: '4px', display: 'inline-block', background: 'rgba(255,255,255,0.1)', animation: 'pulse 1.5s infinite' }}></span>
-          ) : (
-             <span>{formatCurrency(taxAmount)}</span>
-          )}
+        {/* S2 FIX: VAT is no longer calculated client-side to prevent mismatch with Stripe total */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+          <span>Tax (VAT)</span>
+          <span style={{ fontStyle: 'italic' }}>Calculated at checkout</span>
         </div>
         {isB2B && (
           <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: '0.85rem' }}>

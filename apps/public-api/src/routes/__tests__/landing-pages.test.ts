@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // pulls core-services/inventory.do.ts using the `cloudflare:workers` module. Stub it for the node test env.
 vi.mock('cloudflare:workers', () => ({ DurableObject: class {} }));
 import landingPages from '../landing-pages';
+import { clearSettingsCache } from '../../utils/settingsCache';
 import fs from 'fs';
 import path from 'path';
 
@@ -11,20 +12,25 @@ const mockDbBuilder: any = {
   select: vi.fn(),
   from: vi.fn(),
   where: vi.fn(),
+  limit: vi.fn(),
   get: vi.fn(),
   all: vi.fn(),
   insert: vi.fn(),
   values: vi.fn(),
   update: vi.fn(),
   set: vi.fn(),
+  // DEBT-009: transaction mock — executes the callback synchronously (simulates atomic commit)
+  transaction: vi.fn(async (cb: (tx: any) => Promise<any>) => cb(mockDbBuilder)),
 };
 
 // Set up method chaining behavior on mockDbBuilder
 mockDbBuilder.select.mockReturnValue(mockDbBuilder);
 mockDbBuilder.from.mockReturnValue(mockDbBuilder);
 mockDbBuilder.where.mockReturnValue(mockDbBuilder);
+mockDbBuilder.limit.mockReturnValue(mockDbBuilder);
 mockDbBuilder.get.mockResolvedValue({ id: 'lp_1', product_id: 'prod_1', slug: 'test-lp' });
-mockDbBuilder.all.mockResolvedValue([{ id: 'var_1', sku: 'SKU1', stock: 10 }]);
+// all() returns [] by default (no inventory rows = no stock block)
+mockDbBuilder.all.mockResolvedValue([]);
 mockDbBuilder.insert.mockReturnValue(mockDbBuilder);
 mockDbBuilder.values.mockResolvedValue({ success: true });
 mockDbBuilder.update.mockReturnValue(mockDbBuilder);
@@ -40,6 +46,12 @@ vi.mock('@ecommerce/database', () => {
       orders: { id: 'orders' },
       orderItems: { id: 'orderItems' },
       landingPageLeads: { id: 'landingPageLeads' },
+      // DEBT-013: settings table needed by getSetting() for 'enable-cod-orders' flag
+      settings: { key: 'key', value: 'value', type: 'type' },
+      // DEF-003: inventoryLevels needed by stock re-check at submit
+      inventoryLevels: { product_id: 'product_id', stock_quantity: 'stock_quantity' },
+      // Batch price validation
+      priceListItems: { product_id: 'product_id', price: 'price' },
     },
     createDb: vi.fn(() => mockDbBuilder),
   };
@@ -56,16 +68,25 @@ vi.mock('drizzle-orm', () => ({
 describe('Landing Pages Route & Secret Sanitization Verification', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    // DEBT-013: Clear the in-memory settings cache so each test gets a fresh DB read.
+    // Without this, getSetting() caches 'enable-cod-orders=true' from an earlier test
+    // and the feature-flag-disabled test incorrectly sees 'confirmed' instead of 'pending'.
+    clearSettingsCache();
     // Re-assign chainable returns after restoreAllMocks
     mockDbBuilder.select.mockReturnValue(mockDbBuilder);
     mockDbBuilder.from.mockReturnValue(mockDbBuilder);
     mockDbBuilder.where.mockReturnValue(mockDbBuilder);
+    mockDbBuilder.limit.mockReturnValue(mockDbBuilder);
     mockDbBuilder.get.mockResolvedValue({ id: 'lp_1', product_id: 'prod_1', slug: 'test-lp' });
-    mockDbBuilder.all.mockResolvedValue([{ id: 'var_1', sku: 'SKU1', stock: 10 }]);
+    // Default: no inventory rows — getSetting falls back to default (true = COD enabled)
+    // and stock check returns empty (no product_id in lp mock means no stock guard)
+    mockDbBuilder.all.mockResolvedValue([]);
     mockDbBuilder.insert.mockReturnValue(mockDbBuilder);
     mockDbBuilder.values.mockResolvedValue({ success: true });
     mockDbBuilder.update.mockReturnValue(mockDbBuilder);
     mockDbBuilder.set.mockReturnValue(mockDbBuilder);
+    // DEBT-009: Reset transaction mock to re-execute callback (simulates clean transaction)
+    mockDbBuilder.transaction.mockImplementation(async (cb: (tx: any) => Promise<any>) => cb(mockDbBuilder));
   });
 
   describe('1. Wrangler secret sanitization audit', () => {
@@ -308,5 +329,67 @@ describe('Landing Pages Route & Secret Sanitization Verification', () => {
       expect(res.status).toBe(200);
       expect(mockExecutionCtx.waitUntil).toHaveBeenCalled();
     });
+
+    // DEBT-013: Feature flag test — verifies COD disabled via settings table
+    it('P1: COD disabled via enable-cod-orders flag → order lands as pending', async () => {
+      // getSetting does: db.select().from(settings).where(...).limit(1)
+      // The chain: select→from→where→limit must resolve to an array.
+      // We temporarily override limit to return the 'disabled' settings row as array.
+      clearSettingsCache();
+      mockDbBuilder.limit.mockResolvedValueOnce([
+        { key: 'enable-cod-orders', value: 'false', type: 'boolean' }
+      ]);
+      // LP fetch (get) returns null so no product_id → no stock check
+      mockDbBuilder.get.mockResolvedValueOnce(null);
+
+      const mockEnv = {
+        DB: {} as any,
+        CACHE_KV: {} as any,
+      };
+
+      const req = new Request('http://localhost/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customer_name: 'Flag Disabled Test',
+          customer_phone: '0901110000',
+          payment_method: 'cod',
+        }),
+      });
+
+      const res = await landingPages.fetch(req, mockEnv, mockExecutionCtx as any);
+      expect(res.status).toBe(200);
+      const data = (await res.json()) as any;
+      expect(data.success).toBe(true);
+      // When flag is disabled, COD order must land as 'pending' not 'confirmed'
+      expect(data.data.order_status).toBe('pending');
+    });
+
+    // DEBT-009: Transaction atomicity test — verifies db.transaction() is called per submit
+    it('P1: All DB inserts execute inside a single transaction', async () => {
+      // Clear cache and create a fresh spy after restoreAllMocks
+      clearSettingsCache();
+      mockDbBuilder.transaction.mockClear();
+
+      const mockEnv = {
+        DB: {} as any,
+        CACHE_KV: {} as any,
+      };
+
+      const req = new Request('http://localhost/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customer_name: 'TX Atomicity Test',
+          customer_phone: '0907778889',
+        }),
+      });
+
+      const res = await landingPages.fetch(req, mockEnv, mockExecutionCtx as any);
+      expect(res.status).toBe(200);
+      // transaction() must be called at least once per lead submission (atomic DB writes)
+      expect(mockDbBuilder.transaction).toHaveBeenCalled();
+    });
   });
 });
+

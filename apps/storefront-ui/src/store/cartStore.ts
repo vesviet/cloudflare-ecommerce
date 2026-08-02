@@ -26,13 +26,21 @@ interface CartState {
   applyCoupon: (code: string) => Promise<{ success: boolean; error?: string }>;
   removeCoupon: () => void;
   syncCart: () => Promise<void>;
+  updatePrices: (updates: { id: string; price: number }[]) => void;
 }
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com';
 
+let syncTimer: ReturnType<typeof setTimeout> | null = null;
+
 export const useCartStore = create<CartState>()(
   persist(
-    (set, get) => ({
+    (set, get) => {
+      const scheduleSync = () => {
+        if (syncTimer) clearTimeout(syncTimer);
+        syncTimer = setTimeout(() => { get().syncCart(); }, 500);
+      };
+      return {
       items: [],
       isCartOpen: false,
       coupon: null,
@@ -41,30 +49,30 @@ export const useCartStore = create<CartState>()(
           const existingItem = state.items.find(i => i.id === item.id);
           if (existingItem) {
             return {
-              items: state.items.map(i => 
+              items: state.items.map(i =>
                 i.id === item.id ? { ...i, quantity: i.quantity + item.quantity } : i
               )
             }
           }
           return { items: [...state.items, item] }
         });
-        get().syncCart();
+        scheduleSync();
       },
       removeItem: (id) => {
         set((state) => ({
           items: state.items.filter(i => i.id !== id)
         }));
-        get().syncCart();
+        scheduleSync();
       },
       updateQuantity: (id, quantity) => {
         set((state) => ({
           items: state.items.map(i => i.id === id ? { ...i, quantity } : i)
         }));
-        get().syncCart();
+        scheduleSync();
       },
       clearCart: () => {
         set({ items: [], coupon: null });
-        get().syncCart();
+        scheduleSync();
       },
       toggleCart: () => set((state) => ({ isCartOpen: !state.isCartOpen })),
       getCartSubtotal: () => {
@@ -112,7 +120,7 @@ export const useCartStore = create<CartState>()(
           // get guestSessionId from local storage or generate one
           let guestSessionId = localStorage.getItem('guest_session_id');
           if (!guestSessionId) {
-            guestSessionId = 'guest_' + Math.random().toString(36).substring(2, 15);
+            guestSessionId = 'guest_' + crypto.randomUUID().replace(/-/g, '').slice(0, 16);
             localStorage.setItem('guest_session_id', guestSessionId);
           }
 
@@ -130,8 +138,17 @@ export const useCartStore = create<CartState>()(
         } catch (e) {
           console.error('Failed to sync cart', e);
         }
+      },
+      updatePrices: (updates) => {
+        set((state) => ({
+          items: state.items.map(i => {
+            const upd = updates.find(u => u.id === i.id);
+            return upd ? { ...i, price: upd.price } : i;
+          })
+        }));
       }
-    }),
+    };
+    },
     {
       name: 'aura-cart-storage',
     }

@@ -33,6 +33,14 @@ export async function getSetting(db: any, key: string, defaultValue: any = null)
   return defaultValue;
 }
 
+/**
+ * Clear all in-memory cached settings.
+ * Use in tests to prevent stale values from leaking across test cases.
+ */
+export function clearSettingsCache(): void {
+  settingsCache.clear();
+}
+
 function parseValue(value: string, type: string): any {
   if (type === 'boolean') return value === 'true';
   if (type === 'number') return Number(value);
