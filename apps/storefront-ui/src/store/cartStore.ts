@@ -102,8 +102,8 @@ export const useCartStore = create<CartState>()(
             return { success: true };
           }
           return { success: false, error: data.error || 'Invalid coupon' };
-        } catch (err: any) {
-          return { success: false, error: err.message || 'Failed to apply coupon' };
+        } catch (err: unknown) {
+          return { success: false, error: (err as Error).message || 'Failed to apply coupon' };
         }
       },
       removeCoupon: () => set({ coupon: null }),

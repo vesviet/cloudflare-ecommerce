@@ -6,7 +6,7 @@ export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tan
  * - JSON-encodes plain-object bodies
  * - returns parsed JSON; non-OK responses are resolved (caller checks data.success)
  */
-export async function apiFetch<T = any>(path: string, options: {
+export async function apiFetch<T = unknown>(path: string, options: {
   method?: string;
   body?: unknown;
   headers?: Record<string, string>;

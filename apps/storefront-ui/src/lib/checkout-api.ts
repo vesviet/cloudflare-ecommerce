@@ -30,7 +30,7 @@ export function getShippingEstimate(postcode: string) {
 }
 
 export function getAddresses() {
-  return apiFetch<{ success: boolean; data: any[] }>('/api/customer/addresses', {
+  return apiFetch<{ success: boolean; data: unknown[] }>('/api/customer/addresses', {
     credentials: 'include',
   });
 }

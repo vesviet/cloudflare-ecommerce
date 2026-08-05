@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { validatePrices } from '../lib/checkout-api';
 import type { CartItem } from '../store/cartStore';
 
@@ -10,16 +10,14 @@ export function usePriceValidation(items: CartItem[], updatePrices: (updates: { 
   const [priceChanged, setPriceChanged] = useState(false);
   // Serialize id+quantity so quantity edits (same length) also trigger re-validation.
   const itemsKey = items.map(i => `${i.id}:${i.quantity}`).join(',');
-  const itemsRef = useRef(items);
-  itemsRef.current = items;
 
   useEffect(() => {
-    if (itemsRef.current.length === 0) return;
+    if (items.length === 0) return;
     let cancelled = false;
 
     (async () => {
       try {
-        const current = itemsRef.current;
+        const current = items;
         const data = await validatePrices(
           current
             .filter(item => item.id && (item.product_id || item.id))

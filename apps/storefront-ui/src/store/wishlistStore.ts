@@ -48,7 +48,7 @@ export const useWishlistStore = create<WishlistState>()(
               // Revert on failure
               set({ items: get().items.filter(i => i.productId !== item.productId) });
             }
-          } catch (error) {
+          } catch {
             set({ items: get().items.filter(i => i.productId !== item.productId) });
           }
         }
@@ -71,7 +71,7 @@ export const useWishlistStore = create<WishlistState>()(
               // Revert
               set({ items: [...get().items, removedItem] });
             }
-          } catch (error) {
+          } catch {
             set({ items: [...get().items, removedItem] });
           }
         }
@@ -103,7 +103,7 @@ export const useWishlistStore = create<WishlistState>()(
           if (res.ok) {
             const json = await res.json();
             if (json.success && json.data) {
-              const serverItems: WishlistItem[] = json.data.map((i: any) => ({
+              const serverItems: WishlistItem[] = json.data.map((i: { product_id: string; product?: { name?: string; slug?: string; prices?: { price?: number }; images?: { url?: string }[] } }) => ({
                 productId: i.product_id,
                 name: i.product?.name,
                 slug: i.product?.slug,
