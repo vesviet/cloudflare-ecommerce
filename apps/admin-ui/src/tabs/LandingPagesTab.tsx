@@ -5,6 +5,7 @@ import MDEditor from '@uiw/react-md-editor';
 import { MonitorPlay, Plus, Edit, Trash, ExternalLink } from 'lucide-react';
 import { GlassCard } from '../components/ui/GlassCard';
 import { apiFetch } from '../lib/apiFetch';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 
 interface LandingPagesTabProps {
   API_BASE_URL: string;
@@ -396,18 +397,15 @@ export const LandingPagesTab: React.FC<LandingPagesTabProps> = ({ API_BASE_URL, 
           </div>
         </GlassCard>
       )}
-      {deletingId && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <h3 className="modal-title">Delete Landing Page</h3>
-            <p className="modal-body">Are you sure you want to delete this landing page? This action cannot be undone.</p>
-            <div className="modal-actions">
-              <button className="btn-secondary" onClick={() => setDeletingId(null)}>Cancel</button>
-              <button className="btn-submit" style={{ background: 'var(--accent-red)', boxShadow: '0 4px 12px var(--accent-red-glow)', marginTop: 0 }} onClick={handleDeleteConfirm}>Delete</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={deletingId !== null}
+        title="Delete landing page?"
+        message="Are you sure you want to delete this landing page? This action cannot be undone."
+        confirmLabel="Delete"
+        danger
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setDeletingId(null)}
+      />
     </div>
   );
 };

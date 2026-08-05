@@ -49,6 +49,9 @@ function CartRecoveryInner() {
           const recovered = data.data || data;
           const items = Array.isArray(recovered) ? recovered : (recovered.items || []);
           const cartStore = useCartStore.getState();
+          // Replace the cart instead of merging so reopening the recovery link
+          // never doubles quantities of existing items.
+          cartStore.clearCart();
           for (const item of items) {
             cartStore.addItem({
               id: item.variation_id || item.id,

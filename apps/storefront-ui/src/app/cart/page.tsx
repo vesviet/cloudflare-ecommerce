@@ -6,30 +6,13 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getImageUrl } from '../../lib/image';
 import { formatCurrency } from '../../lib/format';
-import { Trash2, Plus, Minus, ShoppingBag, X, Loader2 } from 'lucide-react';
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com';
+import { Trash2, Plus, Minus, ShoppingBag, Loader2 } from 'lucide-react';
+import { CouponForm } from '../../components/checkout/CouponForm';
 
 export default function Cart() {
-  const { items, removeItem, updateQuantity, getCartTotal, getCartSubtotal, getDiscountAmount, coupon, applyCoupon, removeCoupon } = useCartStore();
-  const [couponError, setCouponError] = useState('');
+  const { items, removeItem, updateQuantity, getCartTotal, getCartSubtotal, getDiscountAmount } = useCartStore();
   const [isNavigating, setIsNavigating] = useState(false);
   const router = useRouter();
-
-  const handleApplyCoupon = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setCouponError('');
-    const form = e.target as HTMLFormElement;
-    const input = form.elements.namedItem('coupon') as HTMLInputElement;
-    if (input.value.trim()) {
-      const res = await applyCoupon(input.value.trim());
-      if (!res.success) {
-        setCouponError(res.error || 'Invalid coupon');
-      } else {
-        input.value = '';
-      }
-    }
-  };
 
   if (items.length === 0) {
     return (
@@ -80,23 +63,7 @@ export default function Cart() {
         <h2 style={{ fontSize: '1.2rem', marginBottom: '24px' }}>Order Summary</h2>
         
         <div style={{ marginBottom: '24px' }}>
-          {coupon ? (
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: '8px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ color: '#4ade80', fontWeight: 600 }}>{coupon.code}</span>
-                <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Applied</span>
-              </div>
-              <button onClick={() => removeCoupon()} style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer' }} aria-label="Remove coupon"><X size={18} /></button>
-            </div>
-          ) : (
-            <form onSubmit={handleApplyCoupon} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <input type="text" name="coupon" placeholder="Discount code" aria-label="Discount code" style={{ flex: 1, padding: '12px 16px', borderRadius: '8px', background: 'rgba(0,0,0,0.45)', color: 'white', border: '1px solid rgba(255,255,255,0.12)', outline: 'none' }} />
-                <button type="submit" className="btn" aria-label="Apply discount code">Apply</button>
-              </div>
-              {couponError && <span role="alert" style={{ color: '#f87171', fontSize: '0.85rem', marginTop: '4px' }}>{couponError}</span>}
-            </form>
-          )}
+          <CouponForm />
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', color: 'var(--text-muted)' }}>

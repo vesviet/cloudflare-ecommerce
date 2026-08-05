@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { getImageUrl } from '../../lib/image';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com';
 
@@ -58,7 +59,7 @@ export default function BlogList() {
             <div key={post.slug} className="glass glass-card" style={{ display: 'flex', flexDirection: 'column' }}>
               <div className="blog-image">
                 {post.featured_image_url ? (
-                  <img src={post.featured_image_url} alt={post.title} />
+                  <img src={getImageUrl(post.featured_image_url)} alt={post.title} />
                 ) : (
                   <div className="blog-image-placeholder">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">

@@ -7,6 +7,7 @@ import { apiFetch } from '../lib/apiFetch';
 import { CmsList } from '../components/cms/CmsList';
 import { CmsForm } from '../components/cms/CmsForm';
 import { Pagination, type PaginationMeta } from '../components/ui/Pagination';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 
 interface CmsTabProps {
   API_BASE_URL: string;
@@ -45,8 +46,14 @@ export function CmsTab({ addToast }: CmsTabProps) {
     setSearchParams({ id: entry.id });
   };
 
-  const handleDelete = async (entryId: string) => {
-    if (!window.confirm('Delete this entry? This action cannot be undone.')) return;
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  const handleDelete = (entryId: string) => {
+    setConfirmDeleteId(entryId);
+  };
+
+  const performDelete = async (entryId: string) => {
+    setConfirmDeleteId(null);
     try {
       const res = await apiFetch(`/cms/${entryId}`, { method: 'DELETE' });
       const data = await res.json();
@@ -114,6 +121,16 @@ export function CmsTab({ addToast }: CmsTabProps) {
           addToast={addToast}
         />
       )}
+
+      <ConfirmDialog
+        open={confirmDeleteId !== null}
+        title="Delete entry?"
+        message="Delete this entry? This action cannot be undone."
+        confirmLabel="Delete"
+        danger
+        onConfirm={() => confirmDeleteId && performDelete(confirmDeleteId)}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
     </div>
   );
 }

@@ -17,7 +17,7 @@ interface CmsListProps {
   loading: boolean;
   onCreateNew: () => void;
   onEdit: (entry: CmsEntry) => void;
-  onDelete: (id: string) => Promise<void>;
+  onDelete: (id: string) => void | Promise<void>;
   onQuickPublish: (entry: CmsEntry) => Promise<void>;
 }
 

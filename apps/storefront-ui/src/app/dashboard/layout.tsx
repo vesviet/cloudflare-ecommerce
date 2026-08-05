@@ -13,6 +13,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const pathname = usePathname();
   const [verified, setVerified] = React.useState(false);
+  const [verifyError, setVerifyError] = React.useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -24,20 +25,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         if (res.ok && data.success && data.data) {
           setAuth(data.data);
           setVerified(true);
-        } else {
+        } else if (res.status === 401 || res.status === 403) {
+          // Real auth failure — session is gone.
           clearAuth();
           router.push('/my-account');
+        } else {
+          // 5xx / unexpected: keep the local session, show retry instead of
+          // logging the user out because of a server blip.
+          setVerifyError('Could not verify your session right now.');
         }
       } catch {
-        if (!cancelled) {
-          clearAuth();
-          router.push('/my-account');
-        }
+        if (!cancelled) setVerifyError('Network error while verifying your session.');
       }
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
 
   const handleLogout = async () => {
     try { await fetch(`${API_BASE}/auth/logout`, { method: 'POST', credentials: 'include' }); } catch (e) {}
@@ -45,7 +49,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     router.push('/my-account');
   };
 
-  if (!verified) return <div style={{ textAlign: 'center', padding: '100px', color: 'var(--text-muted)' }}>Verifying session...</div>;
+  if (!verified && !verifyError) return <div style={{ textAlign: 'center', padding: '100px', color: 'var(--text-muted)' }}>Verifying session...</div>;
+  if (verifyError && (!isAuthenticated || !customer)) {
+    return (
+      <div style={{ textAlign: 'center', padding: '100px', color: 'var(--text-muted)' }}>
+        <p>{verifyError}</p>
+        <button
+          onClick={() => window.location.reload()}
+          style={{ marginTop: '12px', padding: '10px 18px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', cursor: 'pointer' }}
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
   if (!isAuthenticated || !customer) return null;
 
   return (

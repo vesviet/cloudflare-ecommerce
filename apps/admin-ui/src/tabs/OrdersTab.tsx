@@ -7,6 +7,7 @@ import { RefundModal } from '../components/RefundModal';
 import { GlassCard } from '../components/ui/GlassCard';
 import { SkeletonLoader } from '../components/ui/SkeletonLoader';
 import { Pagination, type PaginationMeta } from '../components/ui/Pagination';
+import { useEscapeKey } from '../lib/useEscapeKey';
 import { RefreshCw, Package, RotateCcw } from 'lucide-react';
 
 interface OrdersTabProps {
@@ -105,6 +106,8 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({ API_BASE_URL, addToast }) 
   const formatCurrency = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
 
   const handleCloseOrderDetail = useCallback(() => setSelectedOrderId(null), []);
+
+  useEscapeKey(() => { if (showFulfillModal && !isFulfilling) setShowFulfillModal(false); }, showFulfillModal);
 
   useEffect(() => {
     if (error) addToast(error.message || 'Failed to fetch orders', 'error');
@@ -236,7 +239,7 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({ API_BASE_URL, addToast }) 
       {/* Fulfill Modal */}
       {showFulfillModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) setShowFulfillModal(false); }}>
-          <GlassCard className="w-full max-w-md p-6">
+          <GlassCard className="w-full max-w-md p-6" role="dialog" aria-modal="true" aria-label="Fulfill order">
             <h2 className="text-xl font-bold mb-1">📦 Fulfill Order</h2>
             <p className="text-sm text-text-muted mb-6">
               Fulfilling order <strong className="text-text-main">#{fulfillOrderId?.slice(0, 8).toUpperCase()}</strong>

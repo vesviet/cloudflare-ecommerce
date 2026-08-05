@@ -21,6 +21,9 @@ const mockDbBuilder: any = {
   set: vi.fn(),
   // DEBT-009: transaction mock — executes the callback synchronously (simulates atomic commit)
   transaction: vi.fn(async (cb: (tx: any) => Promise<any>) => cb(mockDbBuilder)),
+  // Drizzle/D1 batch mock — landing-pages switched from transaction() to batch()
+  // for native D1 support (commit 23326a8).
+  batch: vi.fn(async (_stmts: any[]) => []),
 };
 
 // Set up method chaining behavior on mockDbBuilder
@@ -387,8 +390,9 @@ describe('Landing Pages Route & Secret Sanitization Verification', () => {
 
       const res = await landingPages.fetch(req, mockEnv, mockExecutionCtx as any);
       expect(res.status).toBe(200);
-      // transaction() must be called at least once per lead submission (atomic DB writes)
-      expect(mockDbBuilder.transaction).toHaveBeenCalled();
+      // D1 atomicity: commit 23326a8 switched writes from transaction() to batch();
+      // assert the batch path is exercised (single atomic call per lead submission).
+      expect(mockDbBuilder.batch).toHaveBeenCalled();
     });
   });
 });

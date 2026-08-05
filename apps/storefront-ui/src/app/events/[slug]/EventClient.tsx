@@ -3,6 +3,7 @@
 import React from 'react';
 import MarkdownRenderer from '@/components/MarkdownRenderer';
 import Link from 'next/link';
+import { getImageUrl } from '@/lib/image';
 
 export function EventClient({ event }: { event: any }) {
   if (!event) {
@@ -33,7 +34,7 @@ export function EventClient({ event }: { event: any }) {
 
       {event.featured_image_url && (
         <div style={{ width: '100%', height: '400px', borderRadius: '20px', overflow: 'hidden', marginBottom: '40px' }}>
-          <img src={event.featured_image_url} alt={event.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <img src={getImageUrl(event.featured_image_url)} alt={event.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         </div>
       )}
 

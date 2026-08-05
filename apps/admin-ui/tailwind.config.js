@@ -9,6 +9,12 @@ export default {
       colors: {
         'primary-accent': '#3B82F6',
         'primary-glow': 'rgba(59, 130, 246, 0.5)',
+        'secondary-accent': '#8B5CF6',
+        'secondary-glow': 'rgba(139, 92, 246, 0.5)',
+        'success-accent': '#10B981',
+        'success-glow': 'rgba(16, 185, 129, 0.5)',
+        'warning-accent': '#F59E0B',
+        'warning-glow': 'rgba(245, 158, 11, 0.5)',
         'danger-accent': '#EF4444',
         'danger-glow': 'rgba(239, 68, 68, 0.5)',
         'text-main': '#F8FAFC',

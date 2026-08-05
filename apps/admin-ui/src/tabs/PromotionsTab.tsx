@@ -5,6 +5,8 @@ import { SkeletonLoader } from '../components/ui/SkeletonLoader';
 import { Plus, Edit2, Trash2, CheckCircle, XCircle } from 'lucide-react';
 import type { CouponData } from '../types';
 import { apiFetch } from '../lib/apiFetch';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { useEscapeKey } from '../lib/useEscapeKey';
 
 interface PromotionsTabProps {
   API_BASE_URL: string;
@@ -14,6 +16,10 @@ interface PromotionsTabProps {
 export const PromotionsTab: React.FC<PromotionsTabProps> = ({ API_BASE_URL, addToast }) => {
   const { data: result, error, isLoading, mutate } = useSWR<{ success: boolean, data: CouponData[] }>('/coupons');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEscapeKey(() => { if (isModalOpen && !isSaving) setIsModalOpen(false); }, isModalOpen);
   const [editingCoupon, setEditingCoupon] = useState<CouponData | null>(null);
 
   const [formData, setFormData] = useState<Partial<CouponData>>({
@@ -38,8 +44,12 @@ export const PromotionsTab: React.FC<PromotionsTabProps> = ({ API_BASE_URL, addT
     setIsModalOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Delete this coupon?')) return;
+  const handleDelete = (id: string) => {
+    setConfirmDeleteId(id);
+  };
+
+  const performDelete = async (id: string) => {
+    setConfirmDeleteId(null);
     try {
       const res = await apiFetch(`/coupons/${id}`, { method: 'DELETE' });
       const data = await res.json();
@@ -164,7 +174,7 @@ export const PromotionsTab: React.FC<PromotionsTabProps> = ({ API_BASE_URL, addT
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <GlassCard className="w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto relative">
+          <GlassCard className="w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto relative" role="dialog" aria-modal="true" aria-label="Coupon form">
             <button onClick={() => setIsModalOpen(false)} className="absolute top-4 right-4 text-white/50 hover:text-white">
               <XCircle size={24} />
             </button>
@@ -216,6 +226,16 @@ export const PromotionsTab: React.FC<PromotionsTabProps> = ({ API_BASE_URL, addT
           </GlassCard>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmDeleteId !== null}
+        title="Delete coupon?"
+        message="Delete this coupon?"
+        confirmLabel="Delete"
+        danger
+        onConfirm={() => confirmDeleteId && performDelete(confirmDeleteId)}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
     </div>
   );
 };

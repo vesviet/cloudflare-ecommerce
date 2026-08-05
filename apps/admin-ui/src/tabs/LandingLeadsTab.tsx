@@ -4,6 +4,7 @@ import { Users, CheckCircle, XCircle, Phone, Tag } from 'lucide-react';
 import { GlassCard } from '../components/ui/GlassCard';
 import { apiFetch } from '../lib/apiFetch';
 import { Pagination, type PaginationMeta } from '../components/ui/Pagination';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 
 interface LandingLeadsTabProps {
   API_BASE_URL: string;
@@ -34,8 +35,14 @@ export const LandingLeadsTab: React.FC<LandingLeadsTabProps> = ({ API_BASE_URL, 
     }
   };
 
-  const handleCancel = async (orderId: string) => {
-    if (!confirm('Bạn có chắc chắn muốn hủy đơn hàng này không?')) return;
+  const [confirmCancelOrderId, setConfirmCancelOrderId] = useState<string | null>(null);
+
+  const handleCancel = (orderId: string) => {
+    setConfirmCancelOrderId(orderId);
+  };
+
+  const performCancel = async (orderId: string) => {
+    setConfirmCancelOrderId(null);
     try {
       const res = await apiFetch(`/orders/${orderId}/cancel`, {
         method: 'POST',
@@ -136,6 +143,17 @@ export const LandingLeadsTab: React.FC<LandingLeadsTabProps> = ({ API_BASE_URL, 
         </div>
         <Pagination pagination={data?.pagination} onPageChange={setOffset} itemLabel="leads" />
       </GlassCard>
+
+      <ConfirmDialog
+        open={confirmCancelOrderId !== null}
+        title="Hủy đơn hàng?"
+        message="Bạn có chắc chắn muốn hủy đơn hàng này không?"
+        confirmLabel="Hủy đơn"
+        cancelLabel="Quay lại"
+        danger
+        onConfirm={() => confirmCancelOrderId && performCancel(confirmCancelOrderId)}
+        onCancel={() => setConfirmCancelOrderId(null)}
+      />
     </div>
   );
 };

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { getImageUrl } from '../lib/image';
 
 interface BannerProps {
   placement: string;
@@ -59,7 +60,7 @@ export default function Banner({ placement }: BannerProps) {
       <Link href={linkUrl} style={{ display: 'block', width: '100%', height: '100%' }}>
         {banner.featured_image_url ? (
           <img 
-            src={banner.featured_image_url} 
+            src={getImageUrl(banner.featured_image_url)} 
             alt={banner.title} 
             style={{ width: '100%', maxHeight: '400px', objectFit: 'cover', display: 'block' }} 
           />

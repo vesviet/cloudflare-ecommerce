@@ -4,6 +4,7 @@ import { apiFetch } from '../lib/apiFetch';
 import type { CategoryData } from '../types';
 import { GlassCard } from '../components/ui/GlassCard';
 import { SkeletonLoader } from '../components/ui/SkeletonLoader';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { FolderTree, Edit2, Trash2 } from 'lucide-react';
 
 interface CategoriesTabProps {
@@ -39,8 +40,14 @@ export const CategoriesTab: React.FC<CategoriesTabProps> = ({ API_BASE_URL, addT
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleDeleteCategory = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this category? Subcategories will be moved to root.')) return;
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  const handleDeleteCategory = (id: string) => {
+    setConfirmDeleteId(id);
+  };
+
+  const performDeleteCategory = async (id: string) => {
+    setConfirmDeleteId(null);
     try {
       const res = await apiFetch(`/categories/${id}`, { method: 'DELETE' });
       const data = await res.json();
@@ -233,6 +240,16 @@ export const CategoriesTab: React.FC<CategoriesTabProps> = ({ API_BASE_URL, addT
           </GlassCard>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmDeleteId !== null}
+        title="Delete category?"
+        message="Are you sure you want to delete this category? Subcategories will be moved to root."
+        confirmLabel="Delete"
+        danger
+        onConfirm={() => confirmDeleteId && performDeleteCategory(confirmDeleteId)}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
     </div>
   );
 };

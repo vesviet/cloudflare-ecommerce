@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { applyCoupon as apiApplyCoupon, syncCart as apiSyncCart } from '../lib/checkout-api'
 
 export interface CartItem {
   id: string; // variation_id or product_id
@@ -28,8 +29,6 @@ interface CartState {
   syncCart: () => Promise<void>;
   updatePrices: (updates: { id: string; price: number }[]) => void;
 }
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com';
 
 let syncTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -97,19 +96,12 @@ export const useCartStore = create<CartState>()(
       applyCoupon: async (code: string) => {
         try {
           const subTotalCents = get().getCartSubtotal();
-          const res = await fetch(`${API_BASE}/api/cart/coupon`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ cart_id: 'draft', coupon_code: code, subTotalCents }),
-            credentials: 'include',
-          });
-          const data = await res.json();
+          const data = await apiApplyCoupon(code, subTotalCents);
           if (data.success && data.coupon) {
             set({ coupon: data.coupon });
             return { success: true };
-          } else {
-            return { success: false, error: data.error || 'Invalid coupon' };
           }
+          return { success: false, error: data.error || 'Invalid coupon' };
         } catch (err: any) {
           return { success: false, error: err.message || 'Failed to apply coupon' };
         }
@@ -117,7 +109,6 @@ export const useCartStore = create<CartState>()(
       removeCoupon: () => set({ coupon: null }),
       syncCart: async () => {
         try {
-          // get guestSessionId from local storage or generate one
           let guestSessionId = localStorage.getItem('guest_session_id');
           if (!guestSessionId) {
             guestSessionId = 'guest_' + crypto.randomUUID().replace(/-/g, '').slice(0, 16);
@@ -129,12 +120,7 @@ export const useCartStore = create<CartState>()(
             quantity: i.quantity
           }));
 
-          await fetch(`${API_BASE}/api/cart/sync`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ items, guestSessionId }),
-            credentials: 'include',
-          });
+          await apiSyncCart(items, guestSessionId);
         } catch (e) {
           console.error('Failed to sync cart', e);
         }

@@ -4,6 +4,8 @@ import { GlassCard } from '../components/ui/GlassCard';
 import { SkeletonLoader } from '../components/ui/SkeletonLoader';
 import { Users, UserPlus, Trash2 } from 'lucide-react';
 import { apiFetch } from '../lib/apiFetch';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { useEscapeKey } from '../lib/useEscapeKey';
 
 interface TeamMember {
   id: string;
@@ -27,6 +29,8 @@ export const TeamTab: React.FC<TeamTabProps> = ({ API_BASE_URL, addToast }) => {
   const [newEmail, setNewEmail] = useState('');
   const [newRole, setNewRole] = useState('editor');
   const [isAdding, setIsAdding] = useState(false);
+
+  useEscapeKey(() => { if (showAddModal && !isAdding) setShowAddModal(false); }, showAddModal);
 
   const members = result?.data || [];
 
@@ -59,8 +63,14 @@ export const TeamTab: React.FC<TeamTabProps> = ({ API_BASE_URL, addToast }) => {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Are you sure you want to remove this member?')) return;
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  const handleDelete = (id: string) => {
+    setConfirmDeleteId(id);
+  };
+
+  const performDelete = async (id: string) => {
+    setConfirmDeleteId(null);
     try {
       const res = await apiFetch(`/admin-users/${id}`, {
         method: 'DELETE'
@@ -177,7 +187,7 @@ export const TeamTab: React.FC<TeamTabProps> = ({ API_BASE_URL, addToast }) => {
 
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={(e) => { if (e.target === e.currentTarget) setShowAddModal(false); }}>
-          <GlassCard className="w-full max-w-md p-6">
+          <GlassCard className="w-full max-w-md p-6" role="dialog" aria-modal="true" aria-label="Add team member">
             <h2 className="text-xl font-bold mb-6">Add Team Member</h2>
             <form onSubmit={handleAddSubmit} className="space-y-4">
               <div>
@@ -224,6 +234,16 @@ export const TeamTab: React.FC<TeamTabProps> = ({ API_BASE_URL, addToast }) => {
           </GlassCard>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmDeleteId !== null}
+        title="Remove member?"
+        message="Are you sure you want to remove this member?"
+        confirmLabel="Remove"
+        danger
+        onConfirm={() => confirmDeleteId && performDelete(confirmDeleteId)}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
     </div>
   );
 };

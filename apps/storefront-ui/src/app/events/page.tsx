@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { getImageUrl } from '../../lib/image';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com';
 
@@ -63,7 +64,7 @@ export default function EventsList() {
                 <div className="glass glass-card hover-lift" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                   {event.featured_image_url && (
                     <div style={{ margin: '-30px -30px 20px -30px', height: '200px', overflow: 'hidden', borderRadius: '15px 15px 0 0' }}>
-                      <img src={event.featured_image_url} alt={event.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <img src={getImageUrl(event.featured_image_url)} alt={event.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     </div>
                   )}
                   <h3 style={{ margin: '0 0 10px 0', fontSize: '1.4rem' }}>{event.title}</h3>

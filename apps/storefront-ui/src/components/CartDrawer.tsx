@@ -6,10 +6,10 @@ import { useCartStore } from '../store/cartStore';
 import { getImageUrl } from '../lib/image';
 import { formatCurrency } from '../lib/format';
 import Link from 'next/link';
+import { CouponForm } from './checkout/CouponForm';
 
 export default function CartDrawer() {
-  const { items, isCartOpen, toggleCart, removeItem, updateQuantity, getCartTotal, coupon, applyCoupon, removeCoupon, getCartSubtotal, getDiscountAmount } = useCartStore();
-  const [couponError, setCouponError] = React.useState('');
+  const { items, isCartOpen, toggleCart, removeItem, updateQuantity, getCartTotal, getCartSubtotal, getDiscountAmount } = useCartStore();
 
   // Prevent background scrolling when cart is open
   useEffect(() => {
@@ -123,35 +123,7 @@ export default function CartDrawer() {
             
             {/* Coupon Section */}
             <div style={{ marginBottom: '16px' }}>
-              {coupon ? (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: '8px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ color: '#4ade80', fontWeight: 600 }}>{coupon?.code}</span>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Applied</span>
-                  </div>
-                  <button onClick={() => removeCoupon()} aria-label="Remove coupon" style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', display: 'flex' }}><X size={16} /></button>
-                </div>
-              ) : (
-                <form 
-                  onSubmit={async (e) => {
-                    e.preventDefault();
-                    setCouponError('');
-                    const input = e.currentTarget.elements.namedItem('coupon') as HTMLInputElement;
-                    if (input.value.trim()) {
-                      const res = await applyCoupon(input.value.trim());
-                      if (!res.success) setCouponError(res.error || 'Invalid coupon');
-                      else input.value = '';
-                    }
-                  }}
-                  style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}
-                >
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <input type="text" name="coupon" aria-label="Discount code" placeholder="Discount code" style={{ flex: 1, padding: '10px 14px', borderRadius: '8px', background: 'rgba(0,0,0,0.45)', color: 'white', border: '1px solid rgba(255,255,255,0.12)', outline: 'none' }} />
-                    <button type="submit" aria-label="Apply discount code" className="btn" style={{ padding: '0 16px' }}>Apply</button>
-                  </div>
-                  {couponError && <span role="alert" style={{ color: '#f87171', fontSize: '0.85rem' }}>{couponError}</span>}
-                </form>
-              )}
+              <CouponForm />
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '1rem', color: 'var(--text-muted)' }}>

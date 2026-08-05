@@ -63,7 +63,7 @@ export default function OrdersPage() {
                   {(order.status === 'completed' || order.status === 'delivered') && (
                     <button 
                       onClick={() => { setSelectedOrder(order.id); setRmaReason(''); setRmaError(''); setRmaSuccess(''); }}
-                      style={{ marginTop: '8px', padding: '4px 8px', fontSize: '0.8rem', background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '4px', cursor: 'pointer', color: 'var(--text-color)' }}>
+                      style={{ marginTop: '8px', padding: '4px 8px', fontSize: '0.8rem', background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '4px', cursor: 'pointer', color: 'var(--text-muted)' }}>
                       Request Return
                     </button>
                   )}
@@ -94,10 +94,10 @@ export default function OrdersPage() {
                   placeholder="Reason for return..." 
                   value={rmaReason}
                   onChange={(e) => setRmaReason(e.target.value)}
-                  style={{ width: '100%', height: '80px', padding: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'var(--text-color)', marginBottom: '16px' }}
+                  style={{ width: '100%', height: '80px', padding: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'var(--text-muted)', marginBottom: '16px' }}
                 />
                 <div style={{ display: 'flex', gap: '10px' }}>
-                  <button onClick={() => setSelectedOrder(null)} style={{ flex: 1, padding: '10px', background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '6px', cursor: 'pointer', color: 'var(--text-color)' }}>Cancel</button>
+                  <button onClick={() => setSelectedOrder(null)} style={{ flex: 1, padding: '10px', background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '6px', cursor: 'pointer', color: 'var(--text-muted)' }}>Cancel</button>
                   <button 
                     onClick={async () => {
                       if (rmaReason.length < 5) return setRmaError('Reason must be at least 5 characters');
