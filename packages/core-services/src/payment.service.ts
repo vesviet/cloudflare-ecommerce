@@ -59,11 +59,14 @@ export class PaymentService {
     const adjustedSubtotal = subTotal - discountAmount;
     const ratio = subTotal > 0 ? adjustedSubtotal / subTotal : 1;
     
+    // TODO / TECHNICAL DEBT: Stripe does not natively support VNĐ settlement for many account types,
+    // so 'usd' currency is hardcoded for Stripe Checkout sessions in this VNĐ business model.
     const stripeLineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = validItems.map(item => {
       // S3-B FIX (I-14): Log price drift if client sent price_requested and it differs from current price
       if (item.price_requested !== undefined && item.price_requested !== item.price) {
+        const varId = item.variation_id || item.id;
         const driftPct = Math.abs(item.price - item.price_requested) / Math.max(item.price_requested, 1) * 100;
-        console.warn(`[Checkout] Price drift detected: variation=${item.variation_id} requested=${item.price_requested} current=${item.price} drift=${driftPct.toFixed(1)}%`);
+        console.warn(`[Checkout] Price drift detected: variation=${varId} requested=${item.price_requested} current=${item.price} drift=${driftPct.toFixed(1)}%`);
       }
       return {
         price_data: {

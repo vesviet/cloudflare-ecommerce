@@ -38,8 +38,10 @@ export function useCheckoutData(isAuthenticated: boolean, customer: any) {
         if (!data) throw new Error('empty response');
         if (data.success && data.data.length > 0) {
           setSavedAddresses(data.data);
-          const def = data.data.find((a: any) => a.is_default_shipping === 1) || data.data[0];
-          setSelectedAddressId(def.id);
+          const def: any = data.data.find((a: any) => a.is_default_shipping === 1) || data.data[0];
+          if (def && typeof def === 'object' && 'id' in def) {
+            setSelectedAddressId(def.id);
+          }
         }
       } catch (e) {
         if (cancelled) return;

@@ -39,8 +39,11 @@ export const CheckoutSchema = z.object({
   shipping_address_json: z.record(z.any()).optional(),
   billing_address_json: z.record(z.any()).optional(),
   items: z.array(z.object({
-    variation_id: z.string(),
+    variation_id: z.string().optional(),
+    id: z.string().optional(),
     quantity: z.number().int().positive()
+  }).refine(item => Boolean(item.variation_id || item.id), {
+    message: 'Either variation_id or id must be provided'
   })),
   affiliate_id: z.string().optional(),
   utm_source: z.string().optional(),

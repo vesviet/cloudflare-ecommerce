@@ -7,7 +7,7 @@ import { CheckoutSchema } from '@ecommerce/contract'
 import { InventoryService, PaymentService, OrderService } from '@ecommerce/core-services'
 import { rateLimit, clientIp, type RateLimiter } from '@ecommerce/shared-routes'
 
-import { getSetting } from '../utils/settingsCache'
+
 
 type Bindings = {
   DB: D1Database
@@ -18,10 +18,10 @@ type Bindings = {
   CHECKOUT_RATE_LIMITER?: RateLimiter
 }
 
-// Shipping fee tiers in cents — server is the single source of truth.
+// Shipping fee tiers in VNĐ — server is the single source of truth.
 // Zone 7xx postcodes (e.g. Ho Chi Minh City) get discounted rate.
-const SHIPPING_ZONE_7_CENTS = 3000  // $30.00
-const SHIPPING_DEFAULT_CENTS = 5000 // $50.00
+const SHIPPING_ZONE_7_CENTS = 3000  // 3,000 VNĐ (discounted rate for Zone 7 postcodes)
+const SHIPPING_DEFAULT_CENTS = 5000 // 5,000 VNĐ (standard default shipping rate)
 const FLAT_SHIPPING_FEE_CENTS = 999 // legacy Stripe path — kept for backwards-compat
 
 const checkout = new Hono<{ Bindings: Bindings }>()
@@ -37,7 +37,7 @@ checkout.get('/shipping-estimate', (c) => {
   return c.json({
     success: true,
     shipping_fee_cents: feeCents,
-    shipping_fee_display: `$${(feeCents / 100).toFixed(2)}`,
+    shipping_fee_display: `${feeCents.toLocaleString('vi-VN')} ₫`,
     zone: postcode.startsWith('7') ? 'zone-7' : 'default',
   })
 })
@@ -167,16 +167,7 @@ checkout.post('/', zValidator('json', CheckoutSchema), limitCheckout, async (c) 
       }
     }
 
-    // Progressive Delivery: Feature Flag
-    const isCheckoutV2Enabled = await getSetting(db, 'checkout-v2', true)
-
-    if (!isCheckoutV2Enabled) {
-      // NOTE: Fallback to old checkout behavior if needed.
-      // For now, we will proceed but log a warning or execute V1 logic if it differs.
-      console.log('[Checkout] Using V1 Logic (V2 disabled)')
-    } else {
-      console.log('[Checkout] Using V2 Logic')
-    }
+    // Feature flag 'checkout-v2' check removed; V2 checkout pipeline is permanent.
 
     if (!items || items.length === 0) {
       if (idempotencyKey) {
@@ -214,7 +205,12 @@ checkout.post('/', zValidator('json', CheckoutSchema), limitCheckout, async (c) 
     let totalAmountCents = 0;
 
     try {
-      const invRes = await InventoryService.validateAndReserveInventory(db, items, locationId);
+      const normalizedItems = (items || []).map((item: any) => ({
+        ...item,
+        variation_id: item.variation_id || item.id,
+        id: item.id || item.variation_id,
+      }));
+      const invRes = await InventoryService.validateAndReserveInventory(db, normalizedItems, locationId);
       validItems = invRes.validItems;
       subTotal = invRes.subTotal;
 

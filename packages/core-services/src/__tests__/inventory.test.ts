@@ -885,4 +885,25 @@ describe('InventoryService — PIM-Refactored (I-03/I-04)', () => {
       expect(sqliteInventory.get('loc_B:prod_1')).toBe(2);
     });
   });
+
+  describe('Item Shape Alignment (Task 3)', () => {
+    it('TC-INV-SHAPE-01: accepts items using `id` instead of `variation_id` and returns validItems with populated variation_id and id', async () => {
+      const mockDb = makeMockDb({
+        products: [{ id: 'var_100', title: 'Test Variation', parent_id: null, is_purchasable: 1 }],
+        inventory: [{ product_id: 'var_100', stock_quantity: 20 }],
+        prices: [{ product_id: 'var_100', price: 2500 }],
+        reservations: [],
+      });
+
+      // Item passes `id` instead of `variation_id`
+      const inputItems = [{ id: 'var_100', quantity: 2 }] as any;
+      const res = await InventoryService.validateAndReserveInventory(mockDb, inputItems, 'loc-1');
+
+      expect(res.subTotal).toBe(5000);
+      expect(res.validItems).toHaveLength(1);
+      expect(res.validItems[0].variation_id).toBe('var_100');
+      expect(res.validItems[0].id).toBe('var_100');
+      expect(res.validItems[0].quantity).toBe(2);
+    });
+  });
 });

@@ -11,9 +11,25 @@ export class InventoryService {
    *
    * Returns valid items with names, prices, and the calculated subtotal.
    */
-  static async validateAndReserveInventory(db: any, items: { variation_id: string; quantity: number }[], locationId: string = 'loc-1') {
-    const validItems: { variation_id: string; quantity: number; price: number; name: string }[] = [];
-    const variationIds = items.map((i) => i.variation_id);
+  static async validateAndReserveInventory(
+    db: any,
+    items: { variation_id?: string; id?: string; quantity: number; [key: string]: any }[],
+    locationId: string = 'loc-1'
+  ) {
+    const validItems: { variation_id: string; id: string; quantity: number; price: number; name: string }[] = [];
+    const normalizedItems = (items || []).map((i) => {
+      const varId = i.variation_id || i.id;
+      if (!varId) {
+        throw new Error('Item variation_id or id is required');
+      }
+      return {
+        ...i,
+        variation_id: varId,
+        id: varId,
+        quantity: i.quantity,
+      };
+    });
+    const variationIds = normalizedItems.map((i) => i.variation_id);
 
     // 1. Fetch product metadata (title, is_purchasable, parent_id)
     const variations = await db
@@ -102,7 +118,7 @@ export class InventoryService {
 
     let subTotal = 0; // cents
 
-    for (const item of items) {
+    for (const item of normalizedItems) {
       const variation = variations.find((v: any) => v.id === item.variation_id);
 
       if (!variation || variation.is_purchasable === 0) {
@@ -128,6 +144,7 @@ export class InventoryService {
 
       validItems.push({
         variation_id: item.variation_id,
+        id: item.variation_id,
         quantity: item.quantity,
         price,
         name: variation.parent_id

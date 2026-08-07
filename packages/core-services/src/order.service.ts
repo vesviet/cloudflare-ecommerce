@@ -65,7 +65,10 @@ export class OrderService {
     }
 
     // Phase 2: Atomic Inventory Deduction
-    const itemsToDeduct = orderData.validItems.map(i => ({ productId: i.variation_id, quantity: i.quantity }));
+    const itemsToDeduct = orderData.validItems.map(i => ({
+      productId: i.variation_id || i.id || i.productId,
+      quantity: i.quantity
+    }));
     const locationId = orderData.locationId || 'loc-1';
     const deductionSuccess = await InventoryRepository.deductStock(rawD1Db, itemsToDeduct, locationId);
 

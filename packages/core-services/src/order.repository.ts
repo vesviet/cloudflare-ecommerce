@@ -59,7 +59,7 @@ export class OrderRepository {
         db.insert(localSchema.orderItems).values({
           id: crypto.randomUUID(),
           order_id: orderData.orderId,
-          product_id: item.variation_id,
+          product_id: item.variation_id || item.id || item.productId,
           quantity: item.quantity,
           price_at_purchase: item.price,
         })

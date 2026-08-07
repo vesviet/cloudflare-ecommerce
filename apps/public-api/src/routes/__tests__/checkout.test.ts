@@ -269,4 +269,38 @@ describe('Checkout API Unit Tests', () => {
 
     fetchSpy.mockRestore();
   });
+
+  it('Task 5: GET /shipping-estimate formats shipping_fee_display in VNĐ without $ prefix', async () => {
+    const resZone7 = await checkout.request('/shipping-estimate?postcode=700000', { method: 'GET' }, mockEnv);
+    expect(resZone7.status).toBe(200);
+    const dataZone7 = await resZone7.json() as any;
+    expect(dataZone7.success).toBe(true);
+    expect(dataZone7.shipping_fee_cents).toBe(3000);
+    expect(dataZone7.shipping_fee_display).not.toContain('$');
+    expect(dataZone7.shipping_fee_display).toContain('₫');
+
+    const resDefault = await checkout.request('/shipping-estimate?postcode=100000', { method: 'GET' }, mockEnv);
+    expect(resDefault.status).toBe(200);
+    const dataDefault = await resDefault.json() as any;
+    expect(dataDefault.success).toBe(true);
+    expect(dataDefault.shipping_fee_cents).toBe(5000);
+    expect(dataDefault.shipping_fee_display).not.toContain('$');
+    expect(dataDefault.shipping_fee_display).toContain('₫');
+  });
+
+  it('Task 3: POST / accepts items with `id` property as variation identifier', async () => {
+    const res = await checkout.request('/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: 'test@example.com',
+        items: [{ id: '550e8400-e29b-41d4-a716-446655440000', quantity: 1 }]
+      })
+    }, mockEnv);
+
+    expect(res.status).toBe(200);
+    const data = await res.json() as any;
+    expect(data.success).toBe(true);
+    expect(data.order_id).toBeDefined();
+  });
 });

@@ -4,9 +4,20 @@ import { MapPin } from 'lucide-react';
 import { inputStyle, labelStyle } from '../../lib/styles';
 
 export interface GuestAddress {
-  first_name: string; last_name: string; company: string;
-  address_1: string; address_2: string; city: string;
-  state: string; postcode: string; country: string; phone: string;
+  fullName?: string;
+  email?: string;
+  phone?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  first_name?: string;
+  last_name?: string;
+  company?: string;
+  address_1?: string;
+  address_2?: string;
+  city: string;
+  state?: string;
+  postcode: string;
+  country: string;
 }
 
 interface AddressSelectorProps {
@@ -79,20 +90,20 @@ export const AddressSelector: React.FC<AddressSelectorProps> = ({
             <Link href="/my-account" style={{ color: 'var(--accent-color)', textDecoration: 'underline' }}>Sign in</Link> to use saved addresses, or fill in below as guest.
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-            <div><label style={labelStyle}>First Name *</label><input style={inputStyle} required value={guestAddress.first_name} onChange={e => onChangeGuestAddress({ ...guestAddress, first_name: e.target.value })} /></div>
-            <div><label style={labelStyle}>Last Name *</label><input style={inputStyle} required value={guestAddress.last_name} onChange={e => onChangeGuestAddress({ ...guestAddress, last_name: e.target.value })} /></div>
+            <div><label style={labelStyle}>First Name *</label><input style={inputStyle} required value={guestAddress.first_name ?? guestAddress.fullName ?? ''} onChange={e => onChangeGuestAddress({ ...guestAddress, first_name: e.target.value, fullName: e.target.value })} /></div>
+            <div><label style={labelStyle}>Last Name *</label><input style={inputStyle} required value={guestAddress.last_name ?? ''} onChange={e => onChangeGuestAddress({ ...guestAddress, last_name: e.target.value })} /></div>
           </div>
-          <div><label style={labelStyle}>Street Address *</label><input style={inputStyle} required value={guestAddress.address_1} onChange={e => onChangeGuestAddress({ ...guestAddress, address_1: e.target.value })} placeholder="Street, House No." /></div>
-          <div><label style={labelStyle}>Address Line 2</label><input style={inputStyle} value={guestAddress.address_2} onChange={e => onChangeGuestAddress({ ...guestAddress, address_2: e.target.value })} placeholder="Apartment, Floor (Optional)" /></div>
+          <div><label style={labelStyle}>Street Address *</label><input style={inputStyle} required value={guestAddress.address_1 ?? guestAddress.addressLine1 ?? ''} onChange={e => onChangeGuestAddress({ ...guestAddress, address_1: e.target.value, addressLine1: e.target.value })} placeholder="Street, House No." /></div>
+          <div><label style={labelStyle}>Address Line 2</label><input style={inputStyle} value={guestAddress.address_2 ?? guestAddress.addressLine2 ?? ''} onChange={e => onChangeGuestAddress({ ...guestAddress, address_2: e.target.value, addressLine2: e.target.value })} placeholder="Apartment, Floor (Optional)" /></div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-            <div><label style={labelStyle}>City *</label><input style={inputStyle} required value={guestAddress.city} onChange={e => onChangeGuestAddress({ ...guestAddress, city: e.target.value })} /></div>
-            <div><label style={labelStyle}>State</label><input style={inputStyle} value={guestAddress.state} onChange={e => onChangeGuestAddress({ ...guestAddress, state: e.target.value })} /></div>
-            <div><label style={labelStyle}>Postcode *</label><input style={inputStyle} required value={guestAddress.postcode} onChange={e => onChangeGuestAddress({ ...guestAddress, postcode: e.target.value })} /></div>
+            <div><label style={labelStyle}>City *</label><input style={inputStyle} required value={guestAddress.city ?? ''} onChange={e => onChangeGuestAddress({ ...guestAddress, city: e.target.value })} /></div>
+            <div><label style={labelStyle}>State</label><input style={inputStyle} value={guestAddress.state ?? ''} onChange={e => onChangeGuestAddress({ ...guestAddress, state: e.target.value })} /></div>
+            <div><label style={labelStyle}>Postcode *</label><input style={inputStyle} required value={guestAddress.postcode ?? ''} onChange={e => onChangeGuestAddress({ ...guestAddress, postcode: e.target.value })} /></div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
             <div>
               <label style={labelStyle}>Country *</label>
-              <select style={{ ...inputStyle, cursor: 'pointer' }} value={guestAddress.country} onChange={e => onChangeGuestAddress({ ...guestAddress, country: e.target.value })}>
+              <select style={{ ...inputStyle, cursor: 'pointer' }} value={guestAddress.country ?? 'VN'} onChange={e => onChangeGuestAddress({ ...guestAddress, country: e.target.value })}>
                 <option value="VN">Vietnam</option>
                 <option value="US">United States</option>
                 <option value="SG">Singapore</option>
@@ -102,7 +113,7 @@ export const AddressSelector: React.FC<AddressSelectorProps> = ({
                 <option value="DE">Germany</option>
               </select>
             </div>
-            <div><label style={labelStyle}>Phone</label><input type="tel" style={inputStyle} value={guestAddress.phone} onChange={e => onChangeGuestAddress({ ...guestAddress, phone: e.target.value })} /></div>
+            <div><label style={labelStyle}>Phone</label><input type="tel" style={inputStyle} value={guestAddress.phone ?? ''} onChange={e => onChangeGuestAddress({ ...guestAddress, phone: e.target.value })} /></div>
           </div>
         </div>
       )}
