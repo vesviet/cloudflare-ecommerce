@@ -25,7 +25,7 @@
 | 1 | M1_Backend_APIs | Refactor public-api GET /:slug (R5 query parallelization) & admin-api POST/PUT (R4 slug uniqueness 409 check) | none | DONE |
 | 2 | M2_Storefront_UI | Refactor storefront-ui page.tsx (R1 SSR + metadata) & split LandingClient.tsx into sub-components (R2, R3, R6) | M1 | DONE |
 | 3 | M3_Verification_Quality | Run build, lint, and tests across all packages (R7) | M1, M2 | DONE |
-| 4 | M4_Git_Commit_Push | Git commit and push changes | M3 | IN_PROGRESS |
+| 4 | M4_Git_Commit_Push | Git commit and push changes | M3 | DONE |
 
 ## Interface Contracts
 ### Admin API ↔ Admin UI / Clients
