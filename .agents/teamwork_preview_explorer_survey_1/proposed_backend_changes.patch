@@ -1,0 +1,90 @@
+--- a/apps/public-api/src/routes/landing-pages.ts
++++ b/apps/public-api/src/routes/landing-pages.ts
+@@ -58,34 +58,37 @@ landingPages.get('/:slug', async (c) => {
+     let variantsData: any[] = [];
+ 
+     if (data.product_id) {
+-      productData = await db.select().from(schema.products).where(eq(schema.products.id, data.product_id)).get();
+-      variantsData = await db.select().from(schema.products).where(eq(schema.products.parent_id, data.product_id)).all();
+-
+-      const priceRow = await db.select({ price: schema.priceListItems.price }).from(schema.priceListItems).where(eq(schema.priceListItems.product_id, data.product_id)).get();
+-      const productPrice = priceRow ? priceRow.price : null;
++      const [productRes, variantsRes, priceRow] = await Promise.all([
++        db.select().from(schema.products).where(eq(schema.products.id, data.product_id)).get(),
++        db.select().from(schema.products).where(eq(schema.products.parent_id, data.product_id)).all(),
++        db.select({ price: schema.priceListItems.price }).from(schema.priceListItems).where(eq(schema.priceListItems.product_id, data.product_id)).get(),
++      ]);
++
++      productData = productRes;
++      variantsData = variantsRes;
++      const productPrice = priceRow ? priceRow.price : null;
+ 
+       const stockedIds = variantsData.length > 0 ? variantsData.map(v => v.id) : [data.product_id];
+-      const stockRows = await db
+-        .select({
+-          product_id: schema.inventoryLevels.product_id,
+-          stock_quantity: schema.inventoryLevels.stock_quantity,
+-        })
+-        .from(schema.inventoryLevels)
+-        .where(inArray(schema.inventoryLevels.product_id, stockedIds))
+-        .all();
+-
+-      // Fetch images
+-      const assetRows = await db
+-        .select({
+-          product_id: schema.productAssets.product_id,
+-          url: schema.assets.url,
+-          alt_text: schema.assets.alt_text,
+-          position: schema.productAssets.position,
+-        })
+-        .from(schema.productAssets)
+-        .innerJoin(schema.assets, eq(schema.productAssets.asset_id, schema.assets.id))
+-        .where(inArray(schema.productAssets.product_id, stockedIds))
+-        .orderBy(schema.productAssets.position)
+-        .all();
++      const [stockRows, assetRows] = await Promise.all([
++        db
++          .select({
++            product_id: schema.inventoryLevels.product_id,
++            stock_quantity: schema.inventoryLevels.stock_quantity,
++          })
++          .from(schema.inventoryLevels)
++          .where(inArray(schema.inventoryLevels.product_id, stockedIds))
++          .all(),
++        db
++          .select({
++            product_id: schema.productAssets.product_id,
++            url: schema.assets.url,
++            alt_text: schema.assets.alt_text,
++            position: schema.productAssets.position,
++          })
++          .from(schema.productAssets)
++          .innerJoin(schema.assets, eq(schema.productAssets.asset_id, schema.assets.id))
++          .where(inArray(schema.productAssets.product_id, stockedIds))
++          .orderBy(schema.productAssets.position)
++          .all(),
++      ]);
+
+--- a/apps/admin-api/src/routes/landing-pages.ts
++++ b/apps/admin-api/src/routes/landing-pages.ts
+@@ -2,1 +2,1 @@
+-import { eq, sql } from 'drizzle-orm';
++import { and, eq, ne, sql } from 'drizzle-orm';
+@@ -77,6 +77,11 @@ landingPages.post('/landing-pages', requireRole(['superadmin', 'manager', 'edito
+     const body = parsed.data;
+ 
++    const existing = await db.select().from(schema.landingPages).where(eq(schema.landingPages.slug, body.slug)).get();
++    if (existing) {
++      return c.json({ success: false, error: 'A landing page with this slug already exists' }, 409);
++    }
++
+     if (logoFile) {
+@@ -144,6 +149,11 @@ landingPages.put('/landing-pages/:id', requireRole(['superadmin', 'manager', 'ed
+     const body = parsed.data;
+ 
++    const existing = await db.select().from(schema.landingPages).where(and(eq(schema.landingPages.slug, body.slug), ne(schema.landingPages.id, id))).get();
++    if (existing) {
++      return c.json({ success: false, error: 'A landing page with this slug already exists' }, 409);
++    }
++
+     if (logoFile) {

@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, ne, sql } from 'drizzle-orm';
 import { createDb, schema } from '@ecommerce/database';
 import { Bindings } from '../types';
 import { requireRole } from '../middleware/auth';
@@ -74,6 +74,11 @@ landingPages.post('/landing-pages', requireRole(['superadmin', 'manager', 'edito
       return c.json({ success: false, error: parsed.error.errors[0].message, details: parsed.error.errors }, 400);
     }
     const body = parsed.data;
+
+    const existing = await db.select({ id: schema.landingPages.id }).from(schema.landingPages).where(eq(schema.landingPages.slug, body.slug)).get();
+    if (existing) {
+      return c.json({ success: false, error: 'A landing page with this slug already exists' }, 409);
+    }
     
     if (logoFile) {
       if (logoFile.size > 5 * 1024 * 1024) {
@@ -141,6 +146,11 @@ landingPages.put('/landing-pages/:id', requireRole(['superadmin', 'manager', 'ed
       return c.json({ success: false, error: parsed.error.errors[0].message, details: parsed.error.errors }, 400);
     }
     const body = parsed.data;
+
+    const existing = await db.select({ id: schema.landingPages.id }).from(schema.landingPages).where(and(eq(schema.landingPages.slug, body.slug), ne(schema.landingPages.id, id))).get();
+    if (existing) {
+      return c.json({ success: false, error: 'A landing page with this slug already exists' }, 409);
+    }
     
     if (logoFile) {
       if (logoFile.size > 5 * 1024 * 1024) {

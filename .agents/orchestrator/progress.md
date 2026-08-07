@@ -1,16 +1,16 @@
-# Progress Log — Orchestrator
-
-Last visited: 2026-08-07T20:30:00Z
-
 ## Current Status
-- [x] Initialized workspace metadata (.agents/orchestrator/DISPATCH.md, BRIEFING.md, plan.md, progress.md, PROJECT.md)
-- [x] Milestone 1: Research & Investigation Phase (Parallel Explorers)
-- [/] Milestone 2: Fix checkout/page.tsx
-- [ ] Milestone 3: Fix Inventory Item Shape Mismatch
-- [ ] Milestone 4: Remove Dead Feature Flag
-- [ ] Milestone 5: Fix Currency Mismatch in Shipping Display
-- [ ] Milestone 6: Build, Lint & Test Verification
-- [ ] Milestone 7: Git Commit & Push & Victory Audit
+Last visited: 2026-08-07T14:15:38Z
 
 ## Iteration Status
-Current iteration: 1 / 32
+Current iteration: 4 / 32
+
+## Checklist
+- [x] Initialize Project Orchestrator state and files
+- [x] Phase 0: Survey codebase via parallel Explorers
+- [x] Phase 1: Create PROJECT.md (Architecture, Feature Inventory R1-R7, Milestones, Contracts)
+- [ ] Phase 2: Milestone Execution & Verification
+  - [x] M1: Public API & Admin API (R4, R5) - GATE PASSED
+  - [x] M2: Storefront UI SSR & Component Refactoring (R1, R2, R3, R6) - GATE PASSED
+  - [x] M3: Verification, E2E Test Pass, Build/Lint Validation (R7) - PASSED
+  - [/] M4: Git Commit and Push - worker_m4_1 running
+- [ ] Claim Victory / Report to Sentinel

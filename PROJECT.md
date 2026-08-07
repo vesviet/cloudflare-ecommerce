@@ -22,12 +22,12 @@
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
 | M1 | Research & Investigation | Analyze all files in checkout data flow and map type mismatches/bugs | None | DONE |
-| M2 | Fix checkout/page.tsx | Fix broken component structure, duplicate state, infinite recursion, Turnstile, form submit | M1 | IN_PROGRESS |
-| M3 | Fix Inventory Item Shape Mismatch | Align variation_id and id in inventory service, checkout route, and order service | M1 | PLANNED |
-| M4 | Remove Dead Feature Flag | Strip dead checkout-v2 flag block from checkout.ts | M1 | PLANNED |
-| M5 | Fix Currency Mismatch in Shipping Display | Fix USD to VNĐ formatting in shipping estimate display and add comments | M1 | PLANNED |
-| M6 | Build, Lint & Test Verification | Build storefront-ui, lint public-api, test core-services and public-api | M2, M3, M4, M5 | PLANNED |
-| M7 | Git Commit & Push | Git add, commit with exact message, and push | M6 | PLANNED |
+| M2 | Fix checkout/page.tsx | Fix broken component structure, duplicate state, infinite recursion, Turnstile, form submit | M1 | DONE |
+| M3 | Fix Inventory Item Shape Mismatch | Align variation_id and id in inventory service, checkout route, and order service | M1 | DONE |
+| M4 | Remove Dead Feature Flag | Strip dead checkout-v2 flag block from checkout.ts | M1 | DONE |
+| M5 | Fix Currency Mismatch in Shipping Display | Fix USD to VNĐ formatting in shipping estimate display and add comments | M1 | DONE |
+| M6 | Build, Lint & Test Verification | Build storefront-ui, lint public-api, test core-services and public-api | M2, M3, M4, M5 | DONE |
+| M7 | Git Commit & Push | Git add, commit with exact message, and push | M6 | DONE |
 
 ## Interface Contracts
 ### `CheckoutSchema` ↔ `InventoryService` ↔ `OrderService`

@@ -57,40 +57,45 @@ landingPages.get('/:slug', async (c) => {
     let variantsData: any[] = [];
 
     if (data.product_id) {
-      productData = await db.select().from(schema.products).where(eq(schema.products.id, data.product_id)).get();
-      variantsData = await db.select().from(schema.products).where(eq(schema.products.parent_id, data.product_id)).all();
+      const [productRes, variantsRes, priceRow] = await Promise.all([
+        db.select().from(schema.products).where(eq(schema.products.id, data.product_id)).get(),
+        db.select().from(schema.products).where(eq(schema.products.parent_id, data.product_id)).all(),
+        db.select({ price: schema.priceListItems.price }).from(schema.priceListItems).where(eq(schema.priceListItems.product_id, data.product_id)).get(),
+      ]);
 
-      const priceRow = await db.select({ price: schema.priceListItems.price }).from(schema.priceListItems).where(eq(schema.priceListItems.product_id, data.product_id)).get();
+      productData = productRes ?? null;
+      variantsData = variantsRes ?? [];
       const productPrice = priceRow ? priceRow.price : null;
 
       const stockedIds = variantsData.length > 0 ? variantsData.map(v => v.id) : [data.product_id];
-      const stockRows = await db
-        .select({
-          product_id: schema.inventoryLevels.product_id,
-          stock_quantity: schema.inventoryLevels.stock_quantity,
-        })
-        .from(schema.inventoryLevels)
-        .where(inArray(schema.inventoryLevels.product_id, stockedIds))
-        .all();
+      
+      const [stockRows, assetRows] = await Promise.all([
+        db
+          .select({
+            product_id: schema.inventoryLevels.product_id,
+            stock_quantity: schema.inventoryLevels.stock_quantity,
+          })
+          .from(schema.inventoryLevels)
+          .where(inArray(schema.inventoryLevels.product_id, stockedIds))
+          .all(),
+        db
+          .select({
+            product_id: schema.productAssets.product_id,
+            url: schema.assets.url,
+            alt_text: schema.assets.alt_text,
+            position: schema.productAssets.position,
+          })
+          .from(schema.productAssets)
+          .innerJoin(schema.assets, eq(schema.productAssets.asset_id, schema.assets.id))
+          .where(inArray(schema.productAssets.product_id, stockedIds))
+          .orderBy(schema.productAssets.position)
+          .all(),
+      ]);
 
       const stockByProduct = new Map<string, number>();
       for (const row of stockRows) {
         stockByProduct.set(row.product_id, (stockByProduct.get(row.product_id) ?? 0) + (row.stock_quantity ?? 0));
       }
-
-      // Fetch images
-      const assetRows = await db
-        .select({
-          product_id: schema.productAssets.product_id,
-          url: schema.assets.url,
-          alt_text: schema.assets.alt_text,
-          position: schema.productAssets.position,
-        })
-        .from(schema.productAssets)
-        .innerJoin(schema.assets, eq(schema.productAssets.asset_id, schema.assets.id))
-        .where(inArray(schema.productAssets.product_id, stockedIds))
-        .orderBy(schema.productAssets.position)
-        .all();
 
       const imagesByProduct = new Map<string, any[]>();
       for (const row of assetRows) {

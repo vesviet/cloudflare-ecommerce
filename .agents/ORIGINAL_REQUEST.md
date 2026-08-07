@@ -1,8 +1,8 @@
 # Original User Request
 
-## Initial Request — 2026-08-07T13:21:47Z
+## 2026-08-07T13:57:27Z
 
-Refactor the checkout pipeline of the `cloudflare-ecommerce` monorepo — a production Cloudflare Workers + Next.js e-commerce platform. The goal is to fix all known bugs and structural issues in the checkout flow (backend API, core services, and frontend UI), produce clean TypeScript code, and ensure the whole pipeline passes build and lint checks.
+Refactor the landing page system of the `cloudflare-ecommerce` monorepo — a production Cloudflare Workers + Next.js e-commerce platform. The goal is to fix all known bugs, structural issues, and code quality problems in the landing page pipeline (backend APIs, storefront UI, admin UI), producing clean TypeScript code that passes build and lint checks.
 
 Working directory: D:\myproject\cloudflare-ecommerce
 
@@ -12,132 +12,176 @@ Integrity mode: development
 
 ## Context
 
-The repo is a Turborepo monorepo with:
-- `apps/public-api` — Hono.js on Cloudflare Workers (checkout backend)
-- `apps/storefront-ui` — Next.js 14 storefront (checkout frontend)
-- `packages/core-services` — `InventoryService`, `PaymentService`, `OrderService`, `PromotionEngine` (shared business logic)
-- `packages/database` — Drizzle ORM schema on Cloudflare D1 (SQLite)
-- `packages/contract` — Zod schemas / API contracts
-
-Key checkout files to research first before writing any code:
-- `apps/public-api/src/routes/checkout.ts`
-- `apps/storefront-ui/src/app/checkout/page.tsx` ← BROKEN: duplicate useState, function references itself recursively
-- `apps/storefront-ui/src/components/checkout/` (AddressSelector, OrderSummary, ContactForm, CouponForm, B2bGdprSection)
-- `apps/storefront-ui/src/hooks/` (useCheckoutData, usePriceValidation, useShippingEstimate)
-- `apps/storefront-ui/src/store/cartStore.ts`
-- `apps/storefront-ui/src/lib/checkout-api.ts`
-- `packages/core-services/src/order.service.ts`
-- `packages/core-services/src/inventory.service.ts`
-- `packages/core-services/src/payment.service.ts`
-- `packages/core-services/src/promotion.engine.ts`
-- `packages/contract/src/` (CheckoutSchema and related)
+The landing page system spans 4 apps/packages:
+- `apps/public-api/src/routes/landing-pages.ts` — Public API (GET slug, GET slug/stock, POST leads)
+- `apps/admin-api/src/routes/landing-pages.ts` — Admin CRUD API (create/update/delete LP)
+- `apps/storefront-ui/src/app/landing/[slug]/page.tsx` — Next.js server page (thin wrapper, no SSR fetch)
+- `apps/storefront-ui/src/app/landing/[slug]/LandingClient.tsx` — 536-line monolithic client component
+- `apps/admin-ui/src/tabs/LandingPagesTab.tsx` — Admin UI form (412 lines)
 
 ---
 
-## Sub-Tasks (auto-created)
+## Known Issues Found During Research
 
-### Task 1 — Research Phase (read ALL files before writing any code)
-Read and understand every file listed in Context above. Map the complete data flow: CartStore → checkout/page.tsx → checkout-api.ts → public-api/checkout.ts → InventoryService → PaymentService → OrderService. Document all type mismatches, dead code, and bugs found.
+### Issue 1 — No SSR: page.tsx does NOT pre-fetch data server-side
+`page.tsx` is an async server component but passes NO data to `LandingClient`. It only passes `initialSlug` and `apiUrl`. `LandingClient` then fetches everything client-side via `useEffect`. This means:
+- The page renders a loading spinner on every first load (bad UX, bad SEO)
+- Google cannot crawl the product title, description, or price
+- The page is missing `generateMetadata` for SEO title/description
 
-### Task 2 — Fix checkout/page.tsx (CRITICAL — broken component)
-The file has these bugs that must ALL be fixed:
-1. `guestAddress` state is declared twice (duplicate `useState<GuestAddress>` call on lines 41 and 53)
-2. `CheckoutPage` renders `<CheckoutInner />` but `CheckoutInner` also renders `<CheckoutInner />` — infinite recursion
-3. The complete `CheckoutInner` function body is missing/truncated after `useShippingEstimate`
+### Issue 2 — LandingClient.tsx is a 536-line monolith
+Everything is in one giant component: pixel injection, hero section, image gallery, pricing block, features list, countdown timer, combo selector, order form, success panel. This makes it impossible to test or maintain individual pieces.
 
-Rewrite `checkout/page.tsx` to be a complete, working page that:
-- Has `CheckoutPage` as a thin wrapper with `<Suspense>` that renders `<CheckoutInner />`
-- Has `CheckoutInner` as a complete, standalone function with NO recursive self-reference
-- Declares `guestAddress` state exactly ONCE
-- Uses all imported hooks: `useCheckoutData`, `useShippingEstimate`, `usePriceValidation`
-- Renders all imported components: `ContactForm`, `AddressSelector`, `B2bGdprSection`, `OrderSummary`, Turnstile
-- Handles form submission via `postCheckout()` from `checkout-api.ts` with a UUID idempotency key
-- Shows loading state during submission
-- On success: clears the cart, then redirects to `/checkout/success?order_id=...`
-- On error: shows an error message
-- Defines the `EMPTY_GUEST` constant that is referenced but likely missing
+### Issue 3 — Hardcoded fake social proof data
+Lines 291-297 of LandingClient.tsx contain hardcoded fake data that is identical for every landing page:
+- Rating: `4.9 ★★★★★`
+- Reviews: `1200 Đánh giá`
+- Sold: `583 824 Đã bán`
 
-### Task 3 — Fix inventory item shape mismatch (checkout.ts ↔ inventory.service.ts)
-`validateAndReserveInventory` in `inventory.service.ts` accepts `{ variation_id: string; quantity: number }[]` items. But `checkout.ts` calls it with items from `CheckoutSchema` which has shape `{ id: string; product_id: string; quantity: number }` — no `variation_id` field.
+These are never configurable from the admin. They should either be driven by the DB or removed. Showing the same fake numbers on every LP is a trust/legal risk.
 
-Also, `OrderService.processCheckout` maps `validItems` to `{ productId: i.variation_id }` which will be `undefined` if items don't have `variation_id`.
+### Issue 4 — admin-api landing-pages.ts: no slug uniqueness validation
+The POST and PUT routes in `apps/admin-api/src/routes/landing-pages.ts` do not check for slug uniqueness before inserting. The D1 database has a UNIQUE constraint on `slug`, so duplicates produce an unhandled 500 instead of a friendly 409 error.
 
-Fix: Align the input/output shapes consistently. Either:
-- Map `id` → `variation_id` before calling `validateAndReserveInventory`, OR
-- Rename the parameter in `validateAndReserveInventory` to accept `id` instead
-Ensure `OrderService.processCheckout` accesses the correct field name with no `undefined`.
+### Issue 5 — price unit ambiguity in LandingClient.tsx
+`lp.product.regular_price` is divided by 100 (line 304) and `lp.product.price` is divided by 100 (line 305), but there is NO comment explaining why. These fields come from `price_list_items.price` which stores values in minor units. The field named `price` (from the `products` table) is different from `regular_price` (computed from `price_list_items`). The API conflates these two different sources in the response payload with no documentation.
 
-### Task 4 — Remove dead feature flag from checkout.ts
-Remove the dead `checkout-v2` feature flag check (lines ~170-179 in checkout.ts). Both branches execute the same code path — the flag provides no differentiation. Remove the `getSetting` call and the if/else block entirely. Add a one-line comment explaining it was removed.
+### Issue 6 — public-api GET /:slug has sequential queries that can be parallelized
+The public-api GET `/:slug` handler runs these DB queries sequentially:
+1. `landingPages` by slug
+2. `products` by product_id
+3. `products` by parent_id (variants)
+4. `priceListItems` by product_id
 
-### Task 5 — Fix currency mismatch in shipping display
-The `shipping_fee_display` in `/api/checkout/shipping-estimate` response returns `$${(feeCents / 100).toFixed(2)}` — this is USD format but the business sells in VNĐ.
+Queries 2, 3, and 4 can all be parallelized with `Promise.all` after query 1.
 
-Update the display format to use VNĐ formatting. The constants `SHIPPING_ZONE_7_CENTS` and `SHIPPING_DEFAULT_CENTS` should have inline comments clarifying their unit. If values are in VNĐ (not cents), rename or document accordingly.
-
-For `payment.service.ts` `createStripeSession` which hardcodes `currency: 'usd'` — add a clear TODO comment if Stripe is being used as a payment processor for a VNĐ business (Stripe does not support VNĐ natively, so this may be intentional). Do not break existing Stripe integration — just document the technical debt.
-
-### Task 6 — Build, Lint, and Debug
-After all code changes:
-1. Run `pnpm --filter @ecommerce/storefront-ui run build` — fix any TypeScript/build errors
-2. Run `pnpm --filter @ecommerce/public-api run lint` — fix any ESLint errors
-3. Run existing tests: `pnpm --filter @ecommerce/core-services test` and `pnpm --filter @ecommerce/public-api test`
-4. Fix any failures found
-5. Repeat until all pass
-
-### Task 7 — Commit all changes
-After build and lint pass:
-```
-git add .
-git commit -m "refactor(checkout): fix broken page, item shape mismatch, dead code, currency display"
-git push
-```
+### Issue 7 — LandingClient useEffect dependency array
+Line 38: `}, [slug, lp, apiUrl]);` — `lp` in the dependency array means every time `setLp` is called, the effect could re-run. The lint rule `react-hooks/exhaustive-deps` may warn about this pattern.
 
 ---
 
 ## Requirements
 
-### R1. Fix checkout/page.tsx — Broken component structure
-The CheckoutPage file has critical bugs that prevent it from compiling or running. Rewrite it completely as described in Task 2.
+### R1. Add SSR data fetching to page.tsx + generateMetadata
+`apps/storefront-ui/src/app/landing/[slug]/page.tsx` must:
+- Fetch the landing page data server-side using `fetch()` with `{ next: { revalidate: 60 } }` (ISR, 60-second cache)
+- The fetch URL should use `process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com'` as the base
+- Parse `combo_rules_json` from the fetched data and pass as `comboRules` prop to `LandingClient`
+- Pass the fetched `lp` data as `lp` prop to `LandingClient`
+- Export a `generateMetadata` function that returns the `seo_title` as `title` and `seo_description` as `description`
+- Handle 404 gracefully: when the LP is not found (data.success === false or 404 status), call `notFound()` from `next/navigation`
+- `LandingClient` should still support client-side fetch as a fallback when `initialLp` is not provided
 
-### R2. Fix shipping currency display
-Ensure shipping display does not use USD `$` formatting in a VNĐ context. Add clear comments on constants.
+### R2. Split LandingClient.tsx into focused sub-components
+Extract the following sections from `LandingClient.tsx` into separate files under `apps/storefront-ui/src/app/landing/[slug]/`:
+- `LandingPixels.tsx` — Facebook + TikTok pixel `<Script>` injection. Props: `{ facebookPixelId?: string; tiktokPixelId?: string }`
+- `LandingHero.tsx` — Image gallery (with prev/next buttons + thumbnails) + title + social proof + pricing block + features list + countdown timer. Props: typed interface with `lp` sub-fields needed
+- `LandingOrderForm.tsx` — The entire `<form>` including combo selector, variant selector, form fields (name, phone, address, note), Cloudflare Turnstile widget, error message, submit button, and the success confirmation panel. Also handles `handleSubmit` logic.
 
-### R3. Remove dead feature flag
-Remove the dead checkout-v2 feature flag code block from checkout.ts.
+`LandingClient.tsx` becomes a thin orchestrator that:
+- Manages top-level state: `lp`, `loading`, `error`, `activeImageIndex`, `formData`, `isSubmitting`, `successData`, `errorMsg`
+- Imports and renders `LandingPixels`, `LandingHero`, `LandingOrderForm`
+- Must be under 150 lines after extraction
 
-### R4. Fix inventory item shape mismatch
-Align the variation_id/id field names across the checkout pipeline so no `undefined` is silently passed.
+All component prop interfaces must use proper TypeScript types. Avoid `any` for top-level component props.
 
-### R5. Build + lint pass
-All modified packages must build and lint cleanly after changes.
+### R3. Remove hardcoded fake social proof data
+Remove the hardcoded fake social proof block (rating 4.9, 1200 reviews, 583 824 sold) from the hero section entirely. Add a comment explaining why it was removed (uniform fake data is a trust/legal risk). Do NOT add a DB schema migration — just remove the block.
+
+### R4. Fix admin-api slug uniqueness: return 409 instead of 500
+In `apps/admin-api/src/routes/landing-pages.ts`:
+- Before INSERT on POST: query for existing LP with same slug, if found return `c.json({ success: false, error: 'A landing page with this slug already exists' }, 409)`
+- Before UPDATE on PUT: query for existing LP with same slug AND `id != currentId`, if found return 409 with same error
+- Both routes still return 200/201 for valid unique slugs
+
+### R5. Parallelize sequential DB queries in public-api GET /:slug
+In `apps/public-api/src/routes/landing-pages.ts`, after fetching the landing page record, use `Promise.all` to run the product fetch, variants fetch, and price list fetch in parallel instead of sequentially.
+
+### R6. Document price unit in LandingClient / LandingHero
+Add inline comments next to the `/100` divisions for `regular_price` and `price` fields explaining that `price_list_items.price` stores values in minor units (VNĐ × 100), so dividing by 100 converts to display VNĐ.
+
+### R7. Build + lint + test pass
+After all changes:
+- `pnpm --filter @ecommerce/storefront-ui build` → exit 0
+- `pnpm --filter @ecommerce/public-api lint` → 0 errors  
+- `pnpm --filter @ecommerce/admin-api lint` → 0 errors
+- All pre-existing tests pass: `pnpm --filter @ecommerce/public-api test` and `pnpm --filter @ecommerce/core-services test`
+
+---
+
+## Sub-Tasks (auto-created)
+
+### Task 1 — Research Phase
+Read ALL the following files thoroughly before writing any code:
+- `apps/storefront-ui/src/app/landing/[slug]/page.tsx`
+- `apps/storefront-ui/src/app/landing/[slug]/LandingClient.tsx`
+- `apps/public-api/src/routes/landing-pages.ts`
+- `apps/admin-api/src/routes/landing-pages.ts`
+- `apps/admin-ui/src/tabs/LandingPagesTab.tsx`
+- `packages/database/src/schema.ts` (for landingPages table shape)
+- `apps/storefront-ui/src/lib/image.ts` (getImageUrl helper)
+
+Map the complete data flow. Document all findings before writing code.
+
+### Task 2 — R1: SSR + generateMetadata
+Implement server-side data fetching and SEO metadata generation in page.tsx.
+
+### Task 3 — R2: Split LandingClient.tsx
+Extract LandingPixels, LandingHero, LandingOrderForm as separate files.
+
+### Task 4 — R3 + R6: Remove fake social proof + add price unit comments
+Remove the hardcoded block and add documentation comments.
+
+### Task 5 — R4: Admin-api slug uniqueness
+Add pre-insert/pre-update slug uniqueness checks returning 409.
+
+### Task 6 — R5: Parallelize DB queries
+Refactor GET /:slug handler to use Promise.all.
+
+### Task 7 — R7: Build, Lint, Test, Debug
+Run all checks. Fix any TypeScript or ESLint errors. Iterate until all pass.
+
+### Task 8 — Git Commit & Push
+After all checks pass:
+```
+git add .
+git commit -m "refactor(landing-pages): SSR, component split, slug validation, query parallelization"
+git push
+```
 
 ---
 
 ## Acceptance Criteria
 
-### Correctness
-- [ ] `apps/storefront-ui/src/app/checkout/page.tsx` compiles without TypeScript errors
-- [ ] No duplicate `useState` declarations in `page.tsx`
-- [ ] `CheckoutPage` renders `CheckoutInner` exactly once; `CheckoutInner` does NOT render itself
-- [ ] `CheckoutInner` has a complete function body that renders ContactForm, AddressSelector, B2bGdprSection, OrderSummary, and Turnstile
-- [ ] Checkout form submission calls `postCheckout()` and handles success/error responses
-- [ ] Cart is cleared and user is redirected on successful checkout
-- [ ] `SHIPPING_ZONE_7_CENTS` and `SHIPPING_DEFAULT_CENTS` constants have inline comments explaining their unit
-- [ ] `shipping_fee_display` in `/api/checkout/shipping-estimate` does NOT use `$` prefix
-- [ ] Dead feature flag `checkout-v2` code block is removed from `checkout.ts`
-- [ ] `validateAndReserveInventory` callers and the function itself use a consistent item shape with no silent `undefined`
-- [ ] `OrderService.processCheckout` maps `validItems` to `productId` without accessing `undefined` properties
+### SSR & SEO
+- [ ] `page.tsx` fetches LP data server-side with `revalidate: 60`
+- [ ] `generateMetadata` exports correct `title` and `description` from LP data
+- [ ] When LP not found server-side, `notFound()` is called
+- [ ] `LandingClient` still supports client-side fallback when `initialLp` is undefined
+
+### Component Split
+- [ ] `LandingPixels.tsx`, `LandingHero.tsx`, `LandingOrderForm.tsx` exist as separate files
+- [ ] `LandingClient.tsx` is under 150 lines after extraction
+- [ ] No `any` for top-level component prop interfaces
+- [ ] No duplicate JSX logic between the new files
+
+### Social Proof & Price Docs
+- [ ] Hardcoded `4.9`, `1200`, `583 824` constants are removed
+- [ ] Inline comments explain `/100` division for price unit conversion
+
+### Slug Validation
+- [ ] POST `/landing-pages` with duplicate slug → HTTP 409
+- [ ] PUT `/landing-pages/:id` with slug used by another LP → HTTP 409
+- [ ] Valid unique slugs → 200/201
+
+### Query Optimization
+- [ ] Public-api GET `/:slug` uses `Promise.all` for product/variants/price queries
 
 ### Build & Lint
-- [ ] `pnpm --filter @ecommerce/storefront-ui build` exits with code 0
-- [ ] `pnpm --filter @ecommerce/public-api lint` exits with 0 errors
-- [ ] TypeScript compilation for `packages/core-services` has 0 errors
+- [ ] `pnpm --filter @ecommerce/storefront-ui build` exits 0
+- [ ] `pnpm --filter @ecommerce/public-api lint` → 0 errors
+- [ ] `pnpm --filter @ecommerce/admin-api lint` → 0 errors
+- [ ] All pre-existing tests pass
 
-### No Regressions
-- [ ] All pre-existing tests in `apps/public-api/src/__tests__/` still pass
-- [ ] All pre-existing tests in `packages/core-services/src/__tests__/` still pass
-- [ ] `CartStore`, `useCheckoutData`, `useShippingEstimate`, `usePriceValidation` hooks are functionally unchanged
-
-### Final Step
-- [ ] All changes committed and pushed to git with message: `refactor(checkout): fix broken page, item shape mismatch, dead code, currency display`
+### Final Commit
+- [ ] All changes committed and pushed: `refactor(landing-pages): SSR, component split, slug validation, query parallelization`

@@ -12,6 +12,8 @@ const mockDbBuilder: any = {
   select: vi.fn(),
   from: vi.fn(),
   where: vi.fn(),
+  innerJoin: vi.fn(),
+  orderBy: vi.fn(),
   limit: vi.fn(),
   get: vi.fn(),
   all: vi.fn(),
@@ -23,13 +25,15 @@ const mockDbBuilder: any = {
   transaction: vi.fn(async (cb: (tx: any) => Promise<any>) => cb(mockDbBuilder)),
   // Drizzle/D1 batch mock — landing-pages switched from transaction() to batch()
   // for native D1 support (commit 23326a8).
-  batch: vi.fn(async (_stmts: any[]) => []),
+  batch: vi.fn(async () => []),
 };
 
 // Set up method chaining behavior on mockDbBuilder
 mockDbBuilder.select.mockReturnValue(mockDbBuilder);
 mockDbBuilder.from.mockReturnValue(mockDbBuilder);
 mockDbBuilder.where.mockReturnValue(mockDbBuilder);
+mockDbBuilder.innerJoin.mockReturnValue(mockDbBuilder);
+mockDbBuilder.orderBy.mockReturnValue(mockDbBuilder);
 mockDbBuilder.limit.mockReturnValue(mockDbBuilder);
 mockDbBuilder.get.mockResolvedValue({ id: 'lp_1', product_id: 'prod_1', slug: 'test-lp' });
 // all() returns [] by default (no inventory rows = no stock block)
@@ -55,6 +59,8 @@ vi.mock('@ecommerce/database', () => {
       inventoryLevels: { product_id: 'product_id', stock_quantity: 'stock_quantity' },
       // Batch price validation
       priceListItems: { product_id: 'product_id', price: 'price' },
+      productAssets: { product_id: 'product_id', asset_id: 'asset_id', position: 'position' },
+      assets: { id: 'id', url: 'url', alt_text: 'alt_text' },
     },
     createDb: vi.fn(() => mockDbBuilder),
   };
@@ -62,15 +68,20 @@ vi.mock('@ecommerce/database', () => {
 
 // Mock drizzle-orm
 vi.mock('drizzle-orm', () => ({
-  eq: vi.fn(),
-  and: vi.fn(),
-  inArray: vi.fn(),
+  eq: vi.fn((a, b) => ({ type: 'eq', a, b })),
+  and: vi.fn((...args) => ({ type: 'and', args })),
+  inArray: vi.fn((a, b) => ({ type: 'inArray', a, b })),
+  ne: vi.fn((a, b) => ({ type: 'ne', a, b })),
   sql: Object.assign(vi.fn(), { join: vi.fn() }),
 }));
 
 describe('Landing Pages Route & Secret Sanitization Verification', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    mockDbBuilder.get.mockReset();
+    mockDbBuilder.all.mockReset();
+    mockDbBuilder.insert.mockReset();
+    mockDbBuilder.update.mockReset();
     // DEBT-013: Clear the in-memory settings cache so each test gets a fresh DB read.
     // Without this, getSetting() caches 'enable-cod-orders=true' from an earlier test
     // and the feature-flag-disabled test incorrectly sees 'confirmed' instead of 'pending'.
@@ -79,6 +90,8 @@ describe('Landing Pages Route & Secret Sanitization Verification', () => {
     mockDbBuilder.select.mockReturnValue(mockDbBuilder);
     mockDbBuilder.from.mockReturnValue(mockDbBuilder);
     mockDbBuilder.where.mockReturnValue(mockDbBuilder);
+    mockDbBuilder.innerJoin.mockReturnValue(mockDbBuilder);
+    mockDbBuilder.orderBy.mockReturnValue(mockDbBuilder);
     mockDbBuilder.limit.mockReturnValue(mockDbBuilder);
     mockDbBuilder.get.mockResolvedValue({ id: 'lp_1', product_id: 'prod_1', slug: 'test-lp' });
     // Default: no inventory rows — getSetting falls back to default (true = COD enabled)
@@ -395,5 +408,198 @@ describe('Landing Pages Route & Secret Sanitization Verification', () => {
       expect(mockDbBuilder.batch).toHaveBeenCalled();
     });
   });
+
+  describe('3. GET /api/landing-pages/:slug Edge Cases', () => {
+    const mockEnv = {
+      DB: {} as any,
+      CACHE_KV: {} as any,
+    };
+
+    it('handles missing product_id on landing page gracefully (product: null, variants: [])', async () => {
+      mockDbBuilder.get.mockResolvedValueOnce({ id: 'lp_no_prod', product_id: null, slug: 'no-prod-slug', title: 'No Product LP' });
+
+      const req = new Request('http://localhost/no-prod-slug', { method: 'GET' });
+      const res = await landingPages.fetch(req, mockEnv);
+
+      expect(res.status).toBe(200);
+      const json = (await res.json()) as any;
+      expect(json.success).toBe(true);
+      expect(json.data.product).toBeNull();
+      expect(json.data.variants).toEqual([]);
+    });
+
+    it('handles non-existent product_id gracefully (product: null, variants: [])', async () => {
+      let getCallCount = 0;
+      mockDbBuilder.get.mockImplementation(async () => {
+        getCallCount++;
+        if (getCallCount === 1) {
+          // LP lookup
+          return { id: 'lp_1', product_id: 'non_existent_id', slug: 'missing-prod' };
+        }
+        // Product lookup or price lookup -> null
+        return null;
+      });
+      mockDbBuilder.all.mockResolvedValue([]);
+
+      const req = new Request('http://localhost/missing-prod', { method: 'GET' });
+      const res = await landingPages.fetch(req, mockEnv);
+
+      expect(res.status).toBe(200);
+      const json = (await res.json()) as any;
+      expect(json.success).toBe(true);
+      expect(json.data.product).toBeNull();
+      expect(json.data.variants).toEqual([]);
+    });
+
+    it('handles missing price list items gracefully (regular_price: null)', async () => {
+      let getCallCount = 0;
+      mockDbBuilder.get.mockImplementation(async () => {
+        getCallCount++;
+        if (getCallCount === 1) {
+          return { id: 'lp_1', product_id: 'prod_no_price', slug: 'no-price' };
+        }
+        // If it's product lookup: return product object. If price lookup: return null.
+        // Product lookup happens first in Promise.all order in V8 engine microtasks usually,
+        // but to be safe, return product if call #2 and null for call #3.
+        if (getCallCount === 2) {
+          return { id: 'prod_no_price', title: 'Product Without Price' };
+        }
+        return null; // price row is null
+      });
+      mockDbBuilder.all.mockResolvedValue([]);
+
+      const req = new Request('http://localhost/no-price', { method: 'GET' });
+      const res = await landingPages.fetch(req, mockEnv);
+
+      expect(res.status).toBe(200);
+      const json = (await res.json()) as any;
+      expect(json.success).toBe(true);
+      expect(json.data.product).toBeDefined();
+      expect(json.data.product.id).toBe('prod_no_price');
+      expect(json.data.product.regular_price).toBeNull();
+    });
+
+    it('handles missing variants gracefully (product populated, variants: [])', async () => {
+      let getCallCount = 0;
+      mockDbBuilder.get.mockImplementation(async () => {
+        getCallCount++;
+        if (getCallCount === 1) {
+          return { id: 'lp_1', product_id: 'prod_no_vars', slug: 'no-vars' };
+        }
+        if (getCallCount === 2) {
+          return { id: 'prod_no_vars', title: 'Single Product' };
+        }
+        return { price: 1500000 };
+      });
+
+      let allCallCount = 0;
+      mockDbBuilder.all.mockImplementation(async () => {
+        allCallCount++;
+        if (allCallCount === 1) {
+          // variants lookup -> []
+          return [];
+        }
+        if (allCallCount === 2) {
+          // stock rows lookup -> stock 25
+          return [{ product_id: 'prod_no_vars', stock_quantity: 25 }];
+        }
+        // assets lookup -> []
+        return [];
+      });
+
+      const req = new Request('http://localhost/no-vars', { method: 'GET' });
+      const res = await landingPages.fetch(req, mockEnv);
+
+      expect(res.status).toBe(200);
+      const json = (await res.json()) as any;
+      expect(json.success).toBe(true);
+      expect(json.data.product.stock).toBe(25);
+      expect(json.data.variants).toEqual([]);
+    });
+
+    it('handles empty stock gracefully (stock: 0)', async () => {
+      let getCallCount = 0;
+      mockDbBuilder.get.mockImplementation(async () => {
+        getCallCount++;
+        if (getCallCount === 1) {
+          return { id: 'lp_1', product_id: 'prod_out_of_stock', slug: 'empty-stock' };
+        }
+        if (getCallCount === 2) {
+          return { id: 'prod_out_of_stock', title: 'Out of Stock Product' };
+        }
+        return { price: 500000 };
+      });
+
+      let allCallCount = 0;
+      mockDbBuilder.all.mockImplementation(async () => {
+        allCallCount++;
+        if (allCallCount === 1) {
+          // variants lookup -> 1 variant
+          return [{ id: 'var_1', parent_id: 'prod_out_of_stock', sku: 'SKU1' }];
+        }
+        // stock rows or asset rows -> []
+        return [];
+      });
+
+      const req = new Request('http://localhost/empty-stock', { method: 'GET' });
+      const res = await landingPages.fetch(req, mockEnv);
+
+      expect(res.status).toBe(200);
+      const json = (await res.json()) as any;
+      expect(json.success).toBe(true);
+      expect(json.data.product.stock).toBe(0);
+      expect(json.data.variants[0].stock).toBe(0);
+    });
+
+    it('handles D1 error in Promise.all Phase 1 gracefully (returns 500)', async () => {
+      let getCallCount = 0;
+      mockDbBuilder.get.mockImplementation(async () => {
+        getCallCount++;
+        if (getCallCount === 1) {
+          return { id: 'lp_1', product_id: 'prod_err', slug: 'db-err-phase1' };
+        }
+        // Fail during Phase 1 Promise.all product query
+        throw new Error('D1 database connection error during product query');
+      });
+
+      const req = new Request('http://localhost/db-err-phase1', { method: 'GET' });
+      const res = await landingPages.fetch(req, mockEnv);
+
+      expect(res.status).toBe(500);
+      const json = (await res.json()) as any;
+      expect(json.success).toBe(false);
+      expect(json.error).toBe('Internal server error');
+    });
+
+    it('handles D1 error in Promise.all Phase 2 gracefully (returns 500)', async () => {
+      let getCallCount = 0;
+      mockDbBuilder.get.mockImplementation(async () => {
+        getCallCount++;
+        if (getCallCount === 1) {
+          return { id: 'lp_1', product_id: 'prod_ok', slug: 'db-err-phase2' };
+        }
+        if (getCallCount === 2) {
+          return { id: 'prod_ok', title: 'Product OK' };
+        }
+        return { price: 100000 };
+      });
+
+      mockDbBuilder.all.mockImplementation(async () => {
+        // Fail during Phase 2 Promise.all stock query
+        throw new Error('D1 database timeout during stock query');
+      });
+
+      const req = new Request('http://localhost/db-err-phase2', { method: 'GET' });
+      const res = await landingPages.fetch(req, mockEnv);
+
+      expect(res.status).toBe(500);
+      const json = (await res.json()) as any;
+      expect(json.success).toBe(false);
+      expect(json.error).toBe('Internal server error');
+    });
+  });
 });
+
+
+
 
