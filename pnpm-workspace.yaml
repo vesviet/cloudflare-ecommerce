@@ -10,3 +10,9 @@ overrides:
   hono: ">=4.12.34"
   # Security fix: postcss <=8.5.22 — GHSA-fxqj-rqcc-2cmp (sourceMappingURL reads arbitrary .map files)
   postcss: ">=8.5.23"
+  # TypeScript fix: pin to single version to prevent duplicate drizzle-orm peer dep instances (TS2769)
+  # Two different @cloudflare/workers-types versions (v4 + v5) cause two separate drizzle-orm module paths
+  "@cloudflare/workers-types": "4.20260526.1"
+  # Pin wrangler to v3 — pnpm update --latest upgraded to v4 which drops workers-types peer dep,
+  # creating a second drizzle-orm instance with mismatched SQL<unknown> types.
+  wrangler: "^3"

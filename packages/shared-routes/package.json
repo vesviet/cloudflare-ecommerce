@@ -5,13 +5,15 @@
   "types": "src/index.ts",
   "dependencies": {
     "hono": "^4.12.27",
-    "drizzle-orm": "^0.30.10",
+    "drizzle-orm": "^0.45.2",
     "@ecommerce/database": "workspace:*",
     "@ecommerce/core-services": "workspace:*",
     "@ecommerce/contract": "workspace:*",
     "@hono/zod-validator": "^0.2.1"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240512.0",
     "typescript": "^5.0.0"
   }
 }
+
