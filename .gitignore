@@ -21,6 +21,8 @@ dist/
 .next/
 out/
 .vercel/
+.claude/
+.agents/
 
 # ==========================
 # Cloudflare Wrangler
@@ -50,11 +52,10 @@ pnpm-debug.log*
 *.tsbuildinfo
 .turbo/
 .tmp/
-AGENTS.md
+.agents
 
 # ==========================
 # Playwright QA
 # ==========================
 playwright-report/
 test-results/
-.agents
