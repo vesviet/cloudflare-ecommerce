@@ -1,3 +1,12 @@
 packages:
   - "apps/*"
   - "packages/*"
+
+overrides:
+  # Security fix: nanoid <3.3.17 — GHSA-2v37-7h3g-55p8 (custom generators loop indefinitely when size is zero)
+  nanoid: ">=3.3.17"
+  # Security fix: hono <4.12.34 — GHSA-54fx-42gc-7vw4 (Algorithmic Complexity DoS in Language Middleware)
+  #                              — GHSA-79qm-7rj5-m7r9 (Proxy Helper response header leak)
+  hono: ">=4.12.34"
+  # Security fix: postcss <=8.5.22 — GHSA-fxqj-rqcc-2cmp (sourceMappingURL reads arbitrary .map files)
+  postcss: ">=8.5.23"
