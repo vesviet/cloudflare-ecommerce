@@ -26,6 +26,11 @@ export const ProductsTab: React.FC<ProductsTabProps> = ({ API_BASE_URL, addToast
   const action = searchParams.get('action');
   const id = searchParams.get('id');
 
+  const { data: singleProductResult, isLoading: isSingleLoading, error: singleError } = useSWR<{
+    success: boolean;
+    data: ProductData;
+  }>(id ? `/products/${id}` : null);
+
   const products = result?.data || [];
 
   const navigateToList = () => {
@@ -45,52 +50,62 @@ export const ProductsTab: React.FC<ProductsTabProps> = ({ API_BASE_URL, addToast
     navigateToList();
   };
 
-  const editingProductData = id ? products.find(p => p.id === id) || null : null;
+  const editingProductData = id
+    ? (singleProductResult?.data || products.find(p => p.id === id) || null)
+    : null;
 
   useEffect(() => {
     if (error) addToast(error.message || 'Failed to fetch products', 'error');
   }, [error, addToast]);
 
+  useEffect(() => {
+    if (singleError) addToast(singleError.message || 'Failed to fetch product details', 'error');
+  }, [singleError, addToast]);
+
   return (
     <div className="w-full">
-      {isLoading ? (
-        <GlassCard className="p-6">
-          <div className="flex justify-between mb-6">
-            <SkeletonLoader width="200px" height="32px" />
-            <SkeletonLoader width="120px" height="40px" />
-          </div>
-          <div className="space-y-4">
-            <SkeletonLoader height="64px" />
-            <SkeletonLoader height="64px" />
-            <SkeletonLoader height="64px" />
-          </div>
-        </GlassCard>
-      ) : (
-        <>
-          {(!action && !id) && (
-            <>
-              <ProductList
-                products={products}
-                API_BASE_URL={API_BASE_URL}
-                onCreateNew={navigateToNew}
-                onEdit={navigateToEdit}
-              />
-              <GlassCard className="mt-2 p-0">
-                <Pagination pagination={result?.pagination} onPageChange={setOffset} itemLabel="products" />
-              </GlassCard>
-            </>
-          )}
-          
-          {(action === 'new' || id) && (
-            <ProductForm
-              initialData={editingProductData}
+      {(!action && !id) && (
+        isLoading ? (
+          <GlassCard className="p-6">
+            <div className="flex justify-between mb-6">
+              <SkeletonLoader width="200px" height="32px" />
+              <SkeletonLoader width="120px" height="40px" />
+            </div>
+            <div className="space-y-4">
+              <SkeletonLoader height="64px" />
+              <SkeletonLoader height="64px" />
+              <SkeletonLoader height="64px" />
+            </div>
+          </GlassCard>
+        ) : (
+          <>
+            <ProductList
+              products={products}
               API_BASE_URL={API_BASE_URL}
-              onSaveSuccess={handleSaveSuccess}
-              onCancel={navigateToList}
-              addToast={addToast}
+              onCreateNew={navigateToNew}
+              onEdit={navigateToEdit}
             />
-          )}
-        </>
+            <GlassCard className="mt-2 p-0">
+              <Pagination pagination={result?.pagination} onPageChange={setOffset} itemLabel="products" />
+            </GlassCard>
+          </>
+        )
+      )}
+
+      {(action === 'new' || id) && (
+        (id && isSingleLoading && !editingProductData) ? (
+          <GlassCard className="p-6">
+            <SkeletonLoader height="300px" />
+          </GlassCard>
+        ) : (
+          <ProductForm
+            initialData={editingProductData}
+            API_BASE_URL={API_BASE_URL}
+            onSaveSuccess={handleSaveSuccess}
+            onCancel={navigateToList}
+            addToast={addToast}
+          />
+        )
       )}
     </div>
   );

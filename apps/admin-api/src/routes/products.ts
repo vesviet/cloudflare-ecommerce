@@ -42,7 +42,7 @@ products.get('/products', async (c) => {
           WHERE cp.product_id = p.id
         ) as secondary_categories,
         (
-          SELECT price FROM price_list_items pli WHERE pli.product_id = p.id LIMIT 1
+          SELECT price FROM price_list_items pli WHERE pli.product_id = p.id AND pli.price_list_id = (SELECT id FROM price_lists WHERE type = 'base' LIMIT 1) LIMIT 1
         ) as regular_price,
         (
           SELECT stock_quantity FROM inventory_levels il WHERE il.product_id = p.id LIMIT 1
@@ -50,7 +50,7 @@ products.get('/products', async (c) => {
         (
           SELECT CASE WHEN COUNT(v.id) > 0 THEN json_group_array(json_object(
             'id', v.id, 'sku', v.sku, 
-            'regular_price', (SELECT price FROM price_list_items vpli WHERE vpli.product_id = v.id LIMIT 1),
+            'regular_price', (SELECT price FROM price_list_items vpli WHERE vpli.product_id = v.id AND vpli.price_list_id = (SELECT id FROM price_lists WHERE type = 'base' LIMIT 1) LIMIT 1),
             'stock', (SELECT stock_quantity FROM inventory_levels vil WHERE vil.product_id = v.id LIMIT 1),
             'is_purchasable', v.is_purchasable,
             'attributes', v.attributes_json
@@ -93,7 +93,7 @@ products.get('/products', async (c) => {
 });
 
 // Autocomplete SKU Search
-products.get('/products/search-sku', async (c) => {
+products.get('/products/search-sku', requireRole(['superadmin', 'manager', 'editor']), async (c) => {
   try {
     const db = createDb(c.env.DB);
     const q = c.req.query('q') || '';
@@ -104,7 +104,7 @@ products.get('/products/search-sku', async (c) => {
     const results = await db.all<any>(sql`
       SELECT 
         p.id, p.sku, p.title,
-        (SELECT price FROM price_list_items pli WHERE pli.product_id = p.id LIMIT 1) as regular_price,
+        (SELECT price FROM price_list_items pli WHERE pli.product_id = p.id AND pli.price_list_id = (SELECT id FROM price_lists WHERE type = 'base' LIMIT 1) LIMIT 1) as regular_price,
         (SELECT stock_quantity FROM inventory_levels il WHERE il.product_id = p.id LIMIT 1) as stock
       FROM products p
       WHERE p.type = 'simple' 
@@ -121,7 +121,7 @@ products.get('/products/search-sku', async (c) => {
 });
 
 // Autocomplete Product Search (For Combobox)
-products.get('/products/search', async (c) => {
+products.get('/products/search', requireRole(['superadmin', 'manager', 'editor']), async (c) => {
   try {
     const db = createDb(c.env.DB);
     const q = c.req.query('q') || '';
@@ -132,7 +132,7 @@ products.get('/products/search', async (c) => {
     const results = await db.all<any>(sql`
       SELECT 
         p.id, p.sku, p.title,
-        (SELECT price FROM price_list_items pli WHERE pli.product_id = p.id LIMIT 1) as regular_price,
+        (SELECT price FROM price_list_items pli WHERE pli.product_id = p.id AND pli.price_list_id = (SELECT id FROM price_lists WHERE type = 'base' LIMIT 1) LIMIT 1) as regular_price,
         (
           SELECT a.url 
           FROM product_assets pa 
@@ -149,6 +149,75 @@ products.get('/products/search', async (c) => {
     `);
 
     return c.json({ success: true, data: results });
+  } catch (err: any) {
+    return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
+// GET: Product Detail (Admin)
+products.get('/products/:id', async (c) => {
+  const productId = c.req.param('id');
+  try {
+    const db = createDb(c.env.DB);
+    const results = await db.all<any>(sql`
+      SELECT 
+        p.id, p.slug, p.sku, p.title, p.description, p.type, p.status, p.is_purchasable, p.attributes_json,
+        p.weight, p.length, p.width, p.height, p.primary_category_id,
+        (
+          SELECT json_group_array(json_object('url', a.url, 'alt_text', a.alt_text))
+          FROM product_assets pa
+          JOIN assets a ON pa.asset_id = a.id
+          WHERE pa.product_id = p.id
+          ORDER BY pa.position ASC
+        ) as images_json,
+        (
+          SELECT json_group_array(cp.collection_id) 
+          FROM collection_products cp 
+          WHERE cp.product_id = p.id
+        ) as secondary_categories,
+        (
+          SELECT price FROM price_list_items pli WHERE pli.product_id = p.id AND pli.price_list_id = (SELECT id FROM price_lists WHERE type = 'base' LIMIT 1) LIMIT 1
+        ) as regular_price,
+        (
+          SELECT stock_quantity FROM inventory_levels il WHERE il.product_id = p.id LIMIT 1
+        ) as stock_quantity,
+        (
+          SELECT CASE WHEN COUNT(v.id) > 0 THEN json_group_array(json_object(
+            'id', v.id, 'sku', v.sku, 
+            'regular_price', (SELECT price FROM price_list_items vpli WHERE vpli.product_id = v.id AND vpli.price_list_id = (SELECT id FROM price_lists WHERE type = 'base' LIMIT 1) LIMIT 1),
+            'stock', (SELECT stock_quantity FROM inventory_levels vil WHERE vil.product_id = v.id LIMIT 1),
+            'is_purchasable', v.is_purchasable,
+            'attributes', v.attributes_json
+          )) ELSE '[]' END 
+          FROM products v 
+          WHERE v.parent_id = p.id AND v.deleted_at IS NULL AND v.is_purchasable = 1
+        ) as variations
+      FROM products p
+      WHERE p.id = ${productId} AND p.deleted_at IS NULL
+    `);
+
+    if (!results || results.length === 0) {
+      return c.json({ success: false, error: 'Product not found' }, 404);
+    }
+
+    const row = results[0];
+    let images = [];
+    try { images = JSON.parse(row.images_json || '[]').filter((img: any) => img.url); } catch { /* ignore */ }
+    
+    let variations = [];
+    try { variations = JSON.parse(row.variations || '[]').filter((v: any) => v.id); } catch { /* ignore */ }
+
+    let secondaryCategories = [];
+    try { secondaryCategories = JSON.parse(row.secondary_categories || '[]').filter(Boolean); } catch { /* ignore */ }
+
+    const formattedData = {
+      ...row,
+      images,
+      secondary_categories: secondaryCategories,
+      variations,
+    };
+
+    return c.json({ success: true, data: formattedData });
   } catch (err: any) {
     return c.json({ success: false, error: err.message }, 500);
   }
@@ -376,9 +445,14 @@ products.delete('/products/:id', requireRole(['superadmin', 'manager']), async (
       return c.json({ success: false, error: 'Product not found' }, 404);
     }
 
-    await db.update(schema.products)
-      .set({ deleted_at: sql`CURRENT_TIMESTAMP`, updated_at: sql`CURRENT_TIMESTAMP` })
-      .where(eq(schema.products.id, productId));
+    await db.batch([
+      db.update(schema.products)
+        .set({ deleted_at: sql`CURRENT_TIMESTAMP`, updated_at: sql`CURRENT_TIMESTAMP` })
+        .where(eq(schema.products.id, productId)),
+      db.update(schema.products)
+        .set({ deleted_at: sql`CURRENT_TIMESTAMP`, updated_at: sql`CURRENT_TIMESTAMP` })
+        .where(eq(schema.products.parent_id, productId))
+    ]);
 
     if (existingProduct.slug) {
       c.executionCtx.waitUntil(CacheService.invalidateProductCache(c.env, existingProduct.slug));

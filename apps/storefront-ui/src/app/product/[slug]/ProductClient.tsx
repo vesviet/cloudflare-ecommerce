@@ -29,7 +29,7 @@ export default function ProductClient({ product }: { product: any }) {
       addWishlistItem({
         productId: product.id,
         name: product.name,
-        price: product.prices?.sale_price || product.prices?.regular_price || 0,
+        price: product.prices?.sale_price || product.prices?.regular_price || product.prices?.price_range?.min_amount || 0,
         slug: product.slug,
         imageUrl: product.images?.[0]?.url
       });
@@ -43,7 +43,7 @@ export default function ProductClient({ product }: { product: any }) {
     }
   };
 
-  const isVariable = product.type === 'variable';
+  const isVariable = product.type === 'configurable' || product.type === 'variable';
   const variations = product.variations || [];
 
   const handleAddToCart = () => {
@@ -72,9 +72,10 @@ export default function ProductClient({ product }: { product: any }) {
   const selectedVariation = variations.find((v: any) => v.id === selectedVariationId);
   const displayPrice = selectedVariation 
     ? (selectedVariation.sale_price || selectedVariation.regular_price) 
-    : (product.prices.sale_price || product.prices.regular_price);
+    : (product.prices?.sale_price || product.prices?.regular_price || product.prices?.price_range?.min_amount);
   
-  const inStock = selectedVariation ? selectedVariation.stock_quantity > 0 : product.stock_quantity > 0;
+  const totalVarStock = variations.length > 0 ? variations.reduce((sum: number, v: any) => sum + (v.stock_quantity ?? v.stock ?? 0), 0) : 0;
+  const inStock = selectedVariation ? selectedVariation.stock_quantity > 0 : (totalVarStock > 0 || (product.stock_quantity ?? 0) > 0);
 
   return (
     <div className="product-detail-container" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px', marginTop: '40px' }}>

@@ -55,18 +55,29 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   }
 
   // Generate basic JSON-LD
+  const rawPrice = product.prices?.sale_price ?? product.prices?.regular_price ?? product.prices?.price_range?.min_amount ?? 0;
+  const numericPrice = typeof rawPrice === 'string' ? parseInt(rawPrice, 10) : Number(rawPrice);
+  const jsonLdPrice = (Number.isFinite(numericPrice) ? numericPrice : 0) / 100;
+
+  const hasVariations = Array.isArray(product.variations) && product.variations.length > 0;
+  const variationStock = hasVariations
+    ? product.variations.reduce((sum: number, v: any) => sum + (v.stock_quantity ?? v.stock ?? 0), 0)
+    : 0;
+  const parentStock = product.stock_quantity ?? 0;
+  const isInStock = variationStock > 0 || parentStock > 0;
+
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Product',
     name: product.name || product.title,
     image: product.images?.length > 0 && product.images[0]?.url ? getImageUrl(product.images[0].url) : '',
     description: product.description,
-    sku: product.variations?.[0]?.sku || '',
+    sku: product.variations?.[0]?.sku || product.sku || '',
     offers: {
       '@type': 'Offer',
-      price: (product.prices?.sale_price || product.prices?.regular_price || 0) / 100,
+      price: jsonLdPrice,
       priceCurrency: 'USD',
-      availability: product.stock_quantity > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+      availability: isInStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
     }
   };
 

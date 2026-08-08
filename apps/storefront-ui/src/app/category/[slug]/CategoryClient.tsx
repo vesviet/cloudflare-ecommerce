@@ -10,7 +10,7 @@ export const CategoryClient = ({ products }: { products: any[] }) => {
   const { addItem, toggleCart } = useCartStore();
 
   const handleAddToCart = (product: any) => {
-    if (product.type === 'variable') {
+    if (product.type === 'configurable' || product.type === 'variable') {
       const variation = product.variations?.[0];
       if (!variation) return;
       addItem({
@@ -42,7 +42,7 @@ export const CategoryClient = ({ products }: { products: any[] }) => {
     <div className="product-grid">
       {products.map((product: any) => {
         const prices = product.prices;
-        const isVariable = product.type === 'variable';
+        const isVariable = product.type === 'configurable' || product.type === 'variable';
         const isOnSale = prices.sale_price && prices.sale_price !== prices.regular_price;
 
         return (

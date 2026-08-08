@@ -159,4 +159,13 @@ describe('Admin API: Products Controller', () => {
     expect(data.success).toBe(true);
     expect(data.message).toContain('soft-deleted');
   });
+
+  it('GET /products/:id: fetches single product detail', async () => {
+    const res = await products.request('/products/prod_1', { method: 'GET' }, mockEnv);
+    expect(res.status).toBe(200);
+    const data = await res.json() as any;
+    expect(data.success).toBe(true);
+    expect(data.data.id).toBe('prod_1');
+    expect(data.data.images).toEqual([{ url: '/media/products/img1.jpg', alt_text: 'Product Image' }]);
+  });
 });

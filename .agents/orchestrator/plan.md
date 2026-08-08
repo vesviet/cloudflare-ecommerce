@@ -1,34 +1,52 @@
-# Refactoring Plan — Admin System Refactor
+# Orchestration Execution Plan
 
-## Scope & Objective
-Refactor `apps/admin-api/` and `apps/admin-ui/` in `D:\myproject\cloudflare-ecommerce` according to requirements R1-R10.
+## Objectives
+Execute full catalog + product system refactor for cloudflare-ecommerce to resolve 14 critical/high/medium/low issues identified in ORIGINAL_REQUEST.md.
 
-## Milestones Breakdown
+## Decomposition Strategy (Milestones)
 
-### Task 1: Research & Codebase Exploration
-- Dispatch 3 parallel Explorers / Spec Miners to investigate key files in `apps/admin-api/` and `apps/admin-ui/`.
-- Verify existing test suites (`apps/admin-api/src/routes/__tests__/`), type definitions, route handlers, and coupon references.
+### Milestone 1 (M1): Research & Baseline Verification
+- Dispatch 3 `teamwork_preview_explorer` agents to map and investigate codebase files:
+  - `packages/core-services/src/catalog.service.ts`
+  - `packages/core-services/src/product.service.ts`
+  - `packages/core-services/src/category.service.ts`
+  - `apps/admin-api/src/routes/products.ts`
+  - `apps/admin-api/src/routes/categories.ts`
+  - `apps/public-api/src/routes/catalog.ts`
+  - `apps/storefront-ui/src/app/page.tsx`
+  - `apps/storefront-ui/src/app/product/[slug]/page.tsx`
+  - `apps/admin-ui/src/tabs/ProductsTab.tsx`
+  - `apps/admin-ui/src/tabs/CategoriesTab.tsx`
+  - `packages/contract/src/admin.ts`
+  - `packages/database/src/schema.ts`
 
-### Task 2: Milestone 1 — admin-api Backend Refactoring
-- **R1**: Extract `GET /landing-leads` from `orders.ts` to `apps/admin-api/src/routes/landingLeads.ts` and mount in `index.ts`.
-- **R2**: Add `requireRole(['superadmin', 'manager', 'support'])` middleware to `GET /orders` and `GET /orders/:id`.
-- **R3**: Add soft-delete endpoint `DELETE /products/:id` setting `deleted_at = CURRENT_TIMESTAMP` requiring `superadmin` or `manager`.
-- **R4**: Refactor `mapPromotionToCoupon` in `coupons.ts` to use canonical field names (`ends_at`, `usage_limit`, `times_used`) and export `CouponDTO`.
-- **R9**: Document flat shipping fee in `checkout.ts` with constant `ADMIN_FLAT_SHIPPING_FEE_VND_CENTS = 999`.
+### Milestone 2 (M2): Core Services Fixes (Tasks 2 & 3)
+- Issue 2: Return sale prices in `getCatalogList` & `getCatalogItem`.
+- Issue 3: Unified price schema in `searchCatalog` (`regular_price`, `sale_price`).
+- Issue 5: Guard `inArray` against empty `imageUrls` in `ProductService`.
+- Issue 7: Add `price_list_id` base price list filter to price subqueries in `catalog.service.ts`.
+- Issue 8: Guard `Math.min/max` against empty arrays in `ProductService`.
+- Issue 12: Remove dead code `formatForStorefront` in `product.service.ts`.
 
-### Task 3: Milestone 2 — admin-ui Frontend Refactoring
-- **R4**: Update `admin-ui` callers (e.g. `PromotionsTab.tsx`) to use canonical coupon fields from `CouponDTO`.
-- **R5**: Extract `ROLE_ROUTES` config and implement `<ProtectedRoute>` route guard component in `App.tsx`.
-- **R6**: Extract `<PageTransition>` component in `apps/admin-ui/src/components/PageTransition.tsx` and wrap all 11 routes in `App.tsx`.
-- **R7**: Update `OrderData.status` union type in `apps/admin-ui/src/types.ts` to include `'pending'`, `'confirmed'`, `'shipped'`.
-- **R8**: Fix currency formatting in `OverviewTab.tsx` to display VNĐ minor unit conversion with comment.
+### Milestone 3 (M3): Admin API & Categories Fixes (Tasks 4 & 5)
+- Issue 4: Secure `GET /products/search-sku` and `GET /products/search` with `requireRole(['superadmin', 'manager', 'editor'])`.
+- Issue 6: Add cascading soft-delete for product variations on `DELETE /products/:id`.
+- Issue 7: Fix price subqueries in `admin-api/routes/products.ts` with `price_list_id` filter.
+- Issue 11: Improve slug sanitization in `categories.ts`.
+- Issue 13: Clean `collection_products` mapping table on category delete.
 
-### Task 4: Milestone 3 — Build, Lint, Test & Verification (R10)
-- Run `pnpm --filter @ecommerce/admin-ui build` -> exit 0.
-- Run `pnpm --filter @ecommerce/admin-api lint` -> 0 errors.
-- Run `pnpm --filter @ecommerce/admin-api test` -> all tests pass.
-- Reviewer checks, Challenger verification, and Forensic Auditor integrity verification.
+### Milestone 4 (M4): Storefront UI & Catalog Route Fixes (Task 6)
+- Issue 1: Fix product type check `'variable'` -> `'configurable'` in `page.tsx` and `[slug]/page.tsx`.
+- Issue 10: Verify and document route order in `catalog.ts` (`GET /search` before `GET /:slug`).
+- Issue 14: Fix JSON-LD price (use `price_range.min_amount`) and availability (sum variation stock).
 
-### Task 5: Milestone 4 — Git Commit & Push
-- Execute git commit with message: `refactor(admin): route extraction, RBAC guard, soft-delete, VND currency, type fixes`.
-- Push to git repository and notify parent Sentinel.
+### Milestone 5 (M5): Admin UI Fixes (Task 7)
+- Issue 9: In `ProductsTab.tsx`, fetch product directly from `/products/:id` when `id` URL param is present.
+
+### Milestone 6 (M6): Build, Lint, Test Verification & Git Operations (Tasks 8 & 9)
+- Run `pnpm --filter @ecommerce/storefront-ui build`
+- Run `pnpm --filter @ecommerce/public-api lint`
+- Run `pnpm --filter @ecommerce/admin-api lint`
+- Run `pnpm --filter @ecommerce/core-services test`
+- Verification by reviewer and auditor agents.
+- Git commit & push: `refactor(catalog): fix type mismatch, sale prices, auth, cascade delete, price queries`

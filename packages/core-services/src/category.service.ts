@@ -34,6 +34,8 @@ export class CategoryService {
       db.update(schema.products)
         .set({ primary_category_id: null })
         .where(eq(schema.products.primary_category_id, categoryId)),
+      db.delete(schema.collectionProducts)
+        .where(eq(schema.collectionProducts.collection_id, categoryId)),
       db.delete(schema.categories).where(eq(schema.categories.id, categoryId))
     ];
   }

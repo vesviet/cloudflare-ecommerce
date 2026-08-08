@@ -44,7 +44,7 @@ export default async function Home() {
       <div className="product-grid">
         {products.map((product: any, index: number) => {
           const prices = product.prices ?? {};
-          const isVariable = product.type === 'variable';
+          const isVariable = product.type === 'configurable' || product.type === 'variable';
           const isOnSale = prices.sale_price && prices.sale_price !== prices.regular_price;
           const displayName = product.name ?? product.title;
 

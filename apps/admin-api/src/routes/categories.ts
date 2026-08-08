@@ -31,12 +31,14 @@ app.get('/:id', async (c) => {
   return c.json({ success: true, data: cat });
 });
 
+const sanitizeSlug = (str: string) => str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+
 app.post('/', requireRole(['superadmin', 'manager', 'editor']), zValidator('json', categorySchema), async (c) => {
   const body = c.req.valid('json');
   const db = createDb(c.env.DB);
   
   const id = crypto.randomUUID();
-  const slug = body.slug || body.name.toLowerCase().replace(/\s+/g, '-');
+  const slug = body.slug ? sanitizeSlug(body.slug) : sanitizeSlug(body.name);
 
   if (body.parent_id) {
     const parent = await db.select({ id: schema.categories.id })
@@ -85,7 +87,7 @@ app.put('/:id', requireRole(['superadmin', 'manager', 'editor']), zValidator('js
       updated_at: sql`CURRENT_TIMESTAMP`
     };
     if (body.name !== undefined) updateData.name = body.name;
-    if (body.slug !== undefined) updateData.slug = body.slug;
+    if (body.slug !== undefined) updateData.slug = sanitizeSlug(body.slug);
     if (body.description !== undefined) updateData.description = body.description;
     if (body.parent_id !== undefined) updateData.parent_id = body.parent_id;
     if (body.image_url !== undefined) updateData.image_url = body.image_url;

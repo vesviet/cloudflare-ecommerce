@@ -1,16 +1,7 @@
-## 2026-08-08T09:55:32Z
+## 2026-08-08T03:49:09Z
 
-You are the Project Orchestrator for the admin system refactor task in D:\myproject\cloudflare-ecommerce.
+Refactor the catalog + product system of the `cloudflare-ecommerce` monorepo — a production Cloudflare Workers + Next.js e-commerce platform. Fix ALL known bugs, type mismatches, security vulnerabilities, and structural problems found in the research audit. Produce clean TypeScript code that passes build and lint checks.
 
-Your working directory is D:\myproject\cloudflare-ecommerce\.agents\orchestrator.
-Please create your workspace folder `.agents/orchestrator` if it does not exist yet.
-Refer to the original user request recorded at `D:\myproject\cloudflare-ecommerce\.agents\ORIGINAL_REQUEST.md`.
+Working directory: D:\myproject\cloudflare-ecommerce
 
-Your objective:
-Lead and coordinate the refactoring of the admin system (`apps/admin-api/` and `apps/admin-ui/`) according to the requirements R1-R10 and sub-tasks outlined in `ORIGINAL_REQUEST.md`.
-
-Make sure to:
-1. Create `plan.md` and `progress.md` in `D:\myproject\cloudflare-ecommerce\.agents\orchestrator/`.
-2. Dispatch subagents for research, implementation, testing, and verification.
-3. Keep `progress.md` updated as tasks complete.
-4. When ALL milestones and tests pass and changes are committed, send a completion claim to Sentinel (parent agent).
+Integrity mode: development

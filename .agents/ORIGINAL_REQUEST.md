@@ -1,8 +1,8 @@
 # Original User Request
 
-## Initial Request — 2026-08-08T09:54:58Z
+## Initial Request — 2026-08-08T03:48:49Z
 
-Refactor the admin system of the `cloudflare-ecommerce` monorepo — a production Cloudflare Workers + Vite/React e-commerce admin panel. The goal is to fix all known bugs, structural issues, and code quality problems in the admin pipeline (admin-api backend + admin-ui frontend), producing clean TypeScript code that passes build and lint checks.
+Refactor the catalog + product system of the `cloudflare-ecommerce` monorepo — a production Cloudflare Workers + Next.js e-commerce platform. Fix ALL known bugs, type mismatches, security vulnerabilities, and structural problems found in the research audit. Produce clean TypeScript code that passes build and lint checks.
 
 Working directory: D:\myproject\cloudflare-ecommerce
 
@@ -10,225 +10,210 @@ Integrity mode: development
 
 ---
 
-## Context
+## Context — System Overview
 
-The admin system spans 2 apps:
-- `apps/admin-api/` — Hono.js on Cloudflare Workers (admin REST API)
-- `apps/admin-ui/` — Vite + React SPA (admin dashboard)
-
-### admin-api key files:
-- `src/index.ts` — Main Hono app, CORS, auth middleware, route mounting
-- `src/middleware/auth.ts` — CF Zero Trust JWT verification + RBAC `requireRole`
-- `src/middleware/audit.ts` — Audit trail middleware (if exists)
-- `src/routes/orders.ts` — 400-line orders CRUD + fulfill/refund/approve/cancel
-- `src/routes/products.ts` — 366-line products CRUD with image upload, variants
-- `src/routes/customers.ts` — 216-line customers CRUD
-- `src/routes/coupons.ts` — 201-line coupons CRUD with `mapPromotionToCoupon` data adapter
-- `src/routes/landing-pages.ts` — LP CRUD (already refactored)
-- `src/routes/checkout.ts` — 163-line admin POS order creation
-- `src/routes/adminUsers.ts` — 85-line admin users CRUD
-- `src/routes/categories.ts` — Categories CRUD
-- `src/routes/cms.ts` — CMS CRUD
-- `src/routes/settings.ts` — Settings CRUD
-- `src/routes/metrics.ts` — Dashboard metrics
-- `src/types.ts` — Bindings type
-
-### admin-ui key files:
-- `src/App.tsx` — 233-line root component: auth flow, routing, lazy tab loading
-- `src/App.css` — 1312-line stylesheet with CSS custom properties
-- `src/types.ts` — 126-line type definitions (ProductData, OrderData, CustomerData, etc.)
-- `src/tabs/` — OverviewTab, OrdersTab, ProductsTab, CategoriesTab, CustomersTab, CmsTab, TeamTab, SettingsTab, PromotionsTab, LandingPagesTab, LandingLeadsTab
-- `src/components/Sidebar.tsx` — Navigation sidebar
-- `src/components/OrderDetailModal.tsx` — 10707-byte order detail modal
-- `src/components/RefundModal.tsx` — Refund flow modal
-- `src/components/ui/` — GlassCard, SkeletonLoader, Pagination, ConfirmDialog
-- `src/lib/apiFetch.ts` — Authenticated fetch wrapper
-- `src/lib/useEscapeKey.ts` — Escape key hook
+The catalog/product system spans 5 packages/apps:
+- `apps/public-api/src/routes/catalog.ts` — Public catalog API (GET list, GET /:slug, GET /search)
+- `apps/admin-api/src/routes/products.ts` — Admin product CRUD (GET list, POST create, PUT update, DELETE soft-delete)
+- `apps/admin-api/src/routes/categories.ts` — Admin category CRUD
+- `apps/storefront-ui/src/app/page.tsx` — Homepage with product grid
+- `apps/storefront-ui/src/app/product/[slug]/page.tsx` — Product detail page
+- `apps/admin-ui/src/tabs/ProductsTab.tsx` — Admin product list + edit form
+- `apps/admin-ui/src/tabs/CategoriesTab.tsx` — Admin category management
+- `packages/core-services/src/catalog.service.ts` — Business logic for catalog queries
+- `packages/core-services/src/product.service.ts` — Product upsert batch query builder
+- `packages/core-services/src/category.service.ts` — Category cycle detection helper
+- `packages/contract/src/admin.ts` — Zod schemas for product/category forms
+- `packages/database/src/schema.ts` — Drizzle ORM schema
 
 ---
 
-## Known Issues Found During Research
+## Critical Issues Found (Research Audit)
 
-### Issue 1 — admin-api: Inconsistent error handling pattern across routes
-Most routes catch errors and return `{ success: false, error: err.message }` but some routes expose raw DB error messages that may leak schema details. Some routes (e.g., `products.ts`) don't use `requireRole` on the list/get endpoints but do use it on write endpoints — inconsistency in who can read vs write.
+### ISSUE 1 — Product type 'configurable' vs 'variable' MISMATCH [CRITICAL]
+- Backend DB + contract stores `type = 'configurable'`
+- Storefront `page.tsx:L47` checks `product.type === 'variable'` → ALL configurable products render as simple products, breaking variant selection, swatch rendering, price ranges, and "Select Options" buttons
+- **Fix**: Update `apps/storefront-ui/src/app/page.tsx` and `apps/storefront-ui/src/app/product/[slug]/page.tsx` to check for `'configurable'` instead of `'variable'` (or both).
 
-### Issue 2 — admin-api/routes/orders.ts: Landing leads route misplaced
-`GET /landing-leads` is defined in `orders.ts` (lines 289-330) even though leads belong to the landing pages domain. This violates single responsibility. The route should either be in its own file `landing-leads.ts` or in `landing-pages.ts`.
+### ISSUE 2 — Sale price NEVER returned in catalog API [CRITICAL]
+- `price_list_items` table stores both base and sale prices but `CatalogService.getCatalogList` only fetches regular price
+- `sale_price` is always `null` in API responses → sale badges, discounted prices never show on storefront
+- **Fix**: Update `catalog.service.ts` `getCatalogList`, `getCatalogItem` SQL to also fetch sale price from `price_list_items` where `price_list_id` is the sale list.
 
-### Issue 3 — admin-api/routes/checkout.ts: Hardcoded shipping fee
-Line 104: `const shippingFeeCents = 999;` — hardcoded magic number with no constant, no comment, and no connection to the settings system used elsewhere. This is an admin POS checkout route that ignores address-based shipping zones.
+### ISSUE 3 — Inconsistent price schema between browse and search [HIGH]
+- `/api/products` list returns: `{ regular_price, sale_price, price_range: { min_amount, max_amount } }`
+- `/api/products/search` returns: `{ base_price_cents, sale_price_cents, currency: 'USD' }`
+- **Fix**: Normalize `searchCatalog` in `catalog.service.ts` to return the same `{ regular_price, sale_price }` shape as the list.
 
-### Issue 4 — admin-api/routes/coupons.ts: `mapPromotionToCoupon` data adapter is a code smell
-The `mapPromotionToCoupon` function (lines 15-29) duplicates field names (e.g., `expires_at: promo.expires_at ?? promo.ends_at, ends_at: promo.expires_at ?? promo.ends_at`) and exists only because the DB schema (promotions table) uses different field names (`ends_at`, `usage_limit`, `times_used`) than the frontend expects (`expires_at`, `max_uses`, `uses`). The adapter makes both field names exist simultaneously which is confusing. The fix should be to either:
-  a) Make the API always return the canonical field names from the `promotions` table
-  b) Create a proper typed DTO type instead of spreading both names
+### ISSUE 4 — SECURITY: Admin search endpoints have NO auth middleware [HIGH]
+- `GET /products/search-sku` (line 96) and `GET /products/search` (line 124) in `admin-api/routes/products.ts` lack `requireRole` middleware
+- Any unauthenticated user can read internal SKUs, prices, stock levels
+- **Fix**: Add `requireRole(['superadmin', 'manager', 'editor'])` to both routes.
 
-### Issue 5 — admin-ui/App.tsx: RBAC route guard is fragile and incomplete
-Lines 143-148 in `App.tsx`:
-```tsx
-if (user?.role === 'editor' && !['/cms', '/categories'].includes(location.pathname)) {
-  return <Navigate to="/cms" replace />;
-}
-if (user?.role === 'support' && !['/orders', '/customers'].includes(location.pathname)) {
-  return <Navigate to="/orders" replace />;
-}
-```
-This RBAC logic:
-1. Is outside the router — it fires on every render, not just navigation
-2. Uses string path comparison instead of a proper route allowlist config
-3. Missing the `manager` role constraints (manager should access everything except `/team` and `/settings`)
-4. Missing the `landing_page_admin` or any custom role handling
-5. The `/landing-leads` and `/landing-pages` paths are not in the allowlist for `editor`
+### ISSUE 5 — Empty `inArray` D1 SQL crash in ProductService [HIGH]
+- `product.service.ts:L189`: `inArray(schema.assets.r2_key, params.imageUrls)` generates invalid SQL `IN ()` when `imageUrls` is empty `[]`
+- Any create/update WITHOUT new image uploads throws a DB syntax error
+- **Fix**: Guard with `if (params.imageUrls && params.imageUrls.length > 0)` before the inArray query.
 
-### Issue 6 — admin-ui/App.tsx: Route animation boilerplate duplicated 11 times
-Every `<Route>` element in `App.tsx` (lines 161-220) wraps its element in an identical `<motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>` wrapper. This is 40 lines of identical boilerplate that should be extracted into a helper component `<PageTransition>` or `<AnimatedRoute>`.
+### ISSUE 6 — Cascading soft-delete missing for variations [HIGH]
+- `DELETE /products/:id` soft-deletes the parent row but leaves child `products` rows (variations) with `deleted_at = NULL`
+- Variations remain queryable, appear in stock checks, and break the admin list
+- **Fix**: Add `UPDATE products SET deleted_at = CURRENT_TIMESTAMP WHERE parent_id = :id` after soft-deleting the parent.
 
-### Issue 7 — admin-ui/types.ts: `OrderData` type has stale/incorrect fields
-`OrderData.status` type (line 91) lists `'pending_payment' | 'processing' | 'completed' | 'cancelled' | 'refunded' | 'failed'` but the actual order status state machine now includes `'confirmed'`, `'pending'`, `'shipped'` (used in the landing page COD flow from `orders.ts` lines 312-315 and 352). The type is out of sync with the DB.
+### ISSUE 7 — Price subqueries lack `price_list_id` filter [MEDIUM]
+- In `admin-api/routes/products.ts` at L45, L107, L135: raw subquery `SELECT price FROM price_list_items pli WHERE pli.product_id = p.id LIMIT 1` returns arbitrary prices when multiple price lists exist (no `price_list_id` condition)
+- Same issue in `catalog.service.ts` at L21, L43, L68, L111, L128, L163
+- **Fix**: Add `AND pli.price_list_id = (SELECT id FROM price_lists WHERE type = 'base' LIMIT 1)` to all price subqueries.
 
-### Issue 8 — admin-ui/OverviewTab.tsx: Currency formatting is USD, not VNĐ
-Line 35: `new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount / 100)` — The business operates in VNĐ. This should use VNĐ formatting consistent with the rest of the storefront.
+### ISSUE 8 — `Math.min/max` Infinity bug in ProductService [MEDIUM]
+- `product.service.ts:L14-L15`: `Math.min(...amounts)` returns `Infinity` / `-Infinity` if a variable product has no valid variation prices
+- These corrupt the JSON price_range output
+- **Fix**: Guard with `amounts.length > 0` check before calling Math.min/max.
 
-### Issue 9 — admin-api/routes/orders.ts: Missing `requireRole` on GET /orders and GET /orders/:id
-`orders.get('/orders', ...)` (line 13) and `orders.get('/orders/:id', ...)` (line 34) have NO `requireRole` middleware. Any authenticated admin user (even `editor` role) can read orders, which may not be intended. Compare with the POST/refund/fulfill routes that do use `requireRole(['superadmin', 'manager', 'support'])`.
+### ISSUE 9 — Admin UI ProductsTab edit form breaks for page 2+ [MEDIUM]
+- `ProductsTab.tsx:L48`: `products.find(p => p.id === id)` only searches the currently loaded 50-item page
+- Products on page 2+ cannot be edited via URL or after pagination
+- **Fix**: When `id` param is present, fetch product details directly from `/products/:id` API instead of searching local list.
 
-### Issue 10 — admin-api/routes/products.ts: Product DELETE endpoint is missing
-The products route has GET (list), GET (search), POST (create), PUT (update) — but NO DELETE endpoint. There's no way to delete a product from the admin API. The products table has a `deleted_at` column for soft-deletes.
+### ISSUE 10 — Route shadowing: `GET /search` can match `GET /:slug` [MEDIUM]
+- In `catalog.ts`, `GET /search` is declared at L40 and `GET /:slug` at L69
+- If a product slug is `"search"`, route execution may be ambiguous depending on Hono router order
+- **Fix**: Ensure `GET /search` is registered BEFORE `GET /:slug` in `catalog.ts` (verify and comment this ordering). Hono routes process in declaration order so declaration order matters.
 
----
+### ISSUE 11 — Weak slug generation in categories.ts [LOW]
+- `body.name.toLowerCase().replace(/\s+/g, '-')` leaves special characters unescaped
+- **Fix**: Add a proper slug sanitizer that removes non-alphanumeric characters.
 
-## Requirements
+### ISSUE 12 — Dead code: `formatForStorefront` in product.service.ts [LOW]
+- `product.service.ts:L35-L70`: `formatForStorefront` method declared but never called
+- **Fix**: Remove dead method with a comment explaining it was removed.
 
-### R1. Extract `GET /landing-leads` from orders.ts to its own route file
-Create `apps/admin-api/src/routes/landingLeads.ts` with the landing leads route (moved from `orders.ts` lines 289-330). Mount it in `index.ts` as `app.route('/', landingLeadsRoutes)`. Remove it from `orders.ts`.
+### ISSUE 13 — Category delete doesn't clean collection_products [LOW]
+- `categories.ts:L109-L110`: Deletion clears `parent_id` and `primary_category_id` but doesn't delete rows in `collection_products` mapping table
+- **Fix**: Add `DELETE FROM collection_products WHERE collection_id = :id` before deleting the category.
 
-### R2. Add `requireRole` to GET /orders and GET /orders/:id
-Add `requireRole(['superadmin', 'manager', 'support'])` middleware to both read-only order endpoints in `orders.ts`.
-
-### R3. Add product soft-delete endpoint
-Add `DELETE /products/:id` in `products.ts` that soft-deletes by setting `deleted_at = CURRENT_TIMESTAMP`. Only `superadmin` and `manager` can delete.
-
-### R4. Fix `mapPromotionToCoupon` in coupons.ts — use canonical field names
-Refactor to return only the canonical DB field names (`ends_at`, `usage_limit`, `times_used`) rather than duplicating aliases. Create a `CouponDTO` TypeScript type. Update callers in `admin-ui` if they rely on the alias names (`expires_at`, `max_uses`, `uses`).
-
-### R5. Fix RBAC route guard in App.tsx
-Extract a `ROLE_ROUTES` config object:
-```ts
-const ROLE_ROUTES: Record<string, string[]> = {
-  editor: ['/cms', '/categories', '/landing-pages', '/landing-leads'],
-  support: ['/orders', '/customers', '/landing-leads'],
-  manager: ['/overview', '/orders', '/products', '/categories', '/customers', '/cms', '/promotions', '/landing-pages', '/landing-leads'],
-};
-```
-Use this config in a proper `<ProtectedRoute>` wrapper component instead of the fragile inline if-statements. `superadmin` has access to all routes.
-
-### R6. Extract `<PageTransition>` component
-Create `apps/admin-ui/src/components/PageTransition.tsx` that wraps children in the motion.div animation. Replace the 11 duplicated route wrappers in `App.tsx` with `<PageTransition>`. This reduces App.tsx by ~40 lines.
-
-### R7. Fix `OrderData` status type
-In `apps/admin-ui/src/types.ts`, update `OrderData.status` to:
-```ts
-status: 'pending' | 'pending_payment' | 'confirmed' | 'processing' | 'shipped' | 'completed' | 'cancelled' | 'refunded' | 'failed';
-```
-
-### R8. Fix currency formatting in OverviewTab.tsx
-Replace the USD formatter with VNĐ:
-```ts
-const formatCurrency = (amount: number | string) => {
-  const n = typeof amount === 'string' ? parseFloat(amount) : amount;
-  // Amounts are stored as minor units (VNĐ × 100), divide by 100 to get display VNĐ
-  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(n / 100);
-};
-```
-Also add a comment explaining the minor unit convention.
-
-### R9. Document magic shipping fee constant in admin checkout.ts
-Add inline constant and comment:
-```ts
-// Flat shipping fee for admin POS orders (VNĐ minor units, zone-agnostic).
-// TODO: Replace with address-based zone lookup from the public-api shipping-estimate endpoint.
-const ADMIN_FLAT_SHIPPING_FEE_VND_CENTS = 999;
-```
-
-### R10. Build + Lint + Test pass
-After all changes:
-- `pnpm --filter @ecommerce/admin-ui build` → exit 0
-- `pnpm --filter @ecommerce/admin-api lint` → 0 errors
-- All pre-existing tests pass: `pnpm --filter @ecommerce/admin-api test`
+### ISSUE 14 — JSON-LD price and availability bugs on product page [LOW]
+- `[slug]/page.tsx:L67`: JSON-LD price always `0` for variable products because `regular_price` is `null` on parent
+- `[slug]/page.tsx:L69`: JSON-LD availability says `OutOfStock` for variable products (stock on child rows)
+- **Fix**: Use `price_range.min_amount` as fallback for JSON-LD price; for availability use total variation stock.
 
 ---
 
 ## Sub-Tasks (auto-created)
 
 ### Task 1 — Research Phase
-Read ALL the following files thoroughly before writing any code:
-- `apps/admin-api/src/index.ts`
-- `apps/admin-api/src/middleware/auth.ts`
-- `apps/admin-api/src/routes/orders.ts` (full 400 lines)
-- `apps/admin-api/src/routes/products.ts` (full 366 lines)
-- `apps/admin-api/src/routes/customers.ts`
-- `apps/admin-api/src/routes/coupons.ts` (full)
-- `apps/admin-api/src/routes/checkout.ts`
-- `apps/admin-api/src/routes/adminUsers.ts`
-- `apps/admin-ui/src/App.tsx` (full 233 lines)
-- `apps/admin-ui/src/types.ts` (full 126 lines)
-- `apps/admin-ui/src/tabs/OverviewTab.tsx`
-- `apps/admin-ui/src/tabs/PromotionsTab.tsx` (to understand coupon field usage)
-- `apps/admin-ui/src/lib/apiFetch.ts`
-Also scan `apps/admin-api/src/routes/__tests__/` directory for existing test patterns.
+Read ALL files listed in the Context section above in full before writing any code. Confirm all issues above exist and find any additional ones.
 
-### Task 2 — R1: Extract landing-leads route
-Create `landingLeads.ts`, mount in `index.ts`, remove from `orders.ts`.
+### Task 2 — Fix catalog.service.ts (Issues 2, 3, 7)
+- Add sale price to `getCatalogList` and `getCatalogItem` queries
+- Filter price subqueries with `price_list_id` condition for base vs sale lists
+- Normalize `searchCatalog` return shape to match list/item
 
-### Task 3 — R2 + R9: RBAC fixes in admin-api
-Add `requireRole` to GET /orders endpoints. Document shipping constant in checkout.ts.
+### Task 3 — Fix product.service.ts (Issues 5, 8, 12)
+- Guard `inArray` with empty array check
+- Guard `Math.min/max` with empty array check 
+- Remove dead `formatForStorefront` method
 
-### Task 4 — R3: Add product DELETE endpoint
-Add soft-delete endpoint to `products.ts`.
+### Task 4 — Fix admin-api/routes/products.ts (Issues 4, 6, 7)
+- Add `requireRole` to search endpoints
+- Cascade soft-delete to child variations
+- Fix price subquery to include `price_list_id` filter
 
-### Task 5 — R4: Fix mapPromotionToCoupon
-Refactor to canonical field names, create `CouponDTO` type, check admin-ui callers.
+### Task 5 — Fix admin-api/routes/categories.ts (Issues 11, 13)
+- Improve slug sanitization
+- Delete `collection_products` rows when a category is deleted
 
-### Task 6 — R5 + R6: RBAC guard + PageTransition in admin-ui
-Extract `ROLE_ROUTES` config and `ProtectedRoute` component. Create `PageTransition.tsx`. Update `App.tsx`.
+### Task 6 — Fix storefront-ui type checks (Issues 1, 10, 14)
+- Replace `'variable'` with `'configurable'` in all storefront type checks
+- Fix JSON-LD price and availability on product detail page
+- Verify route ordering in catalog.ts (search before :slug)
 
-### Task 7 — R7 + R8: Fix types + currency in admin-ui
-Fix `OrderData.status` union type. Fix VNĐ currency formatting in OverviewTab.
+### Task 7 — Fix admin-ui/ProductsTab.tsx (Issue 9)
+- When `id` param present, fetch directly from `/products/:id`
 
-### Task 8 — R10: Build, Lint, Test, Debug
-Run all checks. Fix any TypeScript or ESLint errors. Iterate until all pass.
+### Task 8 — Build + Lint + Test
+- `pnpm --filter @ecommerce/storefront-ui build` → exit 0
+- `pnpm --filter @ecommerce/public-api lint` → 0 errors
+- `pnpm --filter @ecommerce/admin-api lint` → 0 errors
+- `pnpm --filter @ecommerce/core-services test` → all pass
+- Fix any errors found
 
 ### Task 9 — Git Commit & Push
-After all checks pass:
 ```
 git add .
-git commit -m "refactor(admin): route extraction, RBAC guard, soft-delete, VND currency, type fixes"
+git commit -m "refactor(catalog): fix type mismatch, sale prices, auth, cascade delete, price queries"
 git push
 ```
 
 ---
 
+## Requirements
+
+### R1. Product type consistency
+- All storefront UI checks use `'configurable'` (NOT `'variable'`)
+- Contract schema `productFormSchema` type enum is unchanged (`['simple', 'configurable', 'virtual']`)
+
+### R2. Sale prices working in catalog API
+- `getCatalogList` and `getCatalogItem` in `catalog.service.ts` return non-null `sale_price` when a sale price exists in `price_list_items`
+- Sale badge shows on storefront homepage for products with `sale_price < regular_price`
+
+### R3. Unified price schema
+- `searchCatalog` returns `{ regular_price, sale_price }` matching the list/item shape
+
+### R4. Admin search routes secured
+- `GET /products/search-sku` requires `requireRole(['superadmin', 'manager', 'editor'])`
+- `GET /products/search` requires `requireRole(['superadmin', 'manager', 'editor'])`
+
+### R5. Empty imageUrls crash fixed
+- `product.service.ts` guards `inArray` with `params.imageUrls.length > 0` check
+- Creating/updating products without image uploads no longer throws DB errors
+
+### R6. Cascading soft-delete
+- `DELETE /products/:id` also soft-deletes all child variations (rows with `parent_id = :id`)
+
+### R7. Build + Lint + Tests pass
+- `pnpm --filter @ecommerce/storefront-ui build` exits 0
+- `pnpm --filter @ecommerce/admin-api lint` exits 0 errors
+- `pnpm --filter @ecommerce/public-api lint` exits 0 errors
+- `pnpm --filter @ecommerce/core-services test` all pass
+
+### R8. Final commit pushed
+- Commit message: `refactor(catalog): fix type mismatch, sale prices, auth, cascade delete, price queries`
+
+---
+
 ## Acceptance Criteria
 
-### admin-api
-- [ ] `GET /landing-leads` is defined in `routes/landingLeads.ts`, NOT in `orders.ts`
-- [ ] `GET /orders` and `GET /orders/:id` have `requireRole(['superadmin', 'manager', 'support'])` middleware
-- [ ] `DELETE /products/:id` exists and performs soft-delete (`deleted_at = CURRENT_TIMESTAMP`), requires `superadmin` or `manager`
-- [ ] `mapPromotionToCoupon` is removed or replaced with a typed `CouponDTO` that uses canonical field names
-- [ ] Admin checkout.ts has a named constant for the shipping fee with an explanatory comment
+### Storefront
+- [ ] `product.type === 'configurable'` check is used (not `'variable'`) in `page.tsx` and `[slug]/page.tsx`
+- [ ] `sale_price` is non-null in catalog API response when a sale price exists
+- [ ] `isOnSale` badge logic works correctly on homepage product grid
+- [ ] JSON-LD on product detail page uses `price_range.min_amount` as price fallback
 
-### admin-ui
-- [ ] `ROLE_ROUTES` config object exists mapping roles to allowed paths
-- [ ] Route guard uses `ROLE_ROUTES` config, not hardcoded path strings in if-statements
-- [ ] `PageTransition.tsx` component exists and is used in all 11 routes in `App.tsx`
-- [ ] `OrderData.status` includes `'pending'`, `'confirmed'`, `'shipped'`
-- [ ] `OverviewTab.tsx` `formatCurrency` uses VNĐ locale with a comment explaining `/100` minor unit conversion
-- [ ] `App.tsx` is shorter (by at least 30 lines) after refactoring
+### Backend API
+- [ ] `GET /products/search-sku` returns 403 without auth token
+- [ ] `GET /products/search` returns 403 without auth token
+- [ ] `DELETE /products/:id` also sets `deleted_at` on all child variation rows
+- [ ] Price subqueries in `getCatalogList`, `getCatalogItem` include `price_list_id` filter
+- [ ] `searchCatalog` returns same price field shape as `getCatalogList`
+
+### Core Services
+- [ ] `inArray(schema.assets.r2_key, imageUrls)` is never called with empty array
+- [ ] `Math.min/max` price calculations guard against empty `amounts` array
+- [ ] `formatForStorefront` dead code is removed
+
+### Admin
+- [ ] Category delete removes rows from `collection_products` mapping table
+- [ ] Category slug sanitization removes special characters
+
+### Admin UI
+- [ ] `ProductsTab` fetches product data from `/products/:id` when editing a product by URL id param (not just from local page cache)
 
 ### Build & Lint
-- [ ] `pnpm --filter @ecommerce/admin-ui build` exits 0
+- [ ] `pnpm --filter @ecommerce/storefront-ui build` exits 0
 - [ ] `pnpm --filter @ecommerce/admin-api lint` exits 0 errors
+- [ ] `pnpm --filter @ecommerce/public-api lint` exits 0 errors
 - [ ] All pre-existing tests pass
 
-### Final Commit
-- [ ] All changes committed and pushed: `refactor(admin): route extraction, RBAC guard, soft-delete, VND currency, type fixes`
+### Git
+- [ ] Commit `refactor(catalog): fix type mismatch, sale prices, auth, cascade delete, price queries` pushed to origin/main

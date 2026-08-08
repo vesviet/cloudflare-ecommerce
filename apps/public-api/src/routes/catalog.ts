@@ -37,6 +37,9 @@ catalog.get('/', async (c) => {
   }
 });
 
+// ROUTE ORDER SAFETY: Hono matches routes in declaration order.
+// GET /search MUST be registered BEFORE GET /:slug to prevent requests to /search
+// from being shadowed or interpreted as a product slug query (slug="search").
 catalog.get('/search', async (c) => {
   try {
     const q = c.req.query('q');
@@ -66,6 +69,7 @@ catalog.get('/search', async (c) => {
   }
 });
 
+// Parameterized slug route - MUST be declared AFTER specific routes like /search to avoid shadowing.
 catalog.get('/:slug', async (c) => {
   try {
     const slug = c.req.param('slug');

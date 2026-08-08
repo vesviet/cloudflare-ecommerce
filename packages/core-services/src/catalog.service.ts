@@ -18,7 +18,8 @@ export class CatalogService {
         )
         SELECT DISTINCT 
           p.*,
-          (SELECT price FROM price_list_items pli WHERE pli.product_id = p.id LIMIT 1) as regular_price,
+          (SELECT price FROM price_list_items pli WHERE pli.product_id = p.id AND pli.price_list_id = (SELECT id FROM price_lists WHERE type = 'base' LIMIT 1) LIMIT 1) as regular_price,
+          (SELECT price FROM price_list_items pli WHERE pli.product_id = p.id AND pli.price_list_id = (SELECT id FROM price_lists WHERE type = 'sale' LIMIT 1) LIMIT 1) as sale_price,
           (SELECT coalesce(sum(stock_quantity), 0) FROM inventory_levels il WHERE il.product_id = p.id) as stock_quantity,
           (
             SELECT json_group_array(json_object('url', a.url, 'alt_text', a.alt_text))
@@ -40,7 +41,8 @@ export class CatalogService {
       query = sql`
         SELECT 
           p.*,
-          (SELECT price FROM price_list_items pli WHERE pli.product_id = p.id LIMIT 1) as regular_price,
+          (SELECT price FROM price_list_items pli WHERE pli.product_id = p.id AND pli.price_list_id = (SELECT id FROM price_lists WHERE type = 'base' LIMIT 1) LIMIT 1) as regular_price,
+          (SELECT price FROM price_list_items pli WHERE pli.product_id = p.id AND pli.price_list_id = (SELECT id FROM price_lists WHERE type = 'sale' LIMIT 1) LIMIT 1) as sale_price,
           (SELECT coalesce(sum(stock_quantity), 0) FROM inventory_levels il WHERE il.product_id = p.id) as stock_quantity,
           (
             SELECT json_group_array(json_object('url', a.url, 'alt_text', a.alt_text))
@@ -65,7 +67,8 @@ export class CatalogService {
       allVariations = await db.all(sql`
         SELECT 
           v.*,
-          (SELECT price FROM price_list_items pli WHERE pli.product_id = v.id LIMIT 1) as regular_price,
+          (SELECT price FROM price_list_items pli WHERE pli.product_id = v.id AND pli.price_list_id = (SELECT id FROM price_lists WHERE type = 'base' LIMIT 1) LIMIT 1) as regular_price,
+          (SELECT price FROM price_list_items pli WHERE pli.product_id = v.id AND pli.price_list_id = (SELECT id FROM price_lists WHERE type = 'sale' LIMIT 1) LIMIT 1) as sale_price,
           (SELECT coalesce(sum(stock_quantity), 0) FROM inventory_levels il WHERE il.product_id = v.id) as stock_quantity
         FROM products v
         WHERE v.parent_id IN (${sql.join(idChunks, sql`, `)})
@@ -108,7 +111,8 @@ export class CatalogService {
     const product = await db.get(sql`
       SELECT 
         p.*,
-        (SELECT price FROM price_list_items pli WHERE pli.product_id = p.id LIMIT 1) as regular_price,
+        (SELECT price FROM price_list_items pli WHERE pli.product_id = p.id AND pli.price_list_id = (SELECT id FROM price_lists WHERE type = 'base' LIMIT 1) LIMIT 1) as regular_price,
+        (SELECT price FROM price_list_items pli WHERE pli.product_id = p.id AND pli.price_list_id = (SELECT id FROM price_lists WHERE type = 'sale' LIMIT 1) LIMIT 1) as sale_price,
         (SELECT coalesce(sum(stock_quantity), 0) FROM inventory_levels il WHERE il.product_id = p.id) as stock_quantity,
         (
           SELECT json_group_array(json_object('url', a.url, 'alt_text', a.alt_text))
@@ -126,7 +130,8 @@ export class CatalogService {
     const variations = (await db.all(sql`
       SELECT 
         v.*,
-        (SELECT price FROM price_list_items pli WHERE pli.product_id = v.id LIMIT 1) as regular_price,
+        (SELECT price FROM price_list_items pli WHERE pli.product_id = v.id AND pli.price_list_id = (SELECT id FROM price_lists WHERE type = 'base' LIMIT 1) LIMIT 1) as regular_price,
+        (SELECT price FROM price_list_items pli WHERE pli.product_id = v.id AND pli.price_list_id = (SELECT id FROM price_lists WHERE type = 'sale' LIMIT 1) LIMIT 1) as sale_price,
         (SELECT coalesce(sum(stock_quantity), 0) FROM inventory_levels il WHERE il.product_id = v.id) as stock_quantity
       FROM products v
       WHERE v.parent_id = ${product.id} AND v.deleted_at IS NULL
@@ -160,7 +165,8 @@ export class CatalogService {
     const productRows = await db.all(sql`
       SELECT 
         p.*,
-        (SELECT price FROM price_list_items pli WHERE pli.product_id = p.id LIMIT 1) as regular_price,
+        (SELECT price FROM price_list_items pli WHERE pli.product_id = p.id AND pli.price_list_id = (SELECT id FROM price_lists WHERE type = 'base' LIMIT 1) LIMIT 1) as regular_price,
+        (SELECT price FROM price_list_items pli WHERE pli.product_id = p.id AND pli.price_list_id = (SELECT id FROM price_lists WHERE type = 'sale' LIMIT 1) LIMIT 1) as sale_price,
         (SELECT coalesce(sum(stock_quantity), 0) FROM inventory_levels il WHERE il.product_id = p.id) as stock_quantity,
         (
           SELECT json_group_array(json_object('url', a.url, 'alt_text', a.alt_text))
@@ -187,11 +193,7 @@ export class CatalogService {
         name: product.title,
         images,
         variations: [], // Search usually returns simple product list, avoid deep variations for performance
-        prices: {
-          base_price_cents: product.regular_price || 0,
-          sale_price_cents: product.regular_price || 0,
-          currency: 'USD'
-        },
+        prices: ProductService.buildPrices(product, []),
       }
     });
   }

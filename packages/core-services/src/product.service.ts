@@ -6,68 +6,36 @@ export class ProductService {
    * Helper: build a normalised `prices` object for any product row + its variations.
    */
   static buildPrices(product: any, variations: any[]) {
-    // This assumes variation prices and stock are now pulled from price_list_items and inventory_levels
-    if (product.type === 'variable' && variations.length > 0) {
-      const purchasable = variations.filter((v: any) => v.is_purchasable === 1)
-      const prices = purchasable.length > 0 ? purchasable : variations
-      const amounts = prices.map((v: any) => v.sale_price ?? v.regular_price)
-      const min = Math.min(...amounts)
-      const max = Math.max(...amounts)
-      return {
-        regular_price: null,
-        sale_price: null,
-        price_range: {
-          min_amount: String(min),
-          max_amount: String(max),
-        },
+    // Handle both configurable and variable product types with variations
+    if ((product.type === 'configurable' || product.type === 'variable') && variations.length > 0) {
+      const purchasable = variations.filter((v: any) => v.is_purchasable === 1);
+      const prices = purchasable.length > 0 ? purchasable : variations;
+      const amounts = prices
+        .map((v: any) => v.sale_price ?? v.regular_price)
+        .filter((a: any) => a != null && !isNaN(Number(a)))
+        .map(Number);
+
+      if (amounts.length > 0) {
+        const min = Math.min(...amounts);
+        const max = Math.max(...amounts);
+        return {
+          regular_price: null,
+          sale_price: null,
+          price_range: {
+            min_amount: String(min),
+            max_amount: String(max),
+          },
+        };
       }
     }
     return {
       regular_price: product.regular_price != null ? String(product.regular_price) : null,
       sale_price: product.sale_price != null ? String(product.sale_price) : null,
       price_range: null,
-    }
+    };
   }
 
-  /**
-   * Format products for Storefront API (WooCommerce format)
-   */
-  static formatForStorefront(products: any[], variationsByProductId: Record<string, any[]>) {
-    return products.map((row: any) => {
-      const validVars = variationsByProductId[row.id] || [];
-      const minPrice = validVars.length > 0 ? Math.min(...validVars.map((v: any) => v.sale_price || v.regular_price || 0)) : row.sale_price || row.regular_price;
-      const maxPrice = validVars.length > 0 ? Math.max(...validVars.map((v: any) => v.regular_price || 0)) : row.regular_price;
-
-      return {
-        id: row.id,
-        name: row.title,
-        slug: row.slug,
-        type: row.type,
-        description: row.description,
-        images: row.assets || [],
-        is_purchasable: !!row.is_purchasable,
-        in_stock: (row.stock_quantity || 0) > 0,
-        prices: {
-          currency_code: 'USD',
-          currency_symbol: '$',
-          currency_minor_unit: 2,
-          currency_decimal_separator: '.',
-          currency_thousand_separator: ',',
-          currency_prefix: '$',
-          currency_suffix: '',
-          price: (row.sale_price || row.regular_price || 0).toString(),
-          regular_price: (row.regular_price || 0).toString(),
-          sale_price: row.sale_price ? row.sale_price.toString() : row.regular_price?.toString(),
-          price_range: (row.type === 'variable' || row.type === 'configurable') && validVars.length > 0 ? {
-            min_amount: minPrice.toString(),
-            max_amount: maxPrice.toString(),
-          } : null,
-        },
-        attributes: row.attributes_json ? JSON.parse(row.attributes_json) : [],
-        variations: validVars,
-      };
-    });
-  }
+  // Removed formatForStorefront: legacy WooCommerce formatting method replaced by buildPrices and standardized Catalog API shape.
 
   /**
    * Generates Drizzle queries to upsert product and its variations.
@@ -176,47 +144,49 @@ export class ProductService {
     }
 
     // Handle images / assets
-    if (params.imageUrls && params.imageUrls.length > 0) {
+    if (params.imageUrls) {
       if (isUpdate) {
         batchQueries.push(
           db.delete(schema.productAssets).where(eq(schema.productAssets.product_id, productId))
         );
       }
 
-      const assetIdMap: Record<string, string> = {};
-      const existingAssets = await db.select({ id: schema.assets.id, r2_key: schema.assets.r2_key })
-        .from(schema.assets)
-        .where(inArray(schema.assets.r2_key, params.imageUrls));
-        
-      existingAssets.forEach((a: any) => { assetIdMap[a.r2_key] = a.id; });
+      if (params.imageUrls.length > 0) {
+        const assetIdMap: Record<string, string> = {};
+        const existingAssets = await db.select({ id: schema.assets.id, r2_key: schema.assets.r2_key })
+          .from(schema.assets)
+          .where(inArray(schema.assets.r2_key, params.imageUrls));
+          
+        existingAssets.forEach((a: any) => { assetIdMap[a.r2_key] = a.id; });
 
-      for (let i = 0; i < params.imageUrls.length; i++) {
-        const url = params.imageUrls[i];
-        let assetId = assetIdMap[url];
+        for (let i = 0; i < params.imageUrls.length; i++) {
+          const url = params.imageUrls[i];
+          let assetId = assetIdMap[url];
 
-        if (!assetId) {
-          assetId = crypto.randomUUID();
-          assetIdMap[url] = assetId;
-          // Insert asset
+          if (!assetId) {
+            assetId = crypto.randomUUID();
+            assetIdMap[url] = assetId;
+            // Insert asset
+            batchQueries.push(
+              db.insert(schema.assets).values({
+                id: assetId,
+                r2_key: url,
+                url: url,
+                alt_text: params.name || 'Product Image'
+              })
+            );
+          }
+          
+          // Link asset to product
           batchQueries.push(
-            db.insert(schema.assets).values({
-              id: assetId,
-              r2_key: url,
-              url: url,
-              alt_text: params.name || 'Product Image'
+            db.insert(schema.productAssets).values({
+              id: crypto.randomUUID(),
+              product_id: productId,
+              asset_id: assetId,
+              position: i
             })
           );
         }
-        
-        // Link asset to product
-        batchQueries.push(
-          db.insert(schema.productAssets).values({
-            id: crypto.randomUUID(),
-            product_id: productId,
-            asset_id: assetId,
-            position: i
-          })
-        );
       }
     }
 
