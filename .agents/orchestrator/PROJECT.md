@@ -1,48 +1,32 @@
-# Project: cloudflare-ecommerce Landing Page Refactor
+# Project: Admin System Refactor (Cloudflare Ecommerce)
 
 ## Architecture
-- Monorepo: pnpm workspace
-- `apps/public-api`: Cloudflare Workers (Hono + D1 database). GET /:slug, GET /:slug/stock, POST /leads
-- `apps/admin-api`: Cloudflare Workers (Hono + D1 database). GET /landing-pages, POST /landing-pages, PUT /landing-pages/:id, DELETE /landing-pages/:id
-- `apps/storefront-ui`: Next.js 14 App Router. Server Page `landing/[slug]/page.tsx` + Client Component `LandingClient.tsx`
-- `apps/admin-ui`: React SPA for Admin backoffice managing landing pages
+- Backend: `apps/admin-api/` (Hono.js on Cloudflare Workers)
+- Frontend: `apps/admin-ui/` (Vite + React SPA)
 
-## Feature Inventory
-| # | Feature | Description | Milestone | Source |
-|---|---------|-------------|-----------|--------|
-| 1 | SSR Data Fetching & metadata | page.tsx fetches LP data server-side (ISR revalidate 60), generateMetadata (title, description), notFound() on 404, fallback client fetch | M2 | ORIGINAL_REQUEST § R1 |
-| 2 | Component Splitting | Extract LandingPixels.tsx, LandingHero.tsx, LandingOrderForm.tsx; keep LandingClient.tsx < 150 lines without type `any` | M2 | ORIGINAL_REQUEST § R2 |
-| 3 | Social Proof Removal | Remove fake social proof metrics (4.9, 1200, 583 824) with inline explanation comment | M2 | ORIGINAL_REQUEST § R3 |
-| 4 | Slug Uniqueness 409 | Admin API POST/PUT checks for duplicate slug prior to write, returning 409 status code | M1 | ORIGINAL_REQUEST § R4 |
-| 5 | Query Parallelization | Public API GET /:slug parallelizes product, variants, and price list DB queries via Promise.all | M1 | ORIGINAL_REQUEST § R5 |
-| 6 | Price Unit Documentation | Document /100 minor unit division for regular_price and price in LandingHero.tsx | M2 | ORIGINAL_REQUEST § R6 |
-| 7 | Verification & Quality | Ensure storefront-ui build, public-api lint, admin-api lint, and tests pass | M3 | ORIGINAL_REQUEST § R7 |
-| 8 | Git Commit & Push | Commit with message "refactor(landing-pages): SSR, component split, slug validation, query parallelization" and push | M4 | ORIGINAL_REQUEST § Task 8 |
+## Feature Inventory & Requirements Mapping
+| # | Requirement | Description | Milestone | Source |
+|---|-------------|-------------|-----------|--------|
+| 1 | R1 | Extract `GET /landing-leads` from `orders.ts` to `landingLeads.ts` | M1 | ORIGINAL_REQUEST.md §R1 |
+| 2 | R2 | Add `requireRole(['superadmin', 'manager', 'support'])` to `GET /orders` & `GET /orders/:id` | M1 | ORIGINAL_REQUEST.md §R2 |
+| 3 | R3 | Add soft-delete endpoint `DELETE /products/:id` (`deleted_at = CURRENT_TIMESTAMP`) | M1 | ORIGINAL_REQUEST.md §R3 |
+| 4 | R4 | Refactor `mapPromotionToCoupon` to canonical field names & create `CouponDTO` | M1 & M2 | ORIGINAL_REQUEST.md §R4 |
+| 5 | R5 | Fix RBAC route guard in `App.tsx` using `ROLE_ROUTES` and `<ProtectedRoute>` | M2 | ORIGINAL_REQUEST.md §R5 |
+| 6 | R6 | Extract `<PageTransition>` component and wrap all 11 routes in `App.tsx` | M2 | ORIGINAL_REQUEST.md §R6 |
+| 7 | R7 | Fix `OrderData.status` union type in `types.ts` | M2 | ORIGINAL_REQUEST.md §R7 |
+| 8 | R8 | Fix currency formatting in `OverviewTab.tsx` to display VNĐ minor units | M2 | ORIGINAL_REQUEST.md §R8 |
+| 9 | R9 | Document flat shipping fee constant `ADMIN_FLAT_SHIPPING_FEE_VND_CENTS` in `checkout.ts` | M1 | ORIGINAL_REQUEST.md §R9 |
+| 10 | R10 | Verify build (`admin-ui`), lint (`admin-api`), and test suite execution | M3 | ORIGINAL_REQUEST.md §R10 |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| 1 | M1_Backend_APIs | Refactor public-api GET /:slug (R5 query parallelization) & admin-api POST/PUT (R4 slug uniqueness 409 check) | none | DONE |
-| 2 | M2_Storefront_UI | Refactor storefront-ui page.tsx (R1 SSR + metadata) & split LandingClient.tsx into sub-components (R2, R3, R6) | M1 | DONE |
-| 3 | M3_Verification_Quality | Run build, lint, and tests across all packages (R7) | M1, M2 | DONE |
-| 4 | M4_Git_Commit_Push | Git commit and push changes | M3 | DONE |
+| M1 | admin-api Refactor | R1, R2, R3, R4 (backend), R9 | None | IN_PROGRESS |
+| M2 | admin-ui Refactor | R4 (frontend), R5, R6, R7, R8 | M1 (Coupon DTO) | PLANNED |
+| M3 | Build, Lint & E2E Testing | R10, unit tests, lint checks | M1, M2 | PLANNED |
+| M4 | Git Commit & Push | Final commit and parent notification | M3 | PLANNED |
 
 ## Interface Contracts
-### Admin API ↔ Admin UI / Clients
-- POST `/landing-pages` / PUT `/landing-pages/:id`: Duplicate slug returns `{ success: false, error: 'A landing page with this slug already exists' }` HTTP 409.
-
-### Public API ↔ Storefront UI (page.tsx & LandingClient.tsx)
-- GET `/landing-pages/:slug`: Returns `{ success: true, data: LandingPageData }` or `{ success: false, error: string }` (404).
-
-### Storefront UI page.tsx ↔ LandingClient.tsx
-- Props: `{ initialLp?: LandingPageData; comboRules?: ComboRule[]; initialSlug: string; apiUrl: string }`.
-
-## Code Layout
-- `apps/public-api/src/routes/landing-pages.ts` — Public API routes
-- `apps/admin-api/src/routes/landing-pages.ts` — Admin API routes
-- `apps/storefront-ui/src/app/landing/[slug]/types.ts` — Shared TypeScript interfaces
-- `apps/storefront-ui/src/app/landing/[slug]/page.tsx` — Next.js Server Page & generateMetadata
-- `apps/storefront-ui/src/app/landing/[slug]/LandingClient.tsx` — Thin client orchestrator (< 150 lines)
-- `apps/storefront-ui/src/app/landing/[slug]/LandingPixels.tsx` — Pixel script injection
-- `apps/storefront-ui/src/app/landing/[slug]/LandingHero.tsx` — Gallery, title, pricing, features, countdown
-- `apps/storefront-ui/src/app/landing/[slug]/LandingOrderForm.tsx` — Order form, combo, variants, submit, success panel
+### Coupons API (admin-api ↔ admin-ui)
+- Canonical DTO fields: `id`, `code`, `discount_percent`, `discount_amount`, `starts_at`, `ends_at`, `usage_limit`, `times_used`, `is_active`.
+- Deprecated aliases (`expires_at`, `max_uses`, `uses`) are removed from API payload and DTO.

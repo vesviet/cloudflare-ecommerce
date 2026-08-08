@@ -12,3 +12,5 @@ export type Bindings = {
   AUDIENCE_TAG?: string;
   LOCAL_DEV?: string;
 };
+
+export type { CouponDTO } from './routes/coupons';

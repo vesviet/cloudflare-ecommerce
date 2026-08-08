@@ -35,6 +35,9 @@ vi.mock('@ecommerce/core-services', async () => {
     CacheService: {
       invalidateCatalogCache: vi.fn().mockResolvedValue(true),
       invalidateProductCache: vi.fn().mockResolvedValue(true)
+    },
+    InventoryRepository: {
+      invalidateCache: vi.fn().mockResolvedValue(true)
     }
   };
 });
@@ -50,7 +53,11 @@ vi.mock('@ecommerce/database', () => {
         select: vi.fn().mockReturnThis(),
         from: vi.fn().mockReturnThis(),
         where: vi.fn().mockReturnThis(),
-        get: vi.fn().mockResolvedValue({ id: 'prod_1' }),
+        update: vi.fn().mockReturnThis(),
+        set: vi.fn().mockReturnThis(),
+        execute: vi.fn().mockResolvedValue({ success: true }),
+        run: vi.fn().mockResolvedValue({ success: true }),
+        get: vi.fn().mockResolvedValue({ id: 'prod_1', slug: 'prod-1' }),
         all: vi.fn().mockResolvedValue([
           { 
             id: 'prod_1', 
@@ -140,5 +147,16 @@ describe('Admin API: Products Controller', () => {
     if (!data.success) console.log('PUT ERR:', JSON.stringify(data));
     expect(res.status).toBe(200);
     expect(data.success).toBe(true);
+  });
+
+  it('DELETE /products/:id: soft-deletes an existing product', async () => {
+    const res = await products.request('/products/prod_1', {
+      method: 'DELETE'
+    }, mockEnv, mockCtx as any);
+
+    const data = await res.json() as any;
+    expect(res.status).toBe(200);
+    expect(data.success).toBe(true);
+    expect(data.message).toContain('soft-deleted');
   });
 });

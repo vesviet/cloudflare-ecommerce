@@ -100,9 +100,10 @@ checkout.post('/store/orders', requireRole(['superadmin', 'manager', 'editor']),
       );
     }
 
-    // Flat shipping fee similar to public checkout
-    const shippingFeeCents = 999;
-    totalAmount += shippingFeeCents;
+    // Flat shipping fee for admin POS orders (VNĐ minor units, zone-agnostic).
+    // TODO: Replace with address-based zone lookup from the public-api shipping-estimate endpoint.
+    const ADMIN_FLAT_SHIPPING_FEE_VND_CENTS = 999;
+    totalAmount += ADMIN_FLAT_SHIPPING_FEE_VND_CENTS;
 
     // Stripe Customer ID & UTM/Affiliate Attribution for logged-in user
     if (customer_id) {
@@ -142,7 +143,7 @@ checkout.post('/store/orders', requireRole(['superadmin', 'manager', 'editor']),
         guest_email: customer_id ? null : email,
         status: 'pending_payment',
         total_amount: totalAmount,
-        shipping_fee: shippingFeeCents,
+        shipping_fee: ADMIN_FLAT_SHIPPING_FEE_VND_CENTS,
         affiliate_id: affiliate_id || null,
         utm_source: utm_source || null,
         shipping_address_json: shipping_address_json ? JSON.stringify(shipping_address_json) : null,

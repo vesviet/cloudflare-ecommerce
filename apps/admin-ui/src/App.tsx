@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import { apiFetch } from './lib/apiFetch';
 import './App.css';
 import type { Toast } from './types';
@@ -10,6 +10,8 @@ import { LoginScreen } from './components/LoginScreen';
 import { GlassCard } from './components/ui/GlassCard';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { SkeletonLoader } from './components/ui/SkeletonLoader';
+import { PageTransition } from './components/PageTransition';
+import { ProtectedRoute } from './components/ProtectedRoute';
 
 const OverviewTab = lazy(() => import('./tabs/OverviewTab').then(module => ({ default: module.OverviewTab })));
 const OrdersTab = lazy(() => import('./tabs/OrdersTab').then(module => ({ default: module.OrdersTab })));
@@ -140,13 +142,6 @@ function App() {
     }
   }
 
-  if (user?.role === 'editor' && !['/cms', '/categories'].includes(location.pathname)) {
-    return <Navigate to="/cms" replace />;
-  }
-  if (user?.role === 'support' && !['/orders', '/customers'].includes(location.pathname)) {
-    return <Navigate to="/orders" replace />;
-  }
-
   return (
     <div className="admin-layout">
       {/* We no longer need to pass tab state to Sidebar, it uses NavLink now */}
@@ -158,66 +153,18 @@ function App() {
             <AnimatePresence mode="wait">
               <Routes location={location} key={location.pathname}>
                 <Route path="/" element={<Navigate to="/overview" replace />} />
-                <Route path="/overview" element={
-                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
-                    <OverviewTab API_BASE_URL={API_BASE_URL} addToast={addToast} />
-                  </motion.div>
-                } />
-                <Route path="/orders" element={
-                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
-                    <OrdersTab API_BASE_URL={API_BASE_URL} addToast={addToast} />
-                  </motion.div>
-                } />
-                <Route path="/products" element={
-                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
-                    <ProductsTab API_BASE_URL={API_BASE_URL} addToast={addToast} />
-                  </motion.div>
-                } />
-                <Route path="/categories" element={
-                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
-                    <CategoriesTab API_BASE_URL={API_BASE_URL} addToast={addToast} />
-                  </motion.div>
-                } />
-                <Route path="/customers" element={
-                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
-                    <CustomersTab API_BASE_URL={API_BASE_URL} addToast={addToast} />
-                  </motion.div>
-                } />
-                <Route path="/cms" element={
-                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
-                    <CmsTab API_BASE_URL={API_BASE_URL} addToast={addToast} />
-                  </motion.div>
-                } />
-                <Route path="/team" element={
-                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
-                    <TeamTab API_BASE_URL={API_BASE_URL} addToast={addToast} />
-                  </motion.div>
-                } />
-                <Route path="/promotions" element={
-                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
-                    <PromotionsTab API_BASE_URL={API_BASE_URL} addToast={addToast} />
-                  </motion.div>
-                } />
-                <Route path="/landing-pages" element={
-                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
-                    <LandingPagesTab API_BASE_URL={API_BASE_URL} addToast={addToast} />
-                  </motion.div>
-                } />
-                <Route path="/landing-leads" element={
-                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
-                    <LandingLeadsTab API_BASE_URL={API_BASE_URL} addToast={addToast} />
-                  </motion.div>
-                } />
-                <Route path="/settings" element={
-                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
-                    <SettingsTab />
-                  </motion.div>
-                } />
-                <Route path="*" element={
-                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
-                    <div style={{ padding: '40px', color: 'var(--text-muted)', textAlign: 'center' }}>Page not found</div>
-                  </motion.div>
-                } />
+                <Route path="/overview" element={<ProtectedRoute userRole={user?.role} path="/overview"><PageTransition><OverviewTab API_BASE_URL={API_BASE_URL} addToast={addToast} /></PageTransition></ProtectedRoute>} />
+                <Route path="/orders" element={<ProtectedRoute userRole={user?.role} path="/orders"><PageTransition><OrdersTab API_BASE_URL={API_BASE_URL} addToast={addToast} /></PageTransition></ProtectedRoute>} />
+                <Route path="/products" element={<ProtectedRoute userRole={user?.role} path="/products"><PageTransition><ProductsTab API_BASE_URL={API_BASE_URL} addToast={addToast} /></PageTransition></ProtectedRoute>} />
+                <Route path="/categories" element={<ProtectedRoute userRole={user?.role} path="/categories"><PageTransition><CategoriesTab API_BASE_URL={API_BASE_URL} addToast={addToast} /></PageTransition></ProtectedRoute>} />
+                <Route path="/customers" element={<ProtectedRoute userRole={user?.role} path="/customers"><PageTransition><CustomersTab API_BASE_URL={API_BASE_URL} addToast={addToast} /></PageTransition></ProtectedRoute>} />
+                <Route path="/cms" element={<ProtectedRoute userRole={user?.role} path="/cms"><PageTransition><CmsTab API_BASE_URL={API_BASE_URL} addToast={addToast} /></PageTransition></ProtectedRoute>} />
+                <Route path="/team" element={<ProtectedRoute userRole={user?.role} path="/team"><PageTransition><TeamTab API_BASE_URL={API_BASE_URL} addToast={addToast} /></PageTransition></ProtectedRoute>} />
+                <Route path="/promotions" element={<ProtectedRoute userRole={user?.role} path="/promotions"><PageTransition><PromotionsTab API_BASE_URL={API_BASE_URL} addToast={addToast} /></PageTransition></ProtectedRoute>} />
+                <Route path="/landing-pages" element={<ProtectedRoute userRole={user?.role} path="/landing-pages"><PageTransition><LandingPagesTab API_BASE_URL={API_BASE_URL} addToast={addToast} /></PageTransition></ProtectedRoute>} />
+                <Route path="/landing-leads" element={<ProtectedRoute userRole={user?.role} path="/landing-leads"><PageTransition><LandingLeadsTab API_BASE_URL={API_BASE_URL} addToast={addToast} /></PageTransition></ProtectedRoute>} />
+                <Route path="/settings" element={<ProtectedRoute userRole={user?.role} path="/settings"><PageTransition><SettingsTab /></PageTransition></ProtectedRoute>} />
+                <Route path="*" element={<PageTransition><div style={{ padding: '40px', color: 'var(--text-muted)', textAlign: 'center' }}>Page not found</div></PageTransition>} />
               </Routes>
             </AnimatePresence>
           </Suspense>

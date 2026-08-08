@@ -57,3 +57,4 @@ AGENTS.md
 # ==========================
 playwright-report/
 test-results/
+.agents

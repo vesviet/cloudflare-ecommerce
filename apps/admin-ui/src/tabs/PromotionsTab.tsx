@@ -24,7 +24,7 @@ export const PromotionsTab: React.FC<PromotionsTabProps> = ({ API_BASE_URL, addT
 
   const [formData, setFormData] = useState<Partial<CouponData>>({
     code: '', type: 'percent', value: 0, min_order_amount: 0,
-    max_uses: null, is_active: 1, description: '', starts_at: null, expires_at: null
+    usage_limit: null, status: 'active', description: '', starts_at: null, ends_at: null
   });
 
   const coupons = result?.data || [];
@@ -33,7 +33,7 @@ export const PromotionsTab: React.FC<PromotionsTabProps> = ({ API_BASE_URL, addT
     setEditingCoupon(null);
     setFormData({
       code: '', type: 'percent', value: 0, min_order_amount: 0,
-      max_uses: null, is_active: 1, description: '', starts_at: null, expires_at: null
+      usage_limit: null, status: 'active', description: '', starts_at: null, ends_at: null
     });
     setIsModalOpen(true);
   };
@@ -88,9 +88,9 @@ export const PromotionsTab: React.FC<PromotionsTabProps> = ({ API_BASE_URL, addT
         ...formData,
         value: Number(formData.value),
         min_order_amount: Number(formData.min_order_amount),
-        max_uses: formData.max_uses ? Number(formData.max_uses) : null,
+        usage_limit: formData.usage_limit ? Number(formData.usage_limit) : null,
         starts_at: formData.starts_at ? Number(formData.starts_at) : null,
-        expires_at: formData.expires_at ? Number(formData.expires_at) : null,
+        ends_at: formData.ends_at ? Number(formData.ends_at) : null,
       };
 
       const res = await apiFetch(url, {
@@ -135,11 +135,11 @@ export const PromotionsTab: React.FC<PromotionsTabProps> = ({ API_BASE_URL, addT
                 <td className="p-4 font-bold text-green-400">{c.code}</td>
                 <td className="p-4 capitalize">{c.type}</td>
                 <td className="p-4">{c.type === 'percent' ? `${c.value}%` : c.type === 'freeship' ? 'Free Shipping' : `$${(c.value / 100).toFixed(2)}`}</td>
-                <td className="p-4">{c.uses} / {c.max_uses || '∞'}</td>
+                <td className="p-4">{c.times_used} / {c.usage_limit || '∞'}</td>
                 <td className="p-4">
                   <button onClick={() => handleToggle(c.id)} className="flex items-center gap-2 text-sm hover:opacity-80 transition-opacity">
-                    {c.is_active ? <CheckCircle size={16} className="text-green-400" /> : <XCircle size={16} className="text-red-400" />}
-                    {c.is_active ? 'Active' : 'Disabled'}
+                    {c.status === 'active' ? <CheckCircle size={16} className="text-green-400" /> : <XCircle size={16} className="text-red-400" />}
+                    {c.status === 'active' ? 'Active' : 'Disabled'}
                   </button>
                 </td>
                 <td className="p-4 flex justify-end gap-3">
@@ -215,7 +215,7 @@ export const PromotionsTab: React.FC<PromotionsTabProps> = ({ API_BASE_URL, addT
                 <div>
                   <label className="block text-sm text-white/60 mb-1.5">Max Global Uses</label>
                   <input type="number" placeholder="Unlimited" className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:outline-none focus:border-green-400" 
-                    value={formData.max_uses || ''} onChange={e => setFormData({...formData, max_uses: e.target.value ? Number(e.target.value) : null})} />
+                    value={formData.usage_limit || ''} onChange={e => setFormData({...formData, usage_limit: e.target.value ? Number(e.target.value) : null})} />
                 </div>
               </div>
               <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-white/10">

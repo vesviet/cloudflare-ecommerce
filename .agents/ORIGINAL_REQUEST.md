@@ -1,8 +1,8 @@
 # Original User Request
 
-## 2026-08-07T13:57:27Z
+## Initial Request — 2026-08-08T09:54:58Z
 
-Refactor the landing page system of the `cloudflare-ecommerce` monorepo — a production Cloudflare Workers + Next.js e-commerce platform. The goal is to fix all known bugs, structural issues, and code quality problems in the landing page pipeline (backend APIs, storefront UI, admin UI), producing clean TypeScript code that passes build and lint checks.
+Refactor the admin system of the `cloudflare-ecommerce` monorepo — a production Cloudflare Workers + Vite/React e-commerce admin panel. The goal is to fix all known bugs, structural issues, and code quality problems in the admin pipeline (admin-api backend + admin-ui frontend), producing clean TypeScript code that passes build and lint checks.
 
 Working directory: D:\myproject\cloudflare-ecommerce
 
@@ -12,100 +12,149 @@ Integrity mode: development
 
 ## Context
 
-The landing page system spans 4 apps/packages:
-- `apps/public-api/src/routes/landing-pages.ts` — Public API (GET slug, GET slug/stock, POST leads)
-- `apps/admin-api/src/routes/landing-pages.ts` — Admin CRUD API (create/update/delete LP)
-- `apps/storefront-ui/src/app/landing/[slug]/page.tsx` — Next.js server page (thin wrapper, no SSR fetch)
-- `apps/storefront-ui/src/app/landing/[slug]/LandingClient.tsx` — 536-line monolithic client component
-- `apps/admin-ui/src/tabs/LandingPagesTab.tsx` — Admin UI form (412 lines)
+The admin system spans 2 apps:
+- `apps/admin-api/` — Hono.js on Cloudflare Workers (admin REST API)
+- `apps/admin-ui/` — Vite + React SPA (admin dashboard)
+
+### admin-api key files:
+- `src/index.ts` — Main Hono app, CORS, auth middleware, route mounting
+- `src/middleware/auth.ts` — CF Zero Trust JWT verification + RBAC `requireRole`
+- `src/middleware/audit.ts` — Audit trail middleware (if exists)
+- `src/routes/orders.ts` — 400-line orders CRUD + fulfill/refund/approve/cancel
+- `src/routes/products.ts` — 366-line products CRUD with image upload, variants
+- `src/routes/customers.ts` — 216-line customers CRUD
+- `src/routes/coupons.ts` — 201-line coupons CRUD with `mapPromotionToCoupon` data adapter
+- `src/routes/landing-pages.ts` — LP CRUD (already refactored)
+- `src/routes/checkout.ts` — 163-line admin POS order creation
+- `src/routes/adminUsers.ts` — 85-line admin users CRUD
+- `src/routes/categories.ts` — Categories CRUD
+- `src/routes/cms.ts` — CMS CRUD
+- `src/routes/settings.ts` — Settings CRUD
+- `src/routes/metrics.ts` — Dashboard metrics
+- `src/types.ts` — Bindings type
+
+### admin-ui key files:
+- `src/App.tsx` — 233-line root component: auth flow, routing, lazy tab loading
+- `src/App.css` — 1312-line stylesheet with CSS custom properties
+- `src/types.ts` — 126-line type definitions (ProductData, OrderData, CustomerData, etc.)
+- `src/tabs/` — OverviewTab, OrdersTab, ProductsTab, CategoriesTab, CustomersTab, CmsTab, TeamTab, SettingsTab, PromotionsTab, LandingPagesTab, LandingLeadsTab
+- `src/components/Sidebar.tsx` — Navigation sidebar
+- `src/components/OrderDetailModal.tsx` — 10707-byte order detail modal
+- `src/components/RefundModal.tsx` — Refund flow modal
+- `src/components/ui/` — GlassCard, SkeletonLoader, Pagination, ConfirmDialog
+- `src/lib/apiFetch.ts` — Authenticated fetch wrapper
+- `src/lib/useEscapeKey.ts` — Escape key hook
 
 ---
 
 ## Known Issues Found During Research
 
-### Issue 1 — No SSR: page.tsx does NOT pre-fetch data server-side
-`page.tsx` is an async server component but passes NO data to `LandingClient`. It only passes `initialSlug` and `apiUrl`. `LandingClient` then fetches everything client-side via `useEffect`. This means:
-- The page renders a loading spinner on every first load (bad UX, bad SEO)
-- Google cannot crawl the product title, description, or price
-- The page is missing `generateMetadata` for SEO title/description
+### Issue 1 — admin-api: Inconsistent error handling pattern across routes
+Most routes catch errors and return `{ success: false, error: err.message }` but some routes expose raw DB error messages that may leak schema details. Some routes (e.g., `products.ts`) don't use `requireRole` on the list/get endpoints but do use it on write endpoints — inconsistency in who can read vs write.
 
-### Issue 2 — LandingClient.tsx is a 536-line monolith
-Everything is in one giant component: pixel injection, hero section, image gallery, pricing block, features list, countdown timer, combo selector, order form, success panel. This makes it impossible to test or maintain individual pieces.
+### Issue 2 — admin-api/routes/orders.ts: Landing leads route misplaced
+`GET /landing-leads` is defined in `orders.ts` (lines 289-330) even though leads belong to the landing pages domain. This violates single responsibility. The route should either be in its own file `landing-leads.ts` or in `landing-pages.ts`.
 
-### Issue 3 — Hardcoded fake social proof data
-Lines 291-297 of LandingClient.tsx contain hardcoded fake data that is identical for every landing page:
-- Rating: `4.9 ★★★★★`
-- Reviews: `1200 Đánh giá`
-- Sold: `583 824 Đã bán`
+### Issue 3 — admin-api/routes/checkout.ts: Hardcoded shipping fee
+Line 104: `const shippingFeeCents = 999;` — hardcoded magic number with no constant, no comment, and no connection to the settings system used elsewhere. This is an admin POS checkout route that ignores address-based shipping zones.
 
-These are never configurable from the admin. They should either be driven by the DB or removed. Showing the same fake numbers on every LP is a trust/legal risk.
+### Issue 4 — admin-api/routes/coupons.ts: `mapPromotionToCoupon` data adapter is a code smell
+The `mapPromotionToCoupon` function (lines 15-29) duplicates field names (e.g., `expires_at: promo.expires_at ?? promo.ends_at, ends_at: promo.expires_at ?? promo.ends_at`) and exists only because the DB schema (promotions table) uses different field names (`ends_at`, `usage_limit`, `times_used`) than the frontend expects (`expires_at`, `max_uses`, `uses`). The adapter makes both field names exist simultaneously which is confusing. The fix should be to either:
+  a) Make the API always return the canonical field names from the `promotions` table
+  b) Create a proper typed DTO type instead of spreading both names
 
-### Issue 4 — admin-api landing-pages.ts: no slug uniqueness validation
-The POST and PUT routes in `apps/admin-api/src/routes/landing-pages.ts` do not check for slug uniqueness before inserting. The D1 database has a UNIQUE constraint on `slug`, so duplicates produce an unhandled 500 instead of a friendly 409 error.
+### Issue 5 — admin-ui/App.tsx: RBAC route guard is fragile and incomplete
+Lines 143-148 in `App.tsx`:
+```tsx
+if (user?.role === 'editor' && !['/cms', '/categories'].includes(location.pathname)) {
+  return <Navigate to="/cms" replace />;
+}
+if (user?.role === 'support' && !['/orders', '/customers'].includes(location.pathname)) {
+  return <Navigate to="/orders" replace />;
+}
+```
+This RBAC logic:
+1. Is outside the router — it fires on every render, not just navigation
+2. Uses string path comparison instead of a proper route allowlist config
+3. Missing the `manager` role constraints (manager should access everything except `/team` and `/settings`)
+4. Missing the `landing_page_admin` or any custom role handling
+5. The `/landing-leads` and `/landing-pages` paths are not in the allowlist for `editor`
 
-### Issue 5 — price unit ambiguity in LandingClient.tsx
-`lp.product.regular_price` is divided by 100 (line 304) and `lp.product.price` is divided by 100 (line 305), but there is NO comment explaining why. These fields come from `price_list_items.price` which stores values in minor units. The field named `price` (from the `products` table) is different from `regular_price` (computed from `price_list_items`). The API conflates these two different sources in the response payload with no documentation.
+### Issue 6 — admin-ui/App.tsx: Route animation boilerplate duplicated 11 times
+Every `<Route>` element in `App.tsx` (lines 161-220) wraps its element in an identical `<motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>` wrapper. This is 40 lines of identical boilerplate that should be extracted into a helper component `<PageTransition>` or `<AnimatedRoute>`.
 
-### Issue 6 — public-api GET /:slug has sequential queries that can be parallelized
-The public-api GET `/:slug` handler runs these DB queries sequentially:
-1. `landingPages` by slug
-2. `products` by product_id
-3. `products` by parent_id (variants)
-4. `priceListItems` by product_id
+### Issue 7 — admin-ui/types.ts: `OrderData` type has stale/incorrect fields
+`OrderData.status` type (line 91) lists `'pending_payment' | 'processing' | 'completed' | 'cancelled' | 'refunded' | 'failed'` but the actual order status state machine now includes `'confirmed'`, `'pending'`, `'shipped'` (used in the landing page COD flow from `orders.ts` lines 312-315 and 352). The type is out of sync with the DB.
 
-Queries 2, 3, and 4 can all be parallelized with `Promise.all` after query 1.
+### Issue 8 — admin-ui/OverviewTab.tsx: Currency formatting is USD, not VNĐ
+Line 35: `new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount / 100)` — The business operates in VNĐ. This should use VNĐ formatting consistent with the rest of the storefront.
 
-### Issue 7 — LandingClient useEffect dependency array
-Line 38: `}, [slug, lp, apiUrl]);` — `lp` in the dependency array means every time `setLp` is called, the effect could re-run. The lint rule `react-hooks/exhaustive-deps` may warn about this pattern.
+### Issue 9 — admin-api/routes/orders.ts: Missing `requireRole` on GET /orders and GET /orders/:id
+`orders.get('/orders', ...)` (line 13) and `orders.get('/orders/:id', ...)` (line 34) have NO `requireRole` middleware. Any authenticated admin user (even `editor` role) can read orders, which may not be intended. Compare with the POST/refund/fulfill routes that do use `requireRole(['superadmin', 'manager', 'support'])`.
+
+### Issue 10 — admin-api/routes/products.ts: Product DELETE endpoint is missing
+The products route has GET (list), GET (search), POST (create), PUT (update) — but NO DELETE endpoint. There's no way to delete a product from the admin API. The products table has a `deleted_at` column for soft-deletes.
 
 ---
 
 ## Requirements
 
-### R1. Add SSR data fetching to page.tsx + generateMetadata
-`apps/storefront-ui/src/app/landing/[slug]/page.tsx` must:
-- Fetch the landing page data server-side using `fetch()` with `{ next: { revalidate: 60 } }` (ISR, 60-second cache)
-- The fetch URL should use `process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com'` as the base
-- Parse `combo_rules_json` from the fetched data and pass as `comboRules` prop to `LandingClient`
-- Pass the fetched `lp` data as `lp` prop to `LandingClient`
-- Export a `generateMetadata` function that returns the `seo_title` as `title` and `seo_description` as `description`
-- Handle 404 gracefully: when the LP is not found (data.success === false or 404 status), call `notFound()` from `next/navigation`
-- `LandingClient` should still support client-side fetch as a fallback when `initialLp` is not provided
+### R1. Extract `GET /landing-leads` from orders.ts to its own route file
+Create `apps/admin-api/src/routes/landingLeads.ts` with the landing leads route (moved from `orders.ts` lines 289-330). Mount it in `index.ts` as `app.route('/', landingLeadsRoutes)`. Remove it from `orders.ts`.
 
-### R2. Split LandingClient.tsx into focused sub-components
-Extract the following sections from `LandingClient.tsx` into separate files under `apps/storefront-ui/src/app/landing/[slug]/`:
-- `LandingPixels.tsx` — Facebook + TikTok pixel `<Script>` injection. Props: `{ facebookPixelId?: string; tiktokPixelId?: string }`
-- `LandingHero.tsx` — Image gallery (with prev/next buttons + thumbnails) + title + social proof + pricing block + features list + countdown timer. Props: typed interface with `lp` sub-fields needed
-- `LandingOrderForm.tsx` — The entire `<form>` including combo selector, variant selector, form fields (name, phone, address, note), Cloudflare Turnstile widget, error message, submit button, and the success confirmation panel. Also handles `handleSubmit` logic.
+### R2. Add `requireRole` to GET /orders and GET /orders/:id
+Add `requireRole(['superadmin', 'manager', 'support'])` middleware to both read-only order endpoints in `orders.ts`.
 
-`LandingClient.tsx` becomes a thin orchestrator that:
-- Manages top-level state: `lp`, `loading`, `error`, `activeImageIndex`, `formData`, `isSubmitting`, `successData`, `errorMsg`
-- Imports and renders `LandingPixels`, `LandingHero`, `LandingOrderForm`
-- Must be under 150 lines after extraction
+### R3. Add product soft-delete endpoint
+Add `DELETE /products/:id` in `products.ts` that soft-deletes by setting `deleted_at = CURRENT_TIMESTAMP`. Only `superadmin` and `manager` can delete.
 
-All component prop interfaces must use proper TypeScript types. Avoid `any` for top-level component props.
+### R4. Fix `mapPromotionToCoupon` in coupons.ts — use canonical field names
+Refactor to return only the canonical DB field names (`ends_at`, `usage_limit`, `times_used`) rather than duplicating aliases. Create a `CouponDTO` TypeScript type. Update callers in `admin-ui` if they rely on the alias names (`expires_at`, `max_uses`, `uses`).
 
-### R3. Remove hardcoded fake social proof data
-Remove the hardcoded fake social proof block (rating 4.9, 1200 reviews, 583 824 sold) from the hero section entirely. Add a comment explaining why it was removed (uniform fake data is a trust/legal risk). Do NOT add a DB schema migration — just remove the block.
+### R5. Fix RBAC route guard in App.tsx
+Extract a `ROLE_ROUTES` config object:
+```ts
+const ROLE_ROUTES: Record<string, string[]> = {
+  editor: ['/cms', '/categories', '/landing-pages', '/landing-leads'],
+  support: ['/orders', '/customers', '/landing-leads'],
+  manager: ['/overview', '/orders', '/products', '/categories', '/customers', '/cms', '/promotions', '/landing-pages', '/landing-leads'],
+};
+```
+Use this config in a proper `<ProtectedRoute>` wrapper component instead of the fragile inline if-statements. `superadmin` has access to all routes.
 
-### R4. Fix admin-api slug uniqueness: return 409 instead of 500
-In `apps/admin-api/src/routes/landing-pages.ts`:
-- Before INSERT on POST: query for existing LP with same slug, if found return `c.json({ success: false, error: 'A landing page with this slug already exists' }, 409)`
-- Before UPDATE on PUT: query for existing LP with same slug AND `id != currentId`, if found return 409 with same error
-- Both routes still return 200/201 for valid unique slugs
+### R6. Extract `<PageTransition>` component
+Create `apps/admin-ui/src/components/PageTransition.tsx` that wraps children in the motion.div animation. Replace the 11 duplicated route wrappers in `App.tsx` with `<PageTransition>`. This reduces App.tsx by ~40 lines.
 
-### R5. Parallelize sequential DB queries in public-api GET /:slug
-In `apps/public-api/src/routes/landing-pages.ts`, after fetching the landing page record, use `Promise.all` to run the product fetch, variants fetch, and price list fetch in parallel instead of sequentially.
+### R7. Fix `OrderData` status type
+In `apps/admin-ui/src/types.ts`, update `OrderData.status` to:
+```ts
+status: 'pending' | 'pending_payment' | 'confirmed' | 'processing' | 'shipped' | 'completed' | 'cancelled' | 'refunded' | 'failed';
+```
 
-### R6. Document price unit in LandingClient / LandingHero
-Add inline comments next to the `/100` divisions for `regular_price` and `price` fields explaining that `price_list_items.price` stores values in minor units (VNĐ × 100), so dividing by 100 converts to display VNĐ.
+### R8. Fix currency formatting in OverviewTab.tsx
+Replace the USD formatter with VNĐ:
+```ts
+const formatCurrency = (amount: number | string) => {
+  const n = typeof amount === 'string' ? parseFloat(amount) : amount;
+  // Amounts are stored as minor units (VNĐ × 100), divide by 100 to get display VNĐ
+  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(n / 100);
+};
+```
+Also add a comment explaining the minor unit convention.
 
-### R7. Build + lint + test pass
+### R9. Document magic shipping fee constant in admin checkout.ts
+Add inline constant and comment:
+```ts
+// Flat shipping fee for admin POS orders (VNĐ minor units, zone-agnostic).
+// TODO: Replace with address-based zone lookup from the public-api shipping-estimate endpoint.
+const ADMIN_FLAT_SHIPPING_FEE_VND_CENTS = 999;
+```
+
+### R10. Build + Lint + Test pass
 After all changes:
-- `pnpm --filter @ecommerce/storefront-ui build` → exit 0
-- `pnpm --filter @ecommerce/public-api lint` → 0 errors  
+- `pnpm --filter @ecommerce/admin-ui build` → exit 0
 - `pnpm --filter @ecommerce/admin-api lint` → 0 errors
-- All pre-existing tests pass: `pnpm --filter @ecommerce/public-api test` and `pnpm --filter @ecommerce/core-services test`
+- All pre-existing tests pass: `pnpm --filter @ecommerce/admin-api test`
 
 ---
 
@@ -113,39 +162,47 @@ After all changes:
 
 ### Task 1 — Research Phase
 Read ALL the following files thoroughly before writing any code:
-- `apps/storefront-ui/src/app/landing/[slug]/page.tsx`
-- `apps/storefront-ui/src/app/landing/[slug]/LandingClient.tsx`
-- `apps/public-api/src/routes/landing-pages.ts`
-- `apps/admin-api/src/routes/landing-pages.ts`
-- `apps/admin-ui/src/tabs/LandingPagesTab.tsx`
-- `packages/database/src/schema.ts` (for landingPages table shape)
-- `apps/storefront-ui/src/lib/image.ts` (getImageUrl helper)
+- `apps/admin-api/src/index.ts`
+- `apps/admin-api/src/middleware/auth.ts`
+- `apps/admin-api/src/routes/orders.ts` (full 400 lines)
+- `apps/admin-api/src/routes/products.ts` (full 366 lines)
+- `apps/admin-api/src/routes/customers.ts`
+- `apps/admin-api/src/routes/coupons.ts` (full)
+- `apps/admin-api/src/routes/checkout.ts`
+- `apps/admin-api/src/routes/adminUsers.ts`
+- `apps/admin-ui/src/App.tsx` (full 233 lines)
+- `apps/admin-ui/src/types.ts` (full 126 lines)
+- `apps/admin-ui/src/tabs/OverviewTab.tsx`
+- `apps/admin-ui/src/tabs/PromotionsTab.tsx` (to understand coupon field usage)
+- `apps/admin-ui/src/lib/apiFetch.ts`
+Also scan `apps/admin-api/src/routes/__tests__/` directory for existing test patterns.
 
-Map the complete data flow. Document all findings before writing code.
+### Task 2 — R1: Extract landing-leads route
+Create `landingLeads.ts`, mount in `index.ts`, remove from `orders.ts`.
 
-### Task 2 — R1: SSR + generateMetadata
-Implement server-side data fetching and SEO metadata generation in page.tsx.
+### Task 3 — R2 + R9: RBAC fixes in admin-api
+Add `requireRole` to GET /orders endpoints. Document shipping constant in checkout.ts.
 
-### Task 3 — R2: Split LandingClient.tsx
-Extract LandingPixels, LandingHero, LandingOrderForm as separate files.
+### Task 4 — R3: Add product DELETE endpoint
+Add soft-delete endpoint to `products.ts`.
 
-### Task 4 — R3 + R6: Remove fake social proof + add price unit comments
-Remove the hardcoded block and add documentation comments.
+### Task 5 — R4: Fix mapPromotionToCoupon
+Refactor to canonical field names, create `CouponDTO` type, check admin-ui callers.
 
-### Task 5 — R4: Admin-api slug uniqueness
-Add pre-insert/pre-update slug uniqueness checks returning 409.
+### Task 6 — R5 + R6: RBAC guard + PageTransition in admin-ui
+Extract `ROLE_ROUTES` config and `ProtectedRoute` component. Create `PageTransition.tsx`. Update `App.tsx`.
 
-### Task 6 — R5: Parallelize DB queries
-Refactor GET /:slug handler to use Promise.all.
+### Task 7 — R7 + R8: Fix types + currency in admin-ui
+Fix `OrderData.status` union type. Fix VNĐ currency formatting in OverviewTab.
 
-### Task 7 — R7: Build, Lint, Test, Debug
+### Task 8 — R10: Build, Lint, Test, Debug
 Run all checks. Fix any TypeScript or ESLint errors. Iterate until all pass.
 
-### Task 8 — Git Commit & Push
+### Task 9 — Git Commit & Push
 After all checks pass:
 ```
 git add .
-git commit -m "refactor(landing-pages): SSR, component split, slug validation, query parallelization"
+git commit -m "refactor(admin): route extraction, RBAC guard, soft-delete, VND currency, type fixes"
 git push
 ```
 
@@ -153,35 +210,25 @@ git push
 
 ## Acceptance Criteria
 
-### SSR & SEO
-- [ ] `page.tsx` fetches LP data server-side with `revalidate: 60`
-- [ ] `generateMetadata` exports correct `title` and `description` from LP data
-- [ ] When LP not found server-side, `notFound()` is called
-- [ ] `LandingClient` still supports client-side fallback when `initialLp` is undefined
+### admin-api
+- [ ] `GET /landing-leads` is defined in `routes/landingLeads.ts`, NOT in `orders.ts`
+- [ ] `GET /orders` and `GET /orders/:id` have `requireRole(['superadmin', 'manager', 'support'])` middleware
+- [ ] `DELETE /products/:id` exists and performs soft-delete (`deleted_at = CURRENT_TIMESTAMP`), requires `superadmin` or `manager`
+- [ ] `mapPromotionToCoupon` is removed or replaced with a typed `CouponDTO` that uses canonical field names
+- [ ] Admin checkout.ts has a named constant for the shipping fee with an explanatory comment
 
-### Component Split
-- [ ] `LandingPixels.tsx`, `LandingHero.tsx`, `LandingOrderForm.tsx` exist as separate files
-- [ ] `LandingClient.tsx` is under 150 lines after extraction
-- [ ] No `any` for top-level component prop interfaces
-- [ ] No duplicate JSX logic between the new files
-
-### Social Proof & Price Docs
-- [ ] Hardcoded `4.9`, `1200`, `583 824` constants are removed
-- [ ] Inline comments explain `/100` division for price unit conversion
-
-### Slug Validation
-- [ ] POST `/landing-pages` with duplicate slug → HTTP 409
-- [ ] PUT `/landing-pages/:id` with slug used by another LP → HTTP 409
-- [ ] Valid unique slugs → 200/201
-
-### Query Optimization
-- [ ] Public-api GET `/:slug` uses `Promise.all` for product/variants/price queries
+### admin-ui
+- [ ] `ROLE_ROUTES` config object exists mapping roles to allowed paths
+- [ ] Route guard uses `ROLE_ROUTES` config, not hardcoded path strings in if-statements
+- [ ] `PageTransition.tsx` component exists and is used in all 11 routes in `App.tsx`
+- [ ] `OrderData.status` includes `'pending'`, `'confirmed'`, `'shipped'`
+- [ ] `OverviewTab.tsx` `formatCurrency` uses VNĐ locale with a comment explaining `/100` minor unit conversion
+- [ ] `App.tsx` is shorter (by at least 30 lines) after refactoring
 
 ### Build & Lint
-- [ ] `pnpm --filter @ecommerce/storefront-ui build` exits 0
-- [ ] `pnpm --filter @ecommerce/public-api lint` → 0 errors
-- [ ] `pnpm --filter @ecommerce/admin-api lint` → 0 errors
+- [ ] `pnpm --filter @ecommerce/admin-ui build` exits 0
+- [ ] `pnpm --filter @ecommerce/admin-api lint` exits 0 errors
 - [ ] All pre-existing tests pass
 
 ### Final Commit
-- [ ] All changes committed and pushed: `refactor(landing-pages): SSR, component split, slug validation, query parallelization`
+- [ ] All changes committed and pushed: `refactor(admin): route extraction, RBAC guard, soft-delete, VND currency, type fixes`

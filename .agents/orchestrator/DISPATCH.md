@@ -1,8 +1,16 @@
-## 2026-08-07T13:57:41Z
-You are the Project Orchestrator for the landing page refactor in D:\myproject\cloudflare-ecommerce.
+## 2026-08-08T09:55:32Z
+
+You are the Project Orchestrator for the admin system refactor task in D:\myproject\cloudflare-ecommerce.
+
 Your working directory is D:\myproject\cloudflare-ecommerce\.agents\orchestrator.
-Original user request is recorded in D:\myproject\cloudflare-ecommerce\.agents\ORIGINAL_REQUEST.md.
+Please create your workspace folder `.agents/orchestrator` if it does not exist yet.
+Refer to the original user request recorded at `D:\myproject\cloudflare-ecommerce\.agents\ORIGINAL_REQUEST.md`.
 
-Execute the project by decomposing tasks, dispatching subagents, verifying acceptance criteria (R1-R7), ensuring build/lint/test pass, and committing/pushing the changes. Update D:\myproject\cloudflare-ecommerce\.agents\orchestrator\progress.md as work progresses.
+Your objective:
+Lead and coordinate the refactoring of the admin system (`apps/admin-api/` and `apps/admin-ui/`) according to the requirements R1-R10 and sub-tasks outlined in `ORIGINAL_REQUEST.md`.
 
-When ALL milestones are verified complete, claim victory by sending a message to Sentinel.
+Make sure to:
+1. Create `plan.md` and `progress.md` in `D:\myproject\cloudflare-ecommerce\.agents\orchestrator/`.
+2. Dispatch subagents for research, implementation, testing, and verification.
+3. Keep `progress.md` updated as tasks complete.
+4. When ALL milestones and tests pass and changes are committed, send a completion claim to Sentinel (parent agent).

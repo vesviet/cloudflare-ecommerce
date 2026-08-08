@@ -88,7 +88,7 @@ export interface OrderData {
   id: string;
   customer_id: string | null;
   guest_email: string | null;
-  status: 'pending_payment' | 'processing' | 'completed' | 'cancelled' | 'refunded' | 'failed';
+  status: 'pending' | 'pending_payment' | 'confirmed' | 'processing' | 'shipped' | 'completed' | 'cancelled' | 'refunded' | 'failed';
   payment_intent_id: string | null;
   total_amount: number;
   shipping_fee: number;
@@ -111,10 +111,10 @@ export interface CouponData {
   code: string;
   type: string;
   value: number;
-  max_uses: number | null;
-  uses: number;
-  expires_at: number | null;
-  is_active: number;
+  ends_at: number | null;
+  usage_limit: number | null;
+  times_used: number;
+  status: string;
   description: string | null;
   min_order_amount: number;
   starts_at: number | null;

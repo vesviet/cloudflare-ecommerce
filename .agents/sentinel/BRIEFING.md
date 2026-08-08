@@ -1,30 +1,32 @@
-# BRIEFING — 2026-08-07T13:57:27Z
+# BRIEFING — 2026-08-08T09:55:00Z
 
 ## Mission
-Refactor landing page system in cloudflare-ecommerce (SSR, component split, slug uniqueness, query parallelization, build/lint/test pass)
+Sentinel monitoring and orchestration trigger for refactoring admin system of cloudflare-ecommerce.
 
 ## 🔒 My Identity
 - Archetype: sentinel
 - Working directory: D:\myproject\cloudflare-ecommerce\.agents\sentinel
-- Orchestrator: 7e15b446-a6c0-430f-9400-41b335882759
-- Victory Auditor: bebee12a-10a5-4152-80a1-bef630346d14
+- Orchestrator: 16e43b2d-3f7b-4d82-a86f-4b62a0f912ed
+- Victory Auditor: TBD
 
 ## 🔒 Key Constraints
 - No technical decisions — relay only
 - Victory Audit is MANDATORY before reporting completion
+- Must record ORIGINAL_REQUEST.md
+- Must set progress scan cron and liveness check cron
 
 ## User Context
-- **Last user request**: Refactor landing page system (apps/public-api, apps/admin-api, apps/storefront-ui)
+- **Last user request**: Refactor the admin system (admin-api backend + admin-ui frontend) in cloudflare-ecommerce.
 - **Pending clarifications**: none
 - **Delivered results**: none
 
 ## Project Status
-- **Phase**: complete
+- **Phase**: in progress
 
 ## Victory Audit Status
-- **Triggered**: yes
-- **Verdict**: VICTORY CONFIRMED
+- **Triggered**: no
+- **Verdict**: pending
 - **Retry count**: 0
 
 ## Artifact Index
-- D:\myproject\cloudflare-ecommerce\.agents\ORIGINAL_REQUEST.md — Original User Request
+- D:\myproject\cloudflare-ecommerce\.agents\ORIGINAL_REQUEST.md — Verbatim user request record

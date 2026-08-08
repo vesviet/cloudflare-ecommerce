@@ -362,4 +362,34 @@ products.put('/products/:id', requireRole(['superadmin', 'manager', 'editor']), 
   }
 });
 
+// DELETE: Soft Delete Product
+products.delete('/products/:id', requireRole(['superadmin', 'manager']), async (c) => {
+  const productId = c.req.param('id');
+  try {
+    const db = createDb(c.env.DB);
+    const existingProduct = await db.select({ id: schema.products.id, slug: schema.products.slug })
+      .from(schema.products)
+      .where(eq(schema.products.id, productId))
+      .get();
+
+    if (!existingProduct) {
+      return c.json({ success: false, error: 'Product not found' }, 404);
+    }
+
+    await db.update(schema.products)
+      .set({ deleted_at: sql`CURRENT_TIMESTAMP`, updated_at: sql`CURRENT_TIMESTAMP` })
+      .where(eq(schema.products.id, productId));
+
+    if (existingProduct.slug) {
+      c.executionCtx.waitUntil(CacheService.invalidateProductCache(c.env, existingProduct.slug));
+    }
+    c.executionCtx.waitUntil(CacheService.invalidateProductCache(c.env, productId));
+    c.executionCtx.waitUntil(InventoryRepository.invalidateCache(c.env, productId, 'loc_default'));
+
+    return c.json({ success: true, message: 'Product soft-deleted successfully' });
+  } catch (err: any) {
+    return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
 export default products;

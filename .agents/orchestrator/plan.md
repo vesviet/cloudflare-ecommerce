@@ -1,42 +1,34 @@
-# Orchestration Plan — Checkout Pipeline Refactoring
+# Refactoring Plan — Admin System Refactor
 
-## Overview
-This plan outlines the multi-phase refactoring of the checkout pipeline in `cloudflare-ecommerce` monorepo.
-The orchestrator delegates all investigation, implementation, review, testing, and audit tasks to specialized subagents.
+## Scope & Objective
+Refactor `apps/admin-api/` and `apps/admin-ui/` in `D:\myproject\cloudflare-ecommerce` according to requirements R1-R10.
 
-## Milestones & Execution Plan
+## Milestones Breakdown
 
-### Milestone 1: Research & Investigation Phase (Parallel Explorers)
-- **Goal**: Map complete data flow: `cartStore` → `checkout/page.tsx` → `checkout-api.ts` → `public-api/checkout.ts` → `InventoryService` → `PaymentService` → `OrderService` → `PromotionEngine`.
-- **Agents**: Spawn 3 `teamwork_preview_explorer` subagents in parallel to investigate code files, Zod schemas, components, and services.
-- **Deliverables**: Detailed analysis reports on code layout, type mismatches, missing constants, dead feature flags, currency display formatting, and exact line-by-line requirements for fixes.
+### Task 1: Research & Codebase Exploration
+- Dispatch 3 parallel Explorers / Spec Miners to investigate key files in `apps/admin-api/` and `apps/admin-ui/`.
+- Verify existing test suites (`apps/admin-api/src/routes/__tests__/`), type definitions, route handlers, and coupon references.
 
-### Milestone 2: Fix storefront-ui `checkout/page.tsx`
-- **Goal**: Fix broken component structure in `apps/storefront-ui/src/app/checkout/page.tsx`.
-- **Agents**: `teamwork_preview_worker` (Implementation), `teamwork_preview_reviewer` (Review & Verify), `teamwork_preview_auditor` (Forensic Audit).
-- **Deliverables**: Complete, working Next.js page with thin Suspense wrapper, single `guestAddress` state, turnstile integration, form submission, loading state, cart clear & redirect on success.
+### Task 2: Milestone 1 — admin-api Backend Refactoring
+- **R1**: Extract `GET /landing-leads` from `orders.ts` to `apps/admin-api/src/routes/landingLeads.ts` and mount in `index.ts`.
+- **R2**: Add `requireRole(['superadmin', 'manager', 'support'])` middleware to `GET /orders` and `GET /orders/:id`.
+- **R3**: Add soft-delete endpoint `DELETE /products/:id` setting `deleted_at = CURRENT_TIMESTAMP` requiring `superadmin` or `manager`.
+- **R4**: Refactor `mapPromotionToCoupon` in `coupons.ts` to use canonical field names (`ends_at`, `usage_limit`, `times_used`) and export `CouponDTO`.
+- **R9**: Document flat shipping fee in `checkout.ts` with constant `ADMIN_FLAT_SHIPPING_FEE_VND_CENTS = 999`.
 
-### Milestone 3: Fix Inventory Item Shape Mismatch
-- **Goal**: Align item shapes across `checkout.ts`, `inventory.service.ts`, and `order.service.ts`.
-- **Agents**: `teamwork_preview_worker` (Implementation), `teamwork_preview_reviewer` (Review & Verify), `teamwork_preview_auditor` (Forensic Audit).
-- **Deliverables**: Guaranteed parameter alignment (`id` vs `variation_id`) without `undefined` property access.
+### Task 3: Milestone 2 — admin-ui Frontend Refactoring
+- **R4**: Update `admin-ui` callers (e.g. `PromotionsTab.tsx`) to use canonical coupon fields from `CouponDTO`.
+- **R5**: Extract `ROLE_ROUTES` config and implement `<ProtectedRoute>` route guard component in `App.tsx`.
+- **R6**: Extract `<PageTransition>` component in `apps/admin-ui/src/components/PageTransition.tsx` and wrap all 11 routes in `App.tsx`.
+- **R7**: Update `OrderData.status` union type in `apps/admin-ui/src/types.ts` to include `'pending'`, `'confirmed'`, `'shipped'`.
+- **R8**: Fix currency formatting in `OverviewTab.tsx` to display VNĐ minor unit conversion with comment.
 
-### Milestone 4: Remove Dead Feature Flag
-- **Goal**: Remove `checkout-v2` flag check in `apps/public-api/src/routes/checkout.ts`.
-- **Agents**: `teamwork_preview_worker` (Implementation), `teamwork_preview_reviewer` (Review & Verify), `teamwork_preview_auditor` (Forensic Audit).
-- **Deliverables**: Cleaned checkout route without redundant flag checks, plus explanatory comment.
+### Task 4: Milestone 3 — Build, Lint, Test & Verification (R10)
+- Run `pnpm --filter @ecommerce/admin-ui build` -> exit 0.
+- Run `pnpm --filter @ecommerce/admin-api lint` -> 0 errors.
+- Run `pnpm --filter @ecommerce/admin-api test` -> all tests pass.
+- Reviewer checks, Challenger verification, and Forensic Auditor integrity verification.
 
-### Milestone 5: Fix Currency Mismatch in Shipping Display
-- **Goal**: Change USD formatting `$${...}` to VNĐ format, clarify constant units with comments, add Stripe VNĐ technical debt comment.
-- **Agents**: `teamwork_preview_worker` (Implementation), `teamwork_preview_reviewer` (Review & Verify), `teamwork_preview_auditor` (Forensic Audit).
-- **Deliverables**: Proper VNĐ shipping display and documented constants.
-
-### Milestone 6: Build, Lint & Test Verification
-- **Goal**: Verify storefront-ui build, public-api lint, and test suites across public-api and core-services.
-- **Agents**: `teamwork_preview_worker` (Runner & Fixer), `teamwork_preview_reviewer` (Verification), `teamwork_preview_auditor` (Forensic Audit).
-- **Deliverables**: Clean build exit 0, 0 lint errors, 0 test failures.
-
-### Milestone 7: Git Commit & Push & Victory Audit
-- **Goal**: Commit all changes with exact message: `refactor(checkout): fix broken page, item shape mismatch, dead code, currency display` and push.
-- **Agents**: `teamwork_preview_worker` (Git operation), `teamwork_preview_auditor` (Final Victory Audit).
-- **Deliverables**: Git push completed, audit clean verdict reported.
+### Task 5: Milestone 4 — Git Commit & Push
+- Execute git commit with message: `refactor(admin): route extraction, RBAC guard, soft-delete, VND currency, type fixes`.
+- Push to git repository and notify parent Sentinel.

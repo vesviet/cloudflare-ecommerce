@@ -30,9 +30,10 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ addToast }) => {
     if (ordersError) addToast(ordersError.message || 'Error loading orders', 'error');
   }, [metricsError, ordersError, addToast]);
 
-  const formatCurrency = (minorAmount: number | string) => {
-    const amount = typeof minorAmount === 'string' ? parseFloat(minorAmount) : minorAmount;
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount / 100);
+  const formatCurrency = (amount: number | string) => {
+    const n = typeof amount === 'string' ? parseFloat(amount) : amount;
+    // Amounts are stored as minor units (VNĐ × 100), divide by 100 to get display VNĐ
+    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(n / 100);
   };
 
   const getStatusColor = (status: string) => {

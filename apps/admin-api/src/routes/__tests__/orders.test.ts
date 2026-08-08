@@ -48,6 +48,9 @@ vi.mock('@ecommerce/database', () => {
         select: vi.fn().mockReturnThis(),
         from: vi.fn().mockReturnThis(),
         where: vi.fn().mockReturnThis(),
+        orderBy: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
+        offset: vi.fn().mockReturnThis(),
         leftJoin: vi.fn().mockReturnThis(),
         innerJoin: vi.fn().mockReturnThis(),
         groupBy: vi.fn().mockReturnThis(),
@@ -117,5 +120,20 @@ describe('Admin API: Orders Controller', () => {
       type: 'ORDER_SHIPPED',
       isPartial: true
     }));
+  });
+
+  it('GET /orders: lists orders successfully', async () => {
+    const res = await orders.request('/orders', { method: 'GET' }, mockEnv);
+    expect(res.status).toBe(200);
+    const data = await res.json() as any;
+    expect(data.success).toBe(true);
+  });
+
+  it('GET /orders/:id: returns order detail', async () => {
+    const res = await orders.request('/orders/order_1', { method: 'GET' }, mockEnv);
+    expect(res.status).toBe(200);
+    const data = await res.json() as any;
+    expect(data.success).toBe(true);
+    expect(data.data.id).toBe('order_1');
   });
 });

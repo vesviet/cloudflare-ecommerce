@@ -12,19 +12,38 @@ const router = new Hono<{ Bindings: Bindings, Variables: any }>();
 
 router.use('*', auditMiddleware);
 
-function mapPromotionToCoupon(promo: any) {
+export interface CouponDTO {
+  id: string;
+  code: string;
+  type: string;
+  value: number;
+  min_order_amount?: number | null;
+  starts_at?: string | number | null;
+  ends_at?: string | number | null;
+  usage_limit?: number | null;
+  times_used?: number | null;
+  status: string;
+  created_at?: string | number | null;
+  updated_at?: string | number | null;
+  [key: string]: any;
+}
+
+export function mapPromotionToCoupon(promo: any): CouponDTO {
   if (!promo) return promo;
+  const { is_active, expires_at, max_uses, uses, ...rest } = promo;
+  const status = promo.status || (is_active === 0 ? 'disabled' : 'active');
+  const ends_at = promo.ends_at !== undefined ? promo.ends_at : (expires_at !== undefined ? expires_at : null);
+  const usage_limit = promo.usage_limit !== undefined ? promo.usage_limit : (max_uses !== undefined ? max_uses : null);
+  const times_used = promo.times_used !== undefined ? promo.times_used : (uses !== undefined ? uses : 0);
+  const type = promo.type === 'percentage' ? 'percent' : (promo.type === 'free_shipping' ? 'freeship' : promo.type);
+
   return {
-    ...promo,
-    is_active: promo.is_active !== undefined ? (promo.is_active ? 1 : 0) : (promo.status === 'active' ? 1 : 0),
-    status: promo.status || (promo.is_active === 0 ? 'disabled' : 'active'),
-    expires_at: promo.expires_at !== undefined ? promo.expires_at : promo.ends_at,
-    ends_at: promo.expires_at !== undefined ? promo.expires_at : promo.ends_at,
-    max_uses: promo.max_uses !== undefined ? promo.max_uses : promo.usage_limit,
-    usage_limit: promo.max_uses !== undefined ? promo.max_uses : promo.usage_limit,
-    uses: promo.uses !== undefined ? promo.uses : promo.times_used,
-    times_used: promo.uses !== undefined ? promo.uses : promo.times_used,
-    type: promo.type === 'percentage' ? 'percent' : (promo.type === 'free_shipping' ? 'freeship' : promo.type),
+    ...rest,
+    type,
+    status,
+    ends_at,
+    usage_limit,
+    times_used,
   };
 }
 
