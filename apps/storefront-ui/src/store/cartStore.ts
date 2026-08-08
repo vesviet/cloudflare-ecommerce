@@ -116,7 +116,7 @@ export const useCartStore = create<CartState>()(
           }
 
           const items = get().items.map(i => ({
-            productId: i.product_id,
+            productId: i.id,
             quantity: i.quantity
           }));
 

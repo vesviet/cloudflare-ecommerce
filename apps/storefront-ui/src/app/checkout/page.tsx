@@ -63,6 +63,7 @@ function CheckoutInner() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [redeemPoints, setRedeemPoints] = useState(0);
+  const [idempotencyKey] = useState(() => crypto.randomUUID());
 
   const priceChanged = usePriceValidation(items, updatePrices);
 
@@ -103,7 +104,6 @@ function CheckoutInner() {
     setSubmitError('');
 
     try {
-      const idempotencyKey = crypto.randomUUID();
       const payload = {
         items: items.map(i => ({ variation_id: i.id, quantity: i.quantity })),
         email,
@@ -127,6 +127,7 @@ function CheckoutInner() {
 
       if (res && res.success) {
         if (res.checkout_url && isTrustedCheckoutUrl(res.checkout_url)) {
+          clearCart();
           window.location.href = res.checkout_url;
         } else if (res.order_id) {
           clearCart();

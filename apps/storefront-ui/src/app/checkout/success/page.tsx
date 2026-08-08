@@ -26,7 +26,7 @@ function CheckoutSuccessInner() {
   const orderId = searchParams.get('order_id');
   const shortId = orderId ? orderId.slice(0, 8).toUpperCase() : '';
 
-  // Clear cart only here — after Stripe has confirmed payment
+  // Clear local cart state on mount (intentional fallback safety net after order completion / payment redirect)
   useEffect(() => {
     clearCart();
   }, [clearCart]);

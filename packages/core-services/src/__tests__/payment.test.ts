@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { PaymentService } from '../payment.service';
+import { PaymentService, PAYMENT_CONFIG } from '../payment.service';
 import Stripe from 'stripe';
 
 vi.mock('stripe', () => ({
@@ -343,5 +343,12 @@ describe('PaymentService.resolvePaymentIntentId', () => {
     await expect(
       PaymentService.resolvePaymentIntentId(stripe, 'cs_test_123')
     ).rejects.toThrow('no associated payment intent');
+  });
+});
+
+describe('PAYMENT_CONFIG', () => {
+  it('exports DEFAULT_CURRENCY and STORE_CURRENCY constants', () => {
+    expect(PAYMENT_CONFIG.DEFAULT_CURRENCY).toBe('usd');
+    expect(PAYMENT_CONFIG.STORE_CURRENCY).toBe('VND');
   });
 });

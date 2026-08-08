@@ -4,6 +4,19 @@ import { schema } from '@ecommerce/database';
 
 import { PromotionEngine } from './promotion.engine';
 
+/**
+ * Payment configuration and technical debt documentation.
+ *
+ * TECHNICAL DEBT / CURRENCY CONVERSION POLICY:
+ * Stripe does not natively support VNĐ settlement for many account types,
+ * so DEFAULT_CURRENCY ('usd') is used for Stripe Checkout sessions in this VNĐ business model.
+ * Store prices are maintained in VNĐ (STORE_CURRENCY = 'VND').
+ */
+export const PAYMENT_CONFIG = {
+  DEFAULT_CURRENCY: 'usd',
+  STORE_CURRENCY: 'VND',
+};
+
 export class PaymentService {
   /**
    * Calculates discounts, coupons, and final pricing.
@@ -60,7 +73,7 @@ export class PaymentService {
     const ratio = subTotal > 0 ? adjustedSubtotal / subTotal : 1;
     
     // TODO / TECHNICAL DEBT: Stripe does not natively support VNĐ settlement for many account types,
-    // so 'usd' currency is hardcoded for Stripe Checkout sessions in this VNĐ business model.
+    // so PAYMENT_CONFIG.DEFAULT_CURRENCY ('usd') is used for Stripe Checkout sessions in this VNĐ business model.
     const stripeLineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = validItems.map(item => {
       // S3-B FIX (I-14): Log price drift if client sent price_requested and it differs from current price
       if (item.price_requested !== undefined && item.price_requested !== item.price) {
@@ -70,7 +83,7 @@ export class PaymentService {
       }
       return {
         price_data: {
-          currency: 'usd',
+          currency: PAYMENT_CONFIG.DEFAULT_CURRENCY,
           product_data: { name: item.name },
           unit_amount: Math.max(0, Math.round(item.price * ratio)),
         },
@@ -81,7 +94,7 @@ export class PaymentService {
     if (shippingFeeCents > 0) {
       stripeLineItems.push({
         price_data: {
-          currency: 'usd',
+          currency: PAYMENT_CONFIG.DEFAULT_CURRENCY,
           product_data: { name: 'Standard Shipping' },
           unit_amount: shippingFeeCents,
         },
@@ -92,7 +105,7 @@ export class PaymentService {
     if (taxAmountCents > 0) {
       stripeLineItems.push({
         price_data: {
-          currency: 'usd',
+          currency: PAYMENT_CONFIG.DEFAULT_CURRENCY,
           product_data: { name: 'Taxes' },
           unit_amount: taxAmountCents,
         },

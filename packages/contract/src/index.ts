@@ -59,6 +59,8 @@ export const CheckoutSchema = z.object({
 // Alias checkoutSchema to CheckoutSchema for compatibility
 export const checkoutSchema = CheckoutSchema
 
+export const DEFAULT_LOCATION_ID = 'loc-1'
+
 // Schema API Key Response
 export const ErrorResponseSchema = z.object({
   success: z.boolean().default(false),

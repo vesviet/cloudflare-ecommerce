@@ -906,4 +906,28 @@ describe('InventoryService — PIM-Refactored (I-03/I-04)', () => {
       expect(res.validItems[0].quantity).toBe(2);
     });
   });
+
+  describe('verifyDeductionResults (Issue 6)', () => {
+    it('passes when all batch deduction items updated > 0 rows', () => {
+      const batchResults = [
+        { meta: { changes: 1 } },
+        { meta: { changes: 3 } },
+        { meta: { changes: 0 } },
+      ];
+      expect(() => InventoryService.verifyDeductionResults(batchResults, 2)).not.toThrow();
+    });
+
+    it('throws when any deducted item updated 0 rows', () => {
+      const batchResults = [
+        { meta: { changes: 1 } },
+        { meta: { changes: 0 } },
+      ];
+      expect(() => InventoryService.verifyDeductionResults(batchResults, 2)).toThrow(/0 rows updated/);
+    });
+
+    it('supports alternative changes property on batch result object', () => {
+      const batchResults = [{ changes: 1 }];
+      expect(() => InventoryService.verifyDeductionResults(batchResults, 1)).not.toThrow();
+    });
+  });
 });

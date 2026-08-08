@@ -3,12 +3,12 @@ import { getShippingEstimate } from '../lib/checkout-api';
 
 /** Server-authoritative shipping fee resolved whenever the postcode changes. */
 export function useShippingEstimate(activePostcode: string) {
-  const [shippingFeeCents, setShippingFeeCents] = useState<number>(5000);
+  const [shippingFeeCents, setShippingFeeCents] = useState<number>(0);
   const [shippingLoading, setShippingLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    const run = async () => {
+    const timer = setTimeout(async () => {
       setShippingLoading(true);
       try {
         const data = await getShippingEstimate(activePostcode);
@@ -20,9 +20,12 @@ export function useShippingEstimate(activePostcode: string) {
       } finally {
         if (!cancelled) setShippingLoading(false);
       }
+    }, 400);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
     };
-    run();
-    return () => { cancelled = true; };
   }, [activePostcode]);
 
   return { shippingFeeCents, shippingLoading };

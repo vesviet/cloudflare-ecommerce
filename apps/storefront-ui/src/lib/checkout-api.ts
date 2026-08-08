@@ -12,13 +12,13 @@ export function syncCart(items: CartSyncItem[], guestSessionId?: string) {
   });
 }
 
-export function applyCoupon(couponCode: string, subTotalCents: number) {
+export function applyCoupon(couponCode: string, subTotalCents: number, cartId: string = 'active') {
   return apiFetch<{
     success: boolean;
     coupon?: { id: string; code: string; type: string; value: number };
     error?: string;
   }>('/api/cart/coupon', {
-    body: { cart_id: 'draft', coupon_code: couponCode, subTotalCents },
+    body: { cart_id: cartId, coupon_code: couponCode, subTotalCents },
     credentials: 'include',
   });
 }

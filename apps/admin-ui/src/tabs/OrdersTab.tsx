@@ -8,7 +8,7 @@ import { GlassCard } from '../components/ui/GlassCard';
 import { SkeletonLoader } from '../components/ui/SkeletonLoader';
 import { Pagination, type PaginationMeta } from '../components/ui/Pagination';
 import { useEscapeKey } from '../lib/useEscapeKey';
-import { RefreshCw, Package, RotateCcw } from 'lucide-react';
+import { RefreshCw, Package, RotateCcw, CheckCircle, XCircle } from 'lucide-react';
 
 interface OrdersTabProps {
   API_BASE_URL: string;
@@ -103,7 +103,38 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({ API_BASE_URL, addToast }) 
     }
   };
 
-  const formatCurrency = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
+  const handleApproveOrder = async (orderId: string) => {
+    try {
+      const res = await apiFetch(`/orders/${orderId}/approve`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        addToast('Order approved successfully', 'success');
+        mutate();
+      } else {
+        addToast(data.error || 'Failed to approve order', 'error');
+      }
+    } catch (err: any) {
+      addToast(err.message || 'Error approving order', 'error');
+    }
+  };
+
+  const handleCancelOrder = async (orderId: string) => {
+    try {
+      const res = await apiFetch(`/orders/${orderId}/cancel`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        addToast('Order cancelled successfully', 'success');
+        mutate();
+      } else {
+        addToast(data.error || 'Failed to cancel order', 'error');
+      }
+    } catch (err: any) {
+      addToast(err.message || 'Error cancelling order', 'error');
+    }
+  };
+
+  // Format monetary amounts (passed after /100 conversion from cents/base units) to VNĐ currency format
+  const formatCurrency = (value: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value);
 
   const handleCloseOrderDetail = useCallback(() => setSelectedOrderId(null), []);
 
@@ -203,7 +234,17 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({ API_BASE_URL, addToast }) 
                       <td className="px-6 py-4 text-right font-medium">{totalDisplay}</td>
                       <td className="px-6 py-4">
                         <div className="flex items-center justify-center gap-2">
-                          {order.status === 'processing' ? (
+                          {(order.status === 'pending' || order.status === 'pending_payment' || order.status === 'confirmed') && (
+                            <button
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-success-accent border border-success-accent/30 hover:bg-success-glow/10 transition-colors"
+                              onClick={(e) => { e.stopPropagation(); handleApproveOrder(order.id); }}
+                            >
+                              <CheckCircle className="w-3.5 h-3.5" />
+                              Approve
+                            </button>
+                          )}
+
+                          {order.status === 'processing' && (
                             <button
                               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-success-accent border border-success-accent/30 hover:bg-success-glow/10 transition-colors"
                               onClick={(e) => { e.stopPropagation(); handleOpenFulfillModal(order.id); }}
@@ -211,9 +252,9 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({ API_BASE_URL, addToast }) 
                               <Package className="w-3.5 h-3.5" />
                               Fulfill
                             </button>
-                          ) : null}
+                          )}
                           
-                          {(order.status === 'processing' || order.status === 'completed') ? (
+                          {(order.status === 'processing' || order.status === 'completed') && (
                             <button
                               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-danger-accent border border-danger-accent/30 hover:bg-danger-glow/10 transition-colors"
                               onClick={(e) => { e.stopPropagation(); setRefundOrderId(order.id); }}
@@ -221,7 +262,19 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({ API_BASE_URL, addToast }) 
                               <RotateCcw className="w-3.5 h-3.5" />
                               Refund
                             </button>
-                          ) : (
+                          )}
+
+                          {!['shipped', 'completed', 'cancelled', 'refunded'].includes(order.status) && (
+                            <button
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-danger-accent border border-danger-accent/30 hover:bg-danger-glow/10 transition-colors"
+                              onClick={(e) => { e.stopPropagation(); handleCancelOrder(order.id); }}
+                            >
+                              <XCircle className="w-3.5 h-3.5" />
+                              Cancel
+                            </button>
+                          )}
+
+                          {['shipped', 'cancelled', 'refunded'].includes(order.status) && (
                             <span className="text-text-muted">—</span>
                           )}
                         </div>

@@ -62,20 +62,16 @@ describe('Empirical Verification: Admin API RBAC & Soft-Delete', () => {
     return app;
   };
 
-  it('GET /orders: DENIED (403) for role "editor"', async () => {
+  it('GET /orders: ALLOWED (200) for role "editor"', async () => {
     const app = createTestApp('editor');
-    const res = await app.request('/orders', { method: 'GET' });
-    expect(res.status).toBe(403);
-    const body = await res.json() as any;
-    expect(body.error).toContain('Forbidden');
+    const res = await app.request('/orders', { method: 'GET' }, { DB: {} });
+    expect(res.status).toBe(200);
   });
 
-  it('GET /orders/:id: DENIED (403) for role "editor"', async () => {
+  it('GET /orders/:id: ALLOWED (200) for role "editor"', async () => {
     const app = createTestApp('editor');
-    const res = await app.request('/orders/ord_123', { method: 'GET' });
-    expect(res.status).toBe(403);
-    const body = await res.json() as any;
-    expect(body.error).toContain('Forbidden');
+    const res = await app.request('/orders/ord_123', { method: 'GET' }, { DB: {} });
+    expect(res.status).toBe(200);
   });
 
   it('GET /orders: ALLOWED (200) for role "support"', async () => {

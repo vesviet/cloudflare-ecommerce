@@ -1,5 +1,6 @@
 import { inArray, sql, eq, and } from 'drizzle-orm';
 import { schema } from '@ecommerce/database';
+import { DEFAULT_LOCATION_ID } from '@ecommerce/contract';
 
 export class InventoryService {
   /**
@@ -14,7 +15,7 @@ export class InventoryService {
   static async validateAndReserveInventory(
     db: any,
     items: { variation_id?: string; id?: string; quantity: number; [key: string]: any }[],
-    locationId: string = 'loc-1'
+    locationId: string = DEFAULT_LOCATION_ID
   ) {
     const validItems: { variation_id: string; id: string; quantity: number; price: number; name: string }[] = [];
     const normalizedItems = (items || []).map((i) => {
@@ -159,7 +160,7 @@ export class InventoryService {
   /**
    * Generates Drizzle queries to soft-lock inventory for a specific order.
    */
-  static getSoftLockQueries(db: any, orderId: string, validItems: any[], locationId: string = 'loc-1') {
+  static getSoftLockQueries(db: any, orderId: string, validItems: any[], locationId: string = DEFAULT_LOCATION_ID) {
     const expiresAt = Math.floor(Date.now() / 1000) + 30 * 60; // 30 minutes
     const queries = [];
     for (const item of validItems) {
@@ -192,7 +193,7 @@ export class InventoryService {
    * I-03/I-04 FIX: Updates inventory_levels.stock_quantity (not products.stock_quantity which
    * was dropped in migration 0007). Guard against going negative via WHERE stock_quantity >= qty.
    */
-  static getCommitDeductionQueries(db: any, orderId: string, items: { product_id: string; quantity: number }[], locationId: string = 'loc-1') {
+  static getCommitDeductionQueries(db: any, orderId: string, items: { product_id: string; quantity: number }[], locationId: string = DEFAULT_LOCATION_ID) {
     const queries = [];
     for (const item of items) {
       queries.push(
@@ -220,7 +221,7 @@ export class InventoryService {
    *
    * I-03/I-04 FIX: Updates inventory_levels.stock_quantity (not products which no longer has this column).
    */
-  static getRestockQueries(db: any, items: { product_id: string; quantity: number }[], locationId: string = 'loc-1') {
+  static getRestockQueries(db: any, items: { product_id: string; quantity: number }[], locationId: string = DEFAULT_LOCATION_ID) {
     const queries = [];
     for (const item of items) {
       queries.push(
@@ -238,5 +239,24 @@ export class InventoryService {
       );
     }
     return queries;
+  }
+
+  /**
+   * Verifies that all batch inventory deduction queries updated at least 1 row.
+   * If any item deduction resulted in 0 rows updated (e.g. insufficient stock or row missing),
+   * throws an error to trigger rollback.
+   */
+  static verifyDeductionResults(batchResults: any[], itemsCount: number): void {
+    if (itemsCount <= 0) return;
+    if (!Array.isArray(batchResults) || batchResults.length < itemsCount) {
+      throw new Error('Batch results array is invalid or incomplete');
+    }
+    for (let i = 0; i < itemsCount; i++) {
+      const res = batchResults[i];
+      const changes = res?.meta?.changes ?? res?.changes ?? 0;
+      if (changes === 0) {
+        throw new Error(`Stock deduction failed for item at index ${i}: 0 rows updated (insufficient stock)`);
+      }
+    }
   }
 }

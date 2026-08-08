@@ -217,3 +217,234 @@ git push
 
 ### Git
 - [ ] Commit `refactor(catalog): fix type mismatch, sale prices, auth, cascade delete, price queries` pushed to origin/main
+
+## Follow-up — 2026-08-08T04:20:28Z
+
+Refactor the checkout + order system of the `cloudflare-ecommerce` monorepo — a production Cloudflare Workers + Next.js e-commerce platform. Fix ALL known bugs, runtime crashes, security vulnerabilities, data integrity issues, and structural problems found in the research audit. Produce clean TypeScript code that passes build and lint checks.
+
+Working directory: D:\myproject\cloudflare-ecommerce
+
+Integrity mode: development
+
+---
+
+## Context — System Overview
+
+The checkout + order system spans:
+- `apps/public-api/src/routes/checkout.ts` (345 lines) — Public checkout API with idempotency, rate limiting, Stripe session creation
+- `apps/admin-api/src/routes/orders.ts` (358 lines) — Admin order CRUD: list, detail, fulfill, refund, approve/cancel
+- `apps/admin-api/src/routes/checkout.ts` (164 lines) — Admin POS manual order creation
+- `apps/storefront-ui/src/app/checkout/page.tsx` (238 lines) — Client checkout page with Turnstile, address, coupon
+- `apps/storefront-ui/src/app/checkout/success/page.tsx` (123 lines) — Order success page
+- `apps/storefront-ui/src/lib/checkout-api.ts` (61 lines) — Typed API client
+- `apps/storefront-ui/src/hooks/useCheckoutData.ts` (73 lines) — Customer profile + address prefill hook
+- `apps/storefront-ui/src/hooks/useShippingEstimate.ts` (30 lines) — Shipping fee hook
+- `apps/storefront-ui/src/hooks/usePriceValidation.ts` (48 lines) — Cart price validation hook
+- `apps/storefront-ui/src/store/cartStore.ts` (143 lines) — Zustand cart store with persistence
+- `packages/core-services/src/order.service.ts` (313 lines) — 2PC checkout orchestrator
+- `packages/core-services/src/inventory.service.ts` (243 lines) — Stock verification + deduction
+- `packages/core-services/src/payment.service.ts` (162 lines) — Stripe integration + pricing
+- `packages/contract/src/index.ts` (252 lines) — Shared Zod schemas
+- `apps/admin-ui/src/tabs/OrdersTab.tsx` (365 lines) — Admin order list with SWR
+- `apps/admin-ui/src/components/OrderDetailModal.tsx` (195 lines) — Order detail modal
+
+---
+
+## Critical Issues Found (Research Audit)
+
+### ISSUE 1 — RUNTIME CRASH: `c.env` passed instead of `c.env.DB` [CRITICAL]
+- `apps/public-api/src/routes/checkout.ts:L330`: `OrderService.cancelOrderAndRestock(db, c.env, orderId)` — passes `c.env` instead of `c.env.DB` as the `rawD1Db` parameter
+- `apps/admin-api/src/routes/orders.ts:L114`: `OrderService.refundOrderAndRestock(db, c.env, orderId, order.status)` — same bug
+- `packages/core-services/src/order.service.ts:L14, L93, L181`: Methods signatures `(drizzleDb, rawD1Db, ...)` — `rawD1Db` expects `D1Database`, not the full `Bindings` env object
+- **Impact**: ANY refund or order cancel operation crashes at runtime with a `TypeError` when `rawD1Db.prepare` is invoked on `c.env`
+- **Fix**: Change both callers to pass `c.env.DB` as the second argument
+
+### ISSUE 2 — CRITICAL BILLING BUG: Stripe charges USD when business sells in VNĐ [CRITICAL]
+- `packages/core-services/src/payment.service.ts:L63-L64`: `currency: 'usd'` hardcoded
+- VNĐ price 50,000 ₫ gets sent to Stripe as `$50,000.00 USD`
+- **Fix**: This is known technical debt (Stripe doesn't support VNĐ natively). Add a clear `PAYMENT_CONFIG` constant block documenting the VNĐ→USD conversion strategy (divide by 100 to express as USD cents if treating 1 VNĐ = 0.01 USD, or add TODO with explicit conversion rate). Ensure the comment is accurate so future devs don't accidentally "fix" the conversion in the wrong direction. Do NOT break existing Stripe integration — just make it safe and documented.
+
+### ISSUE 3 — DATA INTEGRITY: cartStore.ts syncCart sends product_id instead of variation ID [HIGH]
+- `apps/storefront-ui/src/store/cartStore.ts:L118-L121`: `syncCart` maps `{ productId: i.product_id, quantity: i.quantity }` — uses `i.product_id` instead of `i.id`
+- **Impact**: All variation selections (Size, Color, etc.) are lost during server cart sync
+- **Fix**: Change to `{ productId: i.id, quantity: i.quantity }` to preserve variation ID
+
+### ISSUE 4 — IDEMPOTENCY FLAW: New UUID per retry negates server-side protection [HIGH]
+- `apps/storefront-ui/src/app/checkout/page.tsx:L106`: `idempotencyKey = crypto.randomUUID()` generated inside `handleSubmit`
+- On network failure and re-submit, a new UUID is generated → server treats it as a brand new order → duplicate orders possible
+- **Fix**: Generate idempotency key in component state (useState) once on mount, reset only on successful completion
+
+### ISSUE 5 — SECURITY: RBAC mismatch — editor can approve/cancel but cannot view orders [HIGH]
+- `apps/admin-api/src/routes/orders.ts:L13, L34`: `GET /orders` and `GET /orders/:id` added `requireRole(['superadmin', 'manager', 'support'])` in previous refactor
+- `L291, L324`: `POST /orders/:id/approve` and `POST /orders/:id/cancel` include `'editor'` in allowed roles
+- **Impact**: Editors can approve/cancel orders they cannot see (blind actions)
+- **Fix**: Add `'editor'` to `GET /orders` and `GET /orders/:id` RBAC lists OR remove `'editor'` from approve/cancel
+
+### ISSUE 6 — SILENT STOCK DEDUCTION FAILURE [HIGH]
+- `packages/core-services/src/inventory.service.ts:L193`: SQL `WHERE stock_quantity >= item.quantity` — if stock is missing or insufficient at commit time, D1 updates 0 rows without throwing or rolling back
+- **Impact**: Orders can be confirmed with 0 stock silently
+- **Fix**: After the batch deduction, verify that rows were actually updated. If `changes === 0` for any item, throw an error to trigger rollback
+
+### ISSUE 7 — MISSING APPROVE/CANCEL BUTTONS in Admin UI [MEDIUM]
+- `apps/admin-ui/src/tabs/OrdersTab.tsx:L224`: Orders in non-processing states show `—` in action column
+- Backend `POST /orders/:id/approve` and `POST /orders/:id/cancel` routes exist but Admin UI has no UI to trigger them
+- **Fix**: Add "Approve" button for `pending`/`confirmed` orders and "Cancel" button for cancellable statuses in OrdersTab
+
+### ISSUE 8 — CURRENCY MISMATCH in Admin UI [MEDIUM]
+- `apps/admin-ui/src/tabs/OrdersTab.tsx:L106`: Formats amounts with `en-US/USD`
+- `apps/admin-ui/src/components/OrderDetailModal.tsx:L38`: Same USD formatter
+- **Fix**: Change both to `vi-VN/VND` locale with `/100` conversion comment
+
+### ISSUE 9 — DISCOUNT CALCULATION BUG in OrderDetailModal [MEDIUM]
+- `apps/admin-ui/src/components/OrderDetailModal.tsx:L171`: Subtotal reads only `order.discounts?.[0]?.discount_amount` — ignores multiple discounts
+- **Fix**: Sum all discount amounts: `order.discounts?.reduce((sum, d) => sum + d.discount_amount, 0) ?? 0`
+
+### ISSUE 10 — SHIPPING ESTIMATE not debounced [MEDIUM]
+- `apps/storefront-ui/src/hooks/useShippingEstimate.ts`: No debounce on postcode input — every keystroke fires an HTTP request
+- **Fix**: Add 400ms debounce before fetching shipping estimate
+
+### ISSUE 11 — CART RETENTION BUG after Stripe redirect [LOW]
+- `apps/storefront-ui/src/app/checkout/page.tsx:L129-L137`: When Stripe redirect happens, `clearCart()` is NOT called before redirecting
+- **Fix**: Call `clearCart()` before `window.location.href = checkout_url`
+
+### ISSUE 12 — CART SYNC on success page without verification [LOW]
+- `apps/storefront-ui/src/app/checkout/success/page.tsx:L30-L32`: `clearCart()` called on mount without verifying order status from backend
+- **Fix**: Keep `clearCart()` on success mount (acceptable since success page is only reached after payment), but add a comment explaining this is intentional
+
+### ISSUE 13 — hardcoded `cart_id: 'draft'` in applyCoupon [LOW]
+- `apps/storefront-ui/src/lib/checkout-api.ts:L21`: `cart_id: 'draft'` — stale placeholder
+- **Fix**: Remove hardcoded value or make it dynamic
+
+### ISSUE 14 — useShippingEstimate initial state hardcoded to 5000 [LOW]
+- `apps/storefront-ui/src/hooks/useShippingEstimate.ts:L6`: Initial state `5000` — this displays before first API call
+- **Fix**: Change to `null` or `0` and handle loading state
+
+### ISSUE 15 — Location ID inconsistency: 'loc-1' vs 'loc_default' vs 'loc-1' [LOW]
+- `public-api/checkout.ts:L112`, `admin-api/checkout.ts:L18`, `order.service.ts:L72`, `inventory.service.ts:L17`: All use `'loc-1'` as default
+- `admin-api/products.ts`: Uses `'loc_default'`
+- **Fix**: Create a shared constant `DEFAULT_LOCATION_ID = 'loc-1'` in the contract/shared package and use it everywhere (or at least document the canonical value)
+
+### ISSUE 16 — Missing search/filter in GET /orders [LOW]
+- `admin-api/routes/orders.ts:L25`: Total count ignores filters
+- Admin orders list cannot be filtered by status, date, or searched by email/ID
+- **Fix**: Add optional `?status=` and `?search=` query params to `GET /orders`
+
+---
+
+## Sub-Tasks (auto-created)
+
+### Task 1 — Research Phase
+Read ALL files in Context section above before writing code. Confirm all 16 issues exist. Note exact line numbers.
+
+### Task 2 — Fix runtime crashes (Issues 1)
+- Fix `c.env` → `c.env.DB` in both `public-api/checkout.ts:L330` and `admin-api/orders.ts:L114`
+
+### Task 3 — Fix data integrity issues (Issues 3, 6, 9)
+- Fix `cartStore.ts` syncCart variation ID bug
+- Add stock deduction verification in `inventory.service.ts`
+- Fix multi-discount sum in `OrderDetailModal.tsx`
+
+### Task 4 — Fix idempotency + cart retention (Issues 4, 11)
+- Move idempotency key to component state in `checkout/page.tsx`
+- Call `clearCart()` before Stripe redirect
+
+### Task 5 — Fix RBAC mismatch + add approve/cancel buttons (Issues 5, 7)
+- Fix editor role RBAC in `admin-api/orders.ts`
+- Add Approve/Cancel action buttons in `OrdersTab.tsx`
+
+### Task 6 — Fix currency display + document Stripe VNĐ (Issues 2, 8)
+- Fix currency formatters in `OrdersTab.tsx` and `OrderDetailModal.tsx` to use VNĐ
+- Add clear `PAYMENT_CONFIG` constant block in `payment.service.ts` documenting the VNĐ/USD situation
+
+### Task 7 — Fix UX issues (Issues 10, 13, 14, 15, 16)
+- Add debounce to `useShippingEstimate`
+- Fix `cart_id: 'draft'` in `checkout-api.ts`
+- Fix initial shipping state to `null`
+- Document location ID constant
+- Add `?status=` filter to `GET /orders`
+
+### Task 8 — Build + Lint + Test
+- `pnpm --filter @ecommerce/storefront-ui build` → exit 0
+- `pnpm --filter @ecommerce/public-api lint` → 0 errors
+- `pnpm --filter @ecommerce/admin-api lint` → 0 errors
+- `pnpm --filter @ecommerce/core-services test` → all pass (including `order.service.test.ts`, `inventory.test.ts`, `payment.test.ts`)
+- Fix all errors found
+
+### Task 9 — Git Commit & Push
+```
+git add .
+git commit -m "refactor(checkout): fix runtime crash, variation sync, idempotency, RBAC, currency display"
+git push
+```
+
+---
+
+## Requirements
+
+### R1. Runtime crashes fixed
+- `OrderService.cancelOrderAndRestock` and `refundOrderAndRestock` receive `c.env.DB` (not `c.env`) in all callers
+
+### R2. Cart variation preserved
+- `cartStore.ts` `syncCart` uses `i.id` (variation ID) not `i.product_id`
+
+### R3. Idempotency key stable across retries
+- Idempotency UUID stored in React state, not regenerated on each submit
+
+### R4. Cart cleared before Stripe redirect
+- `clearCart()` called before `window.location.href = checkout_url`
+
+### R5. RBAC consistent for editor role
+- `GET /orders` and `GET /orders/:id` include `'editor'` role OR editor is removed from approve/cancel routes (choose consistent policy)
+
+### R6. Admin UI: Approve + Cancel buttons present
+- `OrdersTab.tsx` shows Approve button for `pending`/`confirmed` orders
+- Cancel button shown for non-terminal statuses
+
+### R7. VNĐ currency in admin UI
+- `OrdersTab.tsx` and `OrderDetailModal.tsx` format amounts with `vi-VN/VND` locale
+
+### R8. Stock deduction verified
+- `inventory.service.ts` throws if any item deduction results in 0 DB rows changed
+
+### R9. Stripe VNĐ situation documented
+- `payment.service.ts` has clear `PAYMENT_CONFIG` constant block explaining the currency handling
+
+### R10. Build + lint + tests pass
+- All 3 build/lint commands exit 0
+- All pre-existing core-services tests pass
+
+### R11. Final commit pushed
+- Commit: `refactor(checkout): fix runtime crash, variation sync, idempotency, RBAC, currency display`
+
+---
+
+## Acceptance Criteria
+
+### Runtime & Data
+- [ ] `OrderService.cancelOrderAndRestock(db, c.env.DB, orderId)` — NOT `c.env`
+- [ ] `OrderService.refundOrderAndRestock(db, c.env.DB, orderId, status)` — NOT `c.env`
+- [ ] `cartStore.ts` syncCart uses `i.id` for variation ID
+- [ ] Inventory deduction throws if `changes === 0` for any item
+- [ ] Idempotency key generated once in React state, not inside `handleSubmit`
+- [ ] `clearCart()` called before Stripe redirect URL
+
+### Admin UI
+- [ ] Orders in `pending`/`confirmed` status show "Approve" button in OrdersTab
+- [ ] Non-terminal orders show "Cancel" button in OrdersTab
+- [ ] `OrdersTab.tsx` uses `vi-VN/VND` currency format
+- [ ] `OrderDetailModal.tsx` uses `vi-VN/VND` currency format
+- [ ] `OrderDetailModal.tsx` sums ALL discount amounts (not just `discounts[0]`)
+
+### API & Services
+- [ ] `GET /orders` supports optional `?status=` filter
+- [ ] RBAC for editor role is consistent across list + detail + approve/cancel
+- [ ] `payment.service.ts` has `PAYMENT_CONFIG` constant block with VNĐ/USD comment
+
+### Build & Tests
+- [ ] `pnpm --filter @ecommerce/storefront-ui build` exits 0
+- [ ] `pnpm --filter @ecommerce/admin-api lint` exits 0
+- [ ] `pnpm --filter @ecommerce/public-api lint` exits 0
+- [ ] All pre-existing `core-services` tests pass
+
+### Git
+- [ ] Commit `refactor(checkout): fix runtime crash, variation sync, idempotency, RBAC, currency display` pushed to origin/main

@@ -3,7 +3,7 @@ import { createDb, schema } from '@ecommerce/database'
 import { eq, lt, inArray } from 'drizzle-orm'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
-import { CheckoutSchema } from '@ecommerce/contract'
+import { CheckoutSchema, DEFAULT_LOCATION_ID } from '@ecommerce/contract'
 import { InventoryService, PaymentService, OrderService } from '@ecommerce/core-services'
 import { rateLimit, clientIp, type RateLimiter } from '@ecommerce/shared-routes'
 
@@ -109,7 +109,7 @@ checkout.post('/', zValidator('json', CheckoutSchema), limitCheckout, async (c) 
       customer_id, email, utm_source, utm_medium, utm_campaign,
       accepts_marketing, coupon_code, location_id
     } = body
-    const locationId = location_id || 'loc-1';
+    const locationId = location_id || DEFAULT_LOCATION_ID;
 
     const db = createDb(c.env.DB)
 
@@ -259,7 +259,7 @@ checkout.post('/', zValidator('json', CheckoutSchema), limitCheckout, async (c) 
 
     // Process Checkout via Two-Phase Commit Orchestrator
     try {
-      await OrderService.processCheckout(db, c.env, {
+      await OrderService.processCheckout(db, c.env.DB, {
         orderId,
         customerId: customer_id,
         email,
@@ -327,7 +327,7 @@ checkout.post('/', zValidator('json', CheckoutSchema), limitCheckout, async (c) 
       
       // If Stripe fails, we must rollback the order and inventory
       // We can use the orchestrator's cancellation method
-      c.executionCtx.waitUntil(OrderService.cancelOrderAndRestock(db, c.env, orderId));
+      c.executionCtx.waitUntil(OrderService.cancelOrderAndRestock(db, c.env.DB, orderId));
 
       if (idempotencyKey) {
         await db.delete(schema.checkoutIdempotency).where(eq(schema.checkoutIdempotency.key, idempotencyKey))

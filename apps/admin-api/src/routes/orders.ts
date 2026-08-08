@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, like, or, sql } from 'drizzle-orm';
 import { createDb } from '@ecommerce/database';
 import { localSchema } from '@ecommerce/core-services';
 import { Bindings } from '../types';
@@ -10,28 +10,53 @@ import { PaymentService, OrderService, FulfillmentService } from '@ecommerce/cor
 
 const orders = new Hono<{ Bindings: Bindings }>();
 
-orders.get('/orders', requireRole(['superadmin', 'manager', 'support']), async (c) => {
+orders.get('/orders', requireRole(['superadmin', 'manager', 'support', 'editor']), async (c) => {
   try {
     const db = createDb(c.env.DB);
     const limit = Math.min(Math.max(parseInt(c.req.query('limit') || '100', 10) || 100, 1), 200);
     const offset = Math.max(parseInt(c.req.query('offset') || '0', 10) || 0, 0);
-    const [results, countRow] = await Promise.all([
+    const status = c.req.query('status');
+    const search = c.req.query('search') || c.req.query('q');
+
+    const conditions: any[] = [];
+    if (status) {
+      conditions.push(eq(localSchema.orders.status, status));
+    }
+    if (search) {
+      const searchPattern = `%${search}%`;
+      conditions.push(
+        or(
+          like(localSchema.orders.id, searchPattern),
+          like(localSchema.orders.guest_email, searchPattern),
+          like(localSchema.orders.customer_id, searchPattern)
+        )
+      );
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const [results, countRows] = await Promise.all([
       db.select()
         .from(localSchema.orders)
+        .where(whereClause)
         .orderBy(sql`${localSchema.orders.created_at} DESC`)
         .limit(limit)
         .offset(offset)
         .all(),
-      db.get<{ total: number }>(sql`SELECT COUNT(*) as total FROM orders`),
+      db.select({ total: sql<number>`count(*)` })
+        .from(localSchema.orders)
+        .where(whereClause)
+        .all(),
     ]);
-    return c.json({ success: true, data: results, pagination: { total: countRow?.total ?? 0, limit, offset } });
+    const total = countRows[0]?.total ?? 0;
+    return c.json({ success: true, data: results, pagination: { total, limit, offset } });
   } catch (err: any) {
     console.error('Admin list orders error:', err);
     return c.json({ success: false, error: 'Internal server error' }, 500);
   }
 });
 
-orders.get('/orders/:id', requireRole(['superadmin', 'manager', 'support']), async (c) => {
+orders.get('/orders/:id', requireRole(['superadmin', 'manager', 'support', 'editor']), async (c) => {
   try {
     const db = createDb(c.env.DB);
     const orderId = c.req.param('id');
@@ -111,7 +136,7 @@ orders.post('/orders/:id/refund', requireRole(['superadmin', 'manager', 'support
       }
     }
 
-    const success = await OrderService.refundOrderAndRestock(db, c.env, orderId, order.status);
+    const success = await OrderService.refundOrderAndRestock(db, c.env.DB, orderId, order.status);
     if (!success) {
       return c.json({ success: false, error: 'Failed to refund and restock order' }, 500);
     }
