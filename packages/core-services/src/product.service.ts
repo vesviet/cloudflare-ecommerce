@@ -1,5 +1,6 @@
 import { eq, and, sql, inArray } from 'drizzle-orm';
 import { schema } from '@ecommerce/database';
+import { DEFAULT_LOCATION_ID } from '@ecommerce/contract';
 
 export class ProductService {
   /**
@@ -55,13 +56,12 @@ export class ProductService {
     height?: number | null;
     imageUrls?: string[];
     primary_category_id?: string | null;
-    secondary_categories?: string[];
     variations?: any[];
     locationId?: string;
   }) {
-    const { isUpdate, productId, type, variations = [], secondary_categories = [] } = params;
+    const { isUpdate, productId, type, variations = [] } = params;
     const batchQueries: any[] = [];
-    const locationId = params.locationId || 'loc_default';
+    const locationId = params.locationId || DEFAULT_LOCATION_ID;
     const primaryCategoryId = (params.primary_category_id && typeof params.primary_category_id === 'string' && params.primary_category_id.trim() !== '' && params.primary_category_id !== 'null' && params.primary_category_id !== 'undefined')
       ? params.primary_category_id
       : null;
@@ -111,7 +111,12 @@ export class ProductService {
     if (type === 'simple') {
       if (params.regular_price !== undefined) {
         batchQueries.push(
-          db.delete(schema.priceListItems).where(eq(schema.priceListItems.product_id, productId))
+          db.delete(schema.priceListItems).where(
+            and(
+              eq(schema.priceListItems.product_id, productId),
+              eq(schema.priceListItems.price_list_id, 'pl_base')
+            )
+          )
         );
         batchQueries.push(
           db.insert(schema.priceListItems).values({
@@ -122,7 +127,33 @@ export class ProductService {
           })
         );
       }
-      
+
+      // Sale price persists into the dedicated 'sale' price list so the
+      // storefront strike-through pricing works. undefined = leave unchanged,
+      // null/0 = remove sale, >0 = upsert.
+      const salePriceInput = params.sale_price;
+      if (salePriceInput !== undefined) {
+        const saleListId = await this.ensureSalePriceList(db);
+        batchQueries.push(
+          db.delete(schema.priceListItems).where(
+            and(
+              eq(schema.priceListItems.product_id, productId),
+              eq(schema.priceListItems.price_list_id, saleListId)
+            )
+          )
+        );
+        if (salePriceInput !== null && Number(salePriceInput) > 0) {
+          batchQueries.push(
+            db.insert(schema.priceListItems).values({
+              id: crypto.randomUUID(),
+              price_list_id: saleListId,
+              product_id: productId,
+              price: Math.max(0, Number(salePriceInput))
+            })
+          );
+        }
+      }
+
       if (params.stock !== undefined) {
         batchQueries.push(
           db.delete(schema.inventoryLevels).where(
@@ -248,7 +279,12 @@ export class ProductService {
 
         // Handle variations prices and inventory
         batchQueries.push(
-          db.delete(schema.priceListItems).where(eq(schema.priceListItems.product_id, varId))
+          db.delete(schema.priceListItems).where(
+            and(
+              eq(schema.priceListItems.product_id, varId),
+              eq(schema.priceListItems.price_list_id, 'pl_base')
+            )
+          )
         );
         batchQueries.push(
           db.insert(schema.priceListItems).values({
@@ -258,6 +294,26 @@ export class ProductService {
             price: Math.max(0, Number(v.regular_price) || 0)
           })
         );
+
+        if (v.sale_price !== undefined && v.sale_price !== null && Number(v.sale_price) > 0) {
+          const varSaleListId = await this.ensureSalePriceList(db);
+          batchQueries.push(
+            db.delete(schema.priceListItems).where(
+              and(
+                eq(schema.priceListItems.product_id, varId),
+                eq(schema.priceListItems.price_list_id, varSaleListId)
+              )
+            )
+          );
+          batchQueries.push(
+            db.insert(schema.priceListItems).values({
+              id: crypto.randomUUID(),
+              price_list_id: varSaleListId,
+              product_id: varId,
+              price: Math.max(0, Number(v.sale_price))
+            })
+          );
+        }
 
         batchQueries.push(
           db.delete(schema.inventoryLevels).where(
@@ -285,5 +341,21 @@ export class ProductService {
     }
 
     return batchQueries;
+  }
+
+  /**
+   * Resolves the well-known 'sale' price list id, creating it on first use so
+   * admin sale prices always have a target list to live in.
+   */
+  private static async ensureSalePriceList(db: any): Promise<string> {
+    const existing = await db.select({ id: schema.priceLists.id })
+      .from(schema.priceLists)
+      .where(eq(schema.priceLists.type, 'sale'))
+      .get();
+    if (existing?.id) return existing.id;
+
+    const id = 'pl_sale';
+    await db.insert(schema.priceLists).values({ id, name: 'Sale Price', type: 'sale' }).onConflictDoNothing();
+    return id;
   }
 }

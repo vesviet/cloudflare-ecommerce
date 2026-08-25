@@ -4,13 +4,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { Search, X, Loader2 } from 'lucide-react';
 import { getImageUrl } from '../lib/image';
+import { formatCurrency } from '../lib/format';
 
 interface SearchResult {
   id: string;
   slug: string;
   name: string;
   images: { url: string; alt_text: string }[];
-  prices: { base_price_cents: number; sale_price_cents: number; currency: string };
+  prices?: { regular_price: number; sale_price: number; currency: string } | null;
 }
 
 export function SearchAutocomplete() {
@@ -139,7 +140,7 @@ export function SearchAutocomplete() {
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
                       <span style={{ fontSize: '14px', fontWeight: 500 }}>{product.name}</span>
                       <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                        ${(product.prices.sale_price_cents / 100).toFixed(2)}
+                        {formatCurrency(product.prices?.sale_price ?? product.prices?.regular_price ?? 0)}
                       </span>
                     </div>
                   </Link>

@@ -32,8 +32,8 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ addToast }) => {
 
   const formatCurrency = (amount: number | string) => {
     const n = typeof amount === 'string' ? parseFloat(amount) : amount;
-    // Amounts are stored as minor units (VNĐ × 100), divide by 100 to get display VNĐ
-    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(n / 100);
+    // Amounts are stored as integer VNĐ units — display without conversion
+    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(n);
   };
 
   const getStatusColor = (status: string) => {

@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuthStore } from '../../../store/authStore';
 import { Package } from 'lucide-react';
 import Link from 'next/link';
+import { formatCurrency } from '../../../lib/format';
 
 const API_BASE = `${process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com'}/api`;
 
@@ -68,7 +69,7 @@ export default function OrdersPage() {
                     </button>
                   )}
                 </td>
-                <td style={{ padding: '16px 0', textAlign: 'right', fontWeight: 600, verticalAlign: 'top' }}>${(order.total_amount / 100).toFixed(2)}</td>
+                <td style={{ padding: '16px 0', textAlign: 'right', fontWeight: 600, verticalAlign: 'top' }}>{formatCurrency(order.total_amount)}</td>
               </tr>
             ))}
           </tbody>

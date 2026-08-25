@@ -52,8 +52,12 @@ export default function ChangePasswordForm() {
       });
       const data = await res.json();
       if (data.success) {
-        setMsg({ type: 'ok', text: 'Thay đổi mật khẩu thành công!' });
+        setMsg({ type: 'ok', text: 'Đổi mật khẩu thành công! Đang đăng xuất...' });
         setCurrentPassword(''); setNewPassword(''); setConfirmPassword('');
+        // Password change revokes all existing sessions server-side — sign out
+        // locally and send the user back to the login screen.
+        await fetch(`${API_BASE}/auth/logout`, { method: 'POST', credentials: 'include' }).catch(() => {});
+        setTimeout(() => { window.location.href = '/my-account'; }, 800);
       } else {
         setMsg({ type: 'err', text: data.error || 'Thay đổi mật khẩu thất bại.' });
       }

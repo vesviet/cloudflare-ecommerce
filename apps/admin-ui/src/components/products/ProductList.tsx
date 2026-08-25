@@ -9,7 +9,7 @@ interface ProductListProps {
 }
 
 export const ProductList: React.FC<ProductListProps> = ({ products, API_BASE_URL, onCreateNew, onEdit }) => {
-  const formatCurrency = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
+  const formatCurrency = (value: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value);
 
   return (
     <div>
@@ -36,9 +36,9 @@ export const ProductList: React.FC<ProductListProps> = ({ products, API_BASE_URL
           <tbody>
             {products.map((p) => {
               const isVariable = p.type === 'configurable';
-              const minPrice = isVariable && p.variations.length > 0 
-                ? Math.min(...p.variations.map((v: any) => Number(v.sale_price || v.regular_price))) / 100 
-                : (p.sale_price || p.regular_price || 0) / 100;
+              const minPrice = isVariable && p.variations.length > 0
+                ? Math.min(...p.variations.map((v: any) => Number(v.sale_price || v.regular_price)))
+                : (p.sale_price || p.regular_price || 0);
               
               return (
                 <tr key={p.id} className="hoverable-row">

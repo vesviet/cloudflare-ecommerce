@@ -21,10 +21,9 @@ export default function LandingHero({
 }: LandingHeroProps) {
   const images: LandingPageImage[] = lp?.product?.images || [];
 
-  // R6 Documentation: regular_price and price from price_list_items store values in minor units (VNĐ × 100).
-  // Dividing by 100 converts them to display VNĐ values.
-  const originalPrice = lp?.product?.regular_price ? lp.product.regular_price / 100 : 0;
-  const salePrice = lp?.product?.price ? lp.product.price / 100 : originalPrice;
+  // Prices are stored as integer VNĐ; use raw values for display.
+  const originalPrice = lp?.product?.regular_price || 0;
+  const salePrice = lp?.product?.price || originalPrice;
 
   const isDiscount = originalPrice > salePrice;
   const savings = isDiscount ? originalPrice - salePrice : 0;

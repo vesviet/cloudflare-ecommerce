@@ -49,7 +49,7 @@ export function validatePrices(items: { id: string; product_id: string }[]) {
 }
 
 export function postCheckout(payload: Record<string, unknown>, idempotencyKey: string) {
-  return apiFetch<{ success: boolean; order_id?: string; checkout_url?: string; error?: string }>(
+  return apiFetch<{ success: boolean; order_id?: string; checkout_url?: string; order_token?: string; error?: string }>(
     '/api/checkout',
     {
       body: payload,

@@ -5,7 +5,7 @@ import { localSchema } from '@ecommerce/core-services';
 import { Bindings } from '../types';
 import { requireRole } from '../middleware/auth';
 import { zValidator } from '@hono/zod-validator';
-import { fulfillSchema } from '@ecommerce/contract';
+import { fulfillSchema, canTransitionOrder } from '@ecommerce/contract';
 import { PaymentService, OrderService, FulfillmentService } from '@ecommerce/core-services';
 
 const orders = new Hono<{ Bindings: Bindings }>();
@@ -120,7 +120,7 @@ orders.post('/orders/:id/refund', requireRole(['superadmin', 'manager', 'support
     if (!order) {
       return c.json({ success: false, error: 'Order not found' }, 404);
     }
-    if (!order.status || !['processing', 'shipped', 'completed'].includes(order.status)) {
+    if (!order.status || !canTransitionOrder(order.status, 'refunded')) {
       return c.json({ success: false, error: `Order cannot be refunded from status: ${order.status}` }, 400);
     }
 
@@ -174,7 +174,6 @@ orders.post('/orders/:id/fulfill', requireRole(['superadmin', 'manager', 'suppor
     if (!allowedStatuses.includes(order.status || "")) {
       return c.json({ success: false, error: `Order cannot be fulfilled from status: ${order.status}` }, 400);
     }
-
     const aggregatedMap = new Map<string, number>();
     for (const item of items) {
       const orderItemId = item.order_item_id;
@@ -318,7 +317,8 @@ orders.post('/orders/:id/approve', requireRole(['superadmin', 'manager', 'suppor
   try {
     const db = createDb(c.env.DB);
 
-    // Guard the state machine: never re-open an order that is in a terminal/locked state.
+    // Guard the state machine via the shared transition map (T1.1): never
+    // re-open an order that cannot legally move to processing.
     const current = await db.select({ status: localSchema.orders.status })
       .from(localSchema.orders)
       .where(eq(localSchema.orders.id, orderId))
@@ -326,8 +326,7 @@ orders.post('/orders/:id/approve', requireRole(['superadmin', 'manager', 'suppor
     if (!current) {
       return c.json({ success: false, error: 'Order not found' }, 404);
     }
-    const LOCKED_STATUSES = ['processing', 'shipped', 'completed', 'cancelled', 'refunded'];
-    if (current.status && LOCKED_STATUSES.includes(current.status)) {
+    if (!canTransitionOrder(current.status, 'processing')) {
       return c.json({ success: false, error: `Order cannot be approved from status: ${current.status}` }, 400);
     }
 
@@ -351,8 +350,8 @@ orders.post('/orders/:id/cancel', requireRole(['superadmin', 'manager', 'support
   try {
     const db = createDb(c.env.DB);
 
-    // Guard the state machine: cannot cancel an order that is already shipped,
-    // completed, cancelled, or refunded.
+    // Guard the state machine via the shared transition map (T1.1): shipped,
+    // completed, cancelled and refunded orders are not cancellable.
     const current = await db.select({ status: localSchema.orders.status })
       .from(localSchema.orders)
       .where(eq(localSchema.orders.id, orderId))
@@ -360,8 +359,7 @@ orders.post('/orders/:id/cancel', requireRole(['superadmin', 'manager', 'support
     if (!current) {
       return c.json({ success: false, error: 'Order not found' }, 404);
     }
-    const UNCANCELLABLE_STATUSES = ['shipped', 'completed', 'cancelled', 'refunded'];
-    if (current.status && UNCANCELLABLE_STATUSES.includes(current.status)) {
+    if (!canTransitionOrder(current.status, 'cancelled')) {
       return c.json({ success: false, error: `Order cannot be cancelled from status: ${current.status}` }, 400);
     }
 

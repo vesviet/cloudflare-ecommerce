@@ -106,8 +106,11 @@ export class OrderService {
 
     let shouldRestock = false;
 
-    if (orderRecord.status === 'pending_payment') {
-      const lockedAndUpdated = await OrderRepository.updateOrderStatus(drizzleDb, orderId, 'pending_payment', 'cancelled');
+    // Telesale/COD orders may sit in pending/confirmed/processing before fulfilment.
+    // Laravel baseline (CancelOrderAction): cancellable until shipped.
+    const CANCELLABLE_STATUSES = ['pending_payment', 'pending', 'confirmed', 'processing'];
+    if (orderRecord.status && CANCELLABLE_STATUSES.includes(orderRecord.status)) {
+      const lockedAndUpdated = await OrderRepository.updateOrderStatus(drizzleDb, orderId, orderRecord.status, 'cancelled');
       if (lockedAndUpdated) {
         shouldRestock = true;
       }
@@ -194,7 +197,9 @@ export class OrderService {
 
     let shouldRestock = false;
 
-    if (['pending_payment', 'processing', 'completed'].includes(orderRecord.status || '')) {
+    // Route guard allows refunds from processing/shipped/completed; the shipped
+    // case must restock too or the route would 500 on the silent lock failure.
+    if (['pending_payment', 'processing', 'shipped', 'completed'].includes(orderRecord.status || '')) {
       const lockedAndUpdated = await OrderRepository.updateOrderStatus(drizzleDb, orderId, orderRecord.status as string, 'refunded');
       if (lockedAndUpdated) {
         shouldRestock = true;
@@ -308,5 +313,74 @@ export class OrderService {
       ];
     }
     return [];
+  }
+
+  /**
+   * T1.2: Guest order tracking — matches the order id against the guest email
+   * OR the owning customer's email. Returns a sanitized public projection or
+   * null so callers can emit one generic "not found" response.
+   */
+  static async findTrackableOrder(drizzleDb: any, orderId: string, email: string): Promise<any | null> {
+    const normalized = email.trim().toLowerCase();
+    const order = await drizzleDb.select({
+      id: localSchema.orders.id,
+      status: localSchema.orders.status,
+      created_at: localSchema.orders.created_at,
+      updated_at: localSchema.orders.updated_at,
+      shipping_fee: localSchema.orders.shipping_fee,
+      discount_amount: localSchema.orders.discount_amount,
+      total_amount: localSchema.orders.total_amount,
+    })
+      .from(localSchema.orders)
+      .leftJoin(localSchema.customers, eq(localSchema.orders.customer_id, localSchema.customers.id))
+      .where(and(
+        eq(localSchema.orders.id, orderId),
+        or(
+          drizzleSql`lower(${localSchema.orders.guest_email}) = ${normalized}`,
+          drizzleSql`lower(coalesce(${localSchema.customers.email}, '')) = ${normalized}`
+        )
+      ))
+      .get();
+
+    if (!order) return null;
+    return this.attachPublicItems(drizzleDb, order);
+  }
+
+  /**
+   * T1.4: Receipt view for a signed order-receipt token (already verified by
+   * the caller). Same sanitized projection as guest tracking.
+   */
+  static async getPublicOrderById(drizzleDb: any, orderId: string): Promise<any | null> {
+    const order = await drizzleDb.select({
+      id: localSchema.orders.id,
+      status: localSchema.orders.status,
+      created_at: localSchema.orders.created_at,
+      updated_at: localSchema.orders.updated_at,
+      shipping_fee: localSchema.orders.shipping_fee,
+      discount_amount: localSchema.orders.discount_amount,
+      total_amount: localSchema.orders.total_amount,
+    })
+      .from(localSchema.orders)
+      .where(eq(localSchema.orders.id, orderId))
+      .get();
+
+    if (!order) return null;
+    return this.attachPublicItems(drizzleDb, order);
+  }
+
+  private static async attachPublicItems(drizzleDb: any, order: any): Promise<any> {
+    const items = await drizzleDb.select({
+      product_id: localSchema.orderItems.product_id,
+      quantity: localSchema.orderItems.quantity,
+      price_at_purchase: localSchema.orderItems.price_at_purchase,
+      sku: localSchema.products.sku,
+      title: localSchema.products.title,
+    })
+      .from(localSchema.orderItems)
+      .leftJoin(localSchema.products, eq(localSchema.orderItems.product_id, localSchema.products.id))
+      .where(eq(localSchema.orderItems.order_id, order.id))
+      .all();
+
+    return { ...order, items };
   }
 }

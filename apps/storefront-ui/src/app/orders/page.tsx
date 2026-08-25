@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { formatCurrency } from '../../lib/format';
 
 export default function OrdersPage() {
   const { isAuthenticated, customer } = useAuthStore();
@@ -58,7 +59,7 @@ export default function OrdersPage() {
                   {new Date(order.created_at).toLocaleDateString()} &middot; <strong style={{ textTransform: 'capitalize', color: 'var(--accent-color)' }}>{(typeof order.status === 'string' ? order.status.replace('_', ' ') : 'Unknown')}</strong>
                 </p>
                 <p style={{ color: 'var(--text-muted)', margin: '4px 0 0 0', fontSize: '0.9rem' }}>
-                  Total: ${(order.total_amount / 100).toFixed(2)}
+                  Total: {formatCurrency(order.total_amount)}
                 </p>
               </div>
               <Link href={`/orders/${order.id}`}>

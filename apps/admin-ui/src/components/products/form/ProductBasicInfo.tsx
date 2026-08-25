@@ -6,19 +6,17 @@ interface ProductBasicInfoProps {
   productSku: string;
   productType: ProductData['type'];
   productPrimaryCategory: string;
-  productSecondaryCategories: string[];
   categories: CategoryData[];
   onChangeProductName: (value: string) => void;
   onChangeProductSku: (value: string) => void;
   onChangeProductType: (value: ProductData['type']) => void;
   onChangeProductPrimaryCategory: (value: string) => void;
-  onChangeProductSecondaryCategories: (value: string[]) => void;
   onSkuEdited: () => void;
 }
 
 export const ProductBasicInfo: React.FC<ProductBasicInfoProps> = ({
-  productName, productSku, productType, productPrimaryCategory, productSecondaryCategories, categories,
-  onChangeProductName, onChangeProductSku, onChangeProductType, onChangeProductPrimaryCategory, onChangeProductSecondaryCategories, onSkuEdited
+  productName, productSku, productType, productPrimaryCategory, categories,
+  onChangeProductName, onChangeProductSku, onChangeProductType, onChangeProductPrimaryCategory, onSkuEdited
 }) => {
   return (
     <>
@@ -52,16 +50,6 @@ export const ProductBasicInfo: React.FC<ProductBasicInfoProps> = ({
             {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </div>
-      </div>
-
-      <div className="form-group">
-        <label>Secondary Categories</label>
-        <select multiple className="input-control" style={{ height: '100px' }} value={productSecondaryCategories} onChange={e => {
-          const options = Array.from(e.target.selectedOptions, option => option.value);
-          onChangeProductSecondaryCategories(options);
-        }}>
-          {categories.filter(c => c.id !== productPrimaryCategory).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
       </div>
     </>
   );

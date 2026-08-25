@@ -5,6 +5,7 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { rateLimit, clientIp } from '@ecommerce/shared-routes';
 import { getSetting } from '../utils/settingsCache';
+import { verifyTurnstile } from '../utils/turnstile';
 
 // Rate limit lead submissions by client IP (defence-in-depth alongside Turnstile).
 const limitLeads = rateLimit({
@@ -194,37 +195,9 @@ landingPages.post('/leads', limitLeads, zValidator('json', LeadSubmissionSchema)
     // Cloudflare's always-passing testing secret rather than a trusted token value,
     // because any token value a client can send is a value an attacker can send.
     if (c.env.TURNSTILE_SECRET_KEY) {
-      if (!turnstile_token) {
-        return c.json({ success: false, error: 'Missing turnstile token' }, 403);
-      }
-      const formData = new FormData();
-      formData.append('secret', c.env.TURNSTILE_SECRET_KEY);
-      formData.append('response', turnstile_token);
-
-      // DEF-007 FIX: Add 5s timeout on siteverify — CF Worker default is 30s which
-      // is too long; a slow Cloudflare response would block the lead submission.
-      const tsController = new AbortController();
-      const tsTimeout = setTimeout(() => tsController.abort(), 5000);
-      let outcome: any;
-      try {
-        const verifyRes = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
-          method: 'POST',
-          body: formData,
-          signal: tsController.signal,
-        });
-        outcome = await verifyRes.json();
-      } catch (e: any) {
-        clearTimeout(tsTimeout);
-        if (e?.name === 'AbortError') {
-          console.error('[Landing Pages] Turnstile siteverify timed out');
-          return c.json({ success: false, error: 'Security check timed out. Please try again.' }, 503);
-        }
-        throw e; // unexpected — let outer catch handle
-      }
-      clearTimeout(tsTimeout);
-
-      if (!outcome.success) {
-        return c.json({ success: false, error: 'Turnstile verification failed' }, 403);
+      const turnstile = await verifyTurnstile(c.env.TURNSTILE_SECRET_KEY, turnstile_token);
+      if (!turnstile.ok) {
+        return c.json({ success: false, error: turnstile.message }, turnstile.status);
       }
     } else {
       console.warn('[Landing Pages] TURNSTILE_SECRET_KEY is not set — lead submissions are unprotected');

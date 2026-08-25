@@ -35,7 +35,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ orderId, onC
     fetchOrderDetails();
   }, [orderId, onClose, addToast]);
 
-  // Format monetary amounts (passed after /100 conversion from cents/base units) to VNĐ currency format
+  // Format monetary amounts (stored as raw integer VNĐ) to currency format
   const formatCurrency = (value: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value);
 
   const getStatusBadge = (status: string | undefined) => {
@@ -152,8 +152,8 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ orderId, onC
                         <td style={{ padding: '12px 16px' }}>{item.product_title || 'Unknown Product'}</td>
                         <td style={{ padding: '12px 16px', fontFamily: 'monospace', color: 'var(--accent-color)' }}>{item.sku || 'N/A'}</td>
                         <td style={{ padding: '12px 16px', textAlign: 'center' }}>{item.quantity}</td>
-                        <td style={{ padding: '12px 16px', textAlign: 'right' }}>{formatCurrency(item.price_at_purchase / 100)}</td>
-                        <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 600 }}>{formatCurrency((item.price_at_purchase * item.quantity) / 100)}</td>
+                        <td style={{ padding: '12px 16px', textAlign: 'right' }}>{formatCurrency(item.price_at_purchase)}</td>
+                        <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(item.price_at_purchase * item.quantity)}</td>
                       </tr>
                     ))
                   ) : (
@@ -169,21 +169,21 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ orderId, onC
               <div style={{ width: '300px', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '8px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                   <span>Subtotal</span>
-                  <span>{formatCurrency((order.total_amount - order.shipping_fee + (order.discounts?.reduce((sum, d) => sum + (d.discount_amount || 0), 0) ?? 0)) / 100)}</span>
+                  <span>{formatCurrency(order.total_amount - order.shipping_fee + (order.discounts?.reduce((sum, d) => sum + (d.discount_amount || 0), 0) ?? 0))}</span>
                 </div>
                 {order.discounts && order.discounts.length > 0 && order.discounts.map(d => (
                   <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', color: 'var(--success-accent)', fontSize: '0.85rem' }}>
                     <span>Discount ({d.coupon_code || 'Coupon'})</span>
-                    <span>-{formatCurrency(d.discount_amount / 100)}</span>
+                    <span>-{formatCurrency(d.discount_amount)}</span>
                   </div>
                 ))}
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                   <span>Shipping</span>
-                  <span>{formatCurrency(order.shipping_fee / 100)}</span>
+                  <span>{formatCurrency(order.shipping_fee)}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '16px', fontWeight: 700, fontSize: '1.1rem' }}>
                   <span>Total</span>
-                  <span style={{ color: 'var(--accent-color)' }}>{formatCurrency(order.total_amount / 100)}</span>
+                  <span style={{ color: 'var(--accent-color)' }}>{formatCurrency(order.total_amount)}</span>
                 </div>
               </div>
             </div>

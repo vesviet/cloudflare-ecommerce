@@ -42,8 +42,8 @@ export const ProductVariationsConfig: React.FC<ProductVariationsConfigProps> = (
                 onSelect={item => {
                   onVariationChange(idx, 'id', item.id);
                   onVariationChange(idx, 'sku', item.sku);
-                  onVariationChange(idx, 'regular_price', (item.regular_price / 100).toString());
-                  onVariationChange(idx, 'sale_price', item.sale_price ? (item.sale_price / 100).toString() : '');
+                  onVariationChange(idx, 'regular_price', String(item.regular_price ?? ''));
+                  onVariationChange(idx, 'sale_price', item.sale_price ? String(item.sale_price) : '');
                   onVariationChange(idx, 'stock', item.stock.toString());
                 }}
               />

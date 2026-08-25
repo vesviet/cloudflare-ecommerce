@@ -35,7 +35,8 @@ export const customers = sqliteTable('customers', {
   last_login_ip: text('last_login_ip'),
   note: text('note'),
   metafields_json: text('metafields_json').default('{}'),
-  
+  token_version: integer('token_version').notNull().default(0),
+
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
   updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
   deleted_at: text('deleted_at'), // Soft delete

@@ -4,10 +4,10 @@ import { eq, and, sql } from 'drizzle-orm';
 import { createDb } from '@ecommerce/database';
 import { localSchema as schema } from '@ecommerce/core-services';
 import { hashPassword, verifyPassword, signJWT, verifyJWT } from '@ecommerce/database';
-import { WishlistService } from '@ecommerce/core-services';
+import { WishlistService, OrderService } from '@ecommerce/core-services';
 import { rateLimit, clientIp, type RateLimiter } from './rate-limit';
 import { zValidator } from '@hono/zod-validator';
-import { CustomerRegisterSchema, CustomerLoginSchema, CustomerAddressSchema, CustomerProfileUpdateSchema, WishlistAddSchema, WishlistMergeSchema } from '@ecommerce/contract';
+import { CustomerRegisterSchema, CustomerLoginSchema, CustomerAddressSchema, CustomerProfileUpdateSchema, ChangePasswordSchema, WishlistAddSchema, WishlistMergeSchema, CUSTOMER_CANCELLABLE_STATUSES } from '@ecommerce/contract';
 type Bindings = {
   DB: D1Database;
   JWT_SECRET: string;
@@ -104,8 +104,8 @@ customerApp.post('/auth/register', limitByIp('auth-register-ip'), zValidator('js
       signup_affiliate_id: signupAffiliateId || null,
     });
 
-    // Auto-login: Create JWT and set cookie
-    const token = await signJWT({ customer_id: customerId, email }, c.env.JWT_SECRET);
+    // Auto-login: Create JWT and set cookie (tv = token_version for revocation)
+    const token = await signJWT({ customer_id: customerId, email, tv: 0 }, c.env.JWT_SECRET);
     
     const isProd = c.env.ENVIRONMENT === 'production' || !c.req.url.includes('localhost');
     setCookie(c, 'aura_token', token, {
@@ -140,6 +140,7 @@ customerApp.post('/auth/login', limitByEmail('auth-login-email'), limitByIp('aut
       id: schema.customers.id,
       password_hash: schema.customers.password_hash,
       status: schema.customers.status,
+      token_version: schema.customers.token_version,
     })
       .from(schema.customers)
       .where(eq(schema.customers.email, email))
@@ -158,7 +159,7 @@ customerApp.post('/auth/login', limitByEmail('auth-login-email'), limitByIp('aut
       return c.json({ success: false, error: 'Invalid email or password' }, 401);
     }
 
-    const token = await signJWT({ customer_id: customer.id, email }, c.env.JWT_SECRET);
+    const token = await signJWT({ customer_id: customer.id, email, tv: customer.token_version ?? 0 }, c.env.JWT_SECRET);
     
     const isProd = c.env.ENVIRONMENT === 'production' || !c.req.url.includes('localhost');
     setCookie(c, 'aura_token', token, {
@@ -201,10 +202,14 @@ customerApp.use('/customer/*', async (c, next) => {
     const payload = await verifyJWT(token, c.env.JWT_SECRET);
     c.set('jwtPayload', payload);
     
-    // Check status in DB to block suspended users
+    // Check status in DB to block suspended users and enforce token_version
+    // (bumped on password change so older JWTs are revoked).
     const customerId = payload.customer_id;
     const db = createDb(c.env.DB);
-    const customer = await db.select({ status: schema.customers.status })
+    const customer = await db.select({
+      status: schema.customers.status,
+      token_version: schema.customers.token_version,
+    })
       .from(schema.customers)
       .where(eq(schema.customers.id, customerId))
       .get();
@@ -212,6 +217,11 @@ customerApp.use('/customer/*', async (c, next) => {
     if (customer && customer.status === 'suspended') {
       deleteCookie(c, 'aura_token', { path: '/' });
       return c.json({ success: false, error: 'Tài khoản của bạn đã bị khóa.' }, 403);
+    }
+
+    if (customer && (payload.tv ?? 0) !== (customer.token_version ?? 0)) {
+      deleteCookie(c, 'aura_token', { path: '/' });
+      return c.json({ success: false, error: 'Unauthorized: Session expired, please sign in again' }, 401);
     }
 
     await next();
@@ -258,6 +268,112 @@ customerApp.get('/customer/orders/:id', async (c) => {
       .all();
     
     return c.json({ success: true, data: { ...order, items } });
+  } catch (err: any) {
+    return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
+// T1.3: Self-service cancellation — Laravel CancelOrderAction baseline:
+// allowed while the order is still pending_payment/pending/confirmed.
+customerApp.post('/customer/orders/:id/cancel', async (c) => {
+  try {
+    const payload = c.get('jwtPayload') as any;
+    const customerId = payload.customer_id;
+    const orderId = c.req.param('id');
+    const db = createDb(c.env.DB);
+
+    const order = await db.select({ status: schema.orders.status })
+      .from(schema.orders)
+      .where(and(eq(schema.orders.id, orderId), eq(schema.orders.customer_id, customerId)))
+      .get();
+    if (!order) return c.json({ success: false, error: 'Order not found' }, 404);
+
+    if (!CUSTOMER_CANCELLABLE_STATUSES.includes(order.status as any)) {
+      return c.json({ success: false, error: `Order can no longer be cancelled (status: ${order.status})` }, 400);
+    }
+
+    // Optimistic-lock cancel inside the service: restocks inventory, refunds
+    // loyalty redemption and reverts coupon usage.
+    const cancelled = await OrderService.cancelOrderAndRestock(db, c.env.DB, orderId);
+    if (!cancelled) {
+      return c.json({ success: false, error: 'Order status changed concurrently, please refresh.' }, 409);
+    }
+
+    return c.json({ success: true, message: 'Order cancelled successfully' });
+  } catch (err: any) {
+    return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
+// T1.3: One-click reorder — returns the currently purchasable subset of a
+// past order (live prices/stock); the client merges them into the cart.
+customerApp.post('/customer/orders/:id/reorder', async (c) => {
+  try {
+    const payload = c.get('jwtPayload') as any;
+    const customerId = payload.customer_id;
+    const orderId = c.req.param('id');
+    const db = createDb(c.env.DB);
+
+    const order = await db.select({ id: schema.orders.id })
+      .from(schema.orders)
+      .where(and(eq(schema.orders.id, orderId), eq(schema.orders.customer_id, customerId)))
+      .get();
+    if (!order) return c.json({ success: false, error: 'Order not found' }, 404);
+
+    const items = await db.select({
+      product_id: schema.orderItems.product_id,
+      quantity: schema.orderItems.quantity,
+    })
+      .from(schema.orderItems)
+      .where(eq(schema.orderItems.order_id, orderId))
+      .all();
+    if (items.length === 0) {
+      return c.json({ success: true, data: { items: [], skipped: [] } });
+    }
+
+    const ids = [...new Set(items.map((i: any) => i.product_id))];
+    const idChunks = ids.map((id: string) => sql`${id}`);
+    const catalogRows = await db.all(sql`
+      SELECT p.id, p.title, p.sku,
+        (SELECT price FROM price_list_items pli WHERE pli.product_id = p.id AND pli.price_list_id = (SELECT id FROM price_lists WHERE type = 'base' LIMIT 1) LIMIT 1) as regular_price,
+        (SELECT price FROM price_list_items pli WHERE pli.product_id = p.id AND pli.price_list_id = (SELECT id FROM price_lists WHERE type = 'sale' LIMIT 1) LIMIT 1) as sale_price,
+        (SELECT coalesce(sum(stock_quantity), 0) FROM inventory_levels il WHERE il.product_id = p.id) as stock
+      FROM products p
+      WHERE p.id IN (${sql.join(idChunks, sql`, `)})
+        AND p.deleted_at IS NULL
+        AND p.status = 'published'
+        AND p.is_purchasable = 1
+    `) as any[];
+
+    const byId = new Map(catalogRows.map((r: any) => [r.id, r]));
+    const purchasable: any[] = [];
+    const skipped: any[] = [];
+    for (const item of items) {
+      const row = byId.get(item.product_id);
+      if (!row) {
+        skipped.push({ product_id: item.product_id, reason: 'unavailable' });
+        continue;
+      }
+      const price = Number(row.sale_price ?? row.regular_price ?? 0);
+      if (!(price > 0)) {
+        skipped.push({ product_id: item.product_id, reason: 'unpriced' });
+        continue;
+      }
+      const stock = Number(row.stock || 0);
+      if (stock <= 0) {
+        skipped.push({ product_id: item.product_id, reason: 'out_of_stock' });
+        continue;
+      }
+      purchasable.push({
+        product_id: item.product_id,
+        title: row.title,
+        sku: row.sku,
+        price,
+        quantity: Math.min(item.quantity, stock),
+      });
+    }
+
+    return c.json({ success: true, data: { items: purchasable, skipped } });
   } catch (err: any) {
     return c.json({ success: false, error: err.message }, 500);
   }
@@ -452,6 +568,54 @@ customerApp.put('/customer/me', zValidator('json', CustomerProfileUpdateSchema),
       .where(eq(schema.customers.id, customerId));
       
     return c.json({ success: true, message: 'Profile updated' });
+  } catch (err: any) {
+    return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
+// Self-service password change. Verifies the current password, then bumps
+// token_version so every previously issued JWT is revoked immediately.
+customerApp.put('/customer/me/change-password', zValidator('json', ChangePasswordSchema), async (c) => {
+  try {
+    const payload = c.get('jwtPayload') as any;
+    const customerId = payload.customer_id;
+    const { current_password, new_password } = c.req.valid('json');
+    const db = createDb(c.env.DB);
+
+    if (current_password === new_password) {
+      return c.json({ success: false, error: 'New password must be different from the current password' }, 400);
+    }
+
+    const customer = await db.select({
+      password_hash: schema.customers.password_hash,
+      token_version: schema.customers.token_version,
+    })
+      .from(schema.customers)
+      .where(eq(schema.customers.id, customerId))
+      .get();
+
+    if (!customer || !customer.password_hash) {
+      return c.json({ success: false, error: 'Customer not found or has no password set' }, 404);
+    }
+
+    const isValid = await verifyPassword(current_password, customer.password_hash);
+    if (!isValid) {
+      return c.json({ success: false, error: 'Current password is incorrect' }, 400);
+    }
+
+    const hashedPassword = await hashPassword(new_password);
+    await db.update(schema.customers)
+      .set({
+        password_hash: hashedPassword,
+        token_version: sql`${schema.customers.token_version} + 1`,
+        updated_at: sql`CURRENT_TIMESTAMP`,
+      })
+      .where(eq(schema.customers.id, customerId));
+
+    // The current JWT is now stale (tv mismatch); clear the cookie client-side too.
+    deleteCookie(c, 'aura_token', { path: '/' });
+
+    return c.json({ success: true, message: 'Password changed successfully. Please sign in again.' });
   } catch (err: any) {
     return c.json({ success: false, error: err.message }, 500);
   }

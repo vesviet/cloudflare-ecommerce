@@ -61,6 +61,57 @@ export const checkoutSchema = CheckoutSchema
 
 export const DEFAULT_LOCATION_ID = 'loc-1'
 
+// --- ORDER STATUS VOCABULARY (T1.1 — single source of truth) ---
+// Laravel baseline machine: pending -> confirmed -> processing -> shipped -> delivered (+cancelled).
+// Cloudflare extensions kept first-class: pending_payment (Stripe), refunded, failed, abandoned.
+// 'completed' is the runtime terminal-success alias of Laravel's 'delivered' (kept for data compat
+// until a dedicated data migration renames historical rows).
+export const ORDER_STATUSES = [
+  'pending_payment',
+  'pending',
+  'confirmed',
+  'processing',
+  'shipped',
+  'completed',
+  'cancelled',
+  'refunded',
+  'failed',
+  'abandoned',
+] as const
+export type OrderStatus = (typeof ORDER_STATUSES)[number]
+
+export const TERMINAL_ORDER_STATUSES: readonly OrderStatus[] = ['completed', 'cancelled', 'refunded', 'failed', 'abandoned']
+
+export const ALLOWED_ORDER_TRANSITIONS: Record<OrderStatus, readonly OrderStatus[]> = {
+  pending_payment: ['processing', 'confirmed', 'cancelled', 'failed'],
+  pending: ['confirmed', 'processing', 'cancelled', 'failed'],
+  confirmed: ['processing', 'cancelled', 'failed'],
+  processing: ['shipped', 'refunded', 'cancelled', 'failed'],
+  shipped: ['completed', 'refunded'],
+  completed: ['refunded'],
+  cancelled: [],
+  refunded: [],
+  failed: [],
+  abandoned: [],
+}
+
+export function canTransitionOrder(from: string | null | undefined, to: OrderStatus): boolean {
+  if (!from) return false
+  const allowed = ALLOWED_ORDER_TRANSITIONS[from as OrderStatus]
+  return Array.isArray(allowed) && allowed.includes(to)
+}
+
+// Laravel CancelOrderAction baseline: customers may cancel until processing starts.
+export const CUSTOMER_CANCELLABLE_STATUSES: readonly OrderStatus[] = ['pending_payment', 'pending', 'confirmed']
+
+// Guest order tracking without login: match order id + email on the order
+// (guest_email) or on the owning customer's email. Generic error on miss to
+// prevent enumeration.
+export const TrackOrderSchema = z.object({
+  order_id: z.string().min(6).max(64),
+  email: z.string().email(),
+})
+
 // Schema API Key Response
 export const ErrorResponseSchema = z.object({
   success: z.boolean().default(false),
@@ -183,6 +234,17 @@ export const CustomerRegisterSchema = z.object({
 export const CustomerLoginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
+})
+
+// Self-service password change (PUT /customer/me/change-password)
+export const ChangePasswordSchema = z.object({
+  current_password: z.string().min(1),
+  new_password: z
+    .string()
+    .min(8, 'Password must be at least 8 characters')
+    .refine((v) => /[a-zA-Z]/.test(v) && /[0-9]/.test(v), {
+      message: 'Password must contain letters and numbers',
+    }),
 })
 
 export const CustomerAddressSchema = z.object({

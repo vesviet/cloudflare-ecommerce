@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { Trash2, ShoppingCart } from 'lucide-react';
 import ImageFallback from '../../components/ImageFallback';
 import { getImageUrl } from '../../lib/image';
+import { formatCurrency } from '../../lib/format';
 
 export default function WishlistPage() {
   const { items, removeItem, fetchFromServer } = useWishlistStore();
@@ -51,7 +52,7 @@ export default function WishlistPage() {
                 </h3>
               </Link>
               <div style={{ color: 'var(--accent-color)', fontWeight: 'bold', fontSize: '1.1rem', marginBottom: '20px' }}>
-                {item.price ? `$${(Number(item.price) / 100).toFixed(2)}` : 'N/A'}
+                {item.price ? formatCurrency(Number(item.price)) : 'N/A'}
               </div>
               
               <div style={{ display: 'flex', gap: '10px', marginTop: 'auto' }}>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, Suspense } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import { useCartStore } from '../../../store/cartStore';
 import { useAuthStore } from '../../../store/authStore';
 import { useSearchParams } from 'next/navigation';
@@ -24,12 +24,28 @@ function CheckoutSuccessInner() {
   const searchParams = useSearchParams();
 
   const orderId = searchParams.get('order_id');
+  const orderToken = searchParams.get('order_token');
   const shortId = orderId ? orderId.slice(0, 8).toUpperCase() : '';
+
+  // T1.4: the Order Reference block is only rendered when the signed
+  // receipt token verifies — a bare ?order_id guess renders generic thanks.
+  const [receiptVerified, setReceiptVerified] = useState(false);
 
   // Clear local cart state on mount (intentional fallback safety net after order completion / payment redirect)
   useEffect(() => {
     clearCart();
   }, [clearCart]);
+
+  useEffect(() => {
+    if (!orderId || !orderToken) return;
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com';
+    fetch(`${apiBase}/api/orders/${orderId}/receipt?token=${encodeURIComponent(orderToken)}`)
+      .then((res) => res.json())
+      .then((data) => setReceiptVerified(Boolean(data?.success)))
+      .catch(() => setReceiptVerified(false));
+  }, [orderId, orderToken]);
+
+  const showReference = Boolean(orderId && (receiptVerified || isAuthenticated));
 
   return (
     <main style={{ maxWidth: '640px', margin: '80px auto', padding: '0 20px' }}>
@@ -53,7 +69,7 @@ function CheckoutSuccessInner() {
           Thank you for your purchase. Your order has been received and is being processed.
         </p>
 
-        {orderId && (
+        {showReference && (
           <div style={{
             margin: '20px auto',
             padding: '12px 20px',

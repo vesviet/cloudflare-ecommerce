@@ -131,7 +131,9 @@ function CheckoutInner() {
           window.location.href = res.checkout_url;
         } else if (res.order_id) {
           clearCart();
-          router.push(`/checkout/success?order_id=${res.order_id}`);
+          const successParams = new URLSearchParams({ order_id: res.order_id });
+          if (res.order_token) successParams.set('order_token', res.order_token);
+          router.push(`/checkout/success?${successParams.toString()}`);
         } else {
           clearCart();
           router.push('/checkout/success');

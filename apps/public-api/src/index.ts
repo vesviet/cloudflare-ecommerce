@@ -8,6 +8,7 @@ import catalog from './routes/catalog'
 import checkout from './routes/checkout'
 import webhook from './routes/webhook'
 import rma from './routes/rma'
+import ordersPublic from './routes/orders'
 import { customerRouter as customer } from '@ecommerce/shared-routes';
 import { OrderService } from '@ecommerce/core-services'; // I-01 FIX: was missing — caused ReferenceError in cron scheduled()
 
@@ -69,6 +70,7 @@ app.route('/api/cart', cart)
 app.route('/api/reviews', reviews)
 app.route('/api/landing-pages', landingPages)
 app.route('/api/checkout', checkout)
+app.route('/api/orders', ordersPublic)
 app.route('/api/webhooks', webhook)
 app.route('/api/rma', rma)
 app.route('/api', customer)

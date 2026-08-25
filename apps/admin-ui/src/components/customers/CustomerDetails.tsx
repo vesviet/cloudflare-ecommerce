@@ -17,7 +17,7 @@ export const CustomerDetails: React.FC<CustomerDetailsProps> = ({
 }) => {
   const [editingCustomer, setEditingCustomer] = useState<any | null>(null);
 
-  const formatCurrency = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
+  const formatCurrency = (value: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value);
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -256,7 +256,7 @@ export const CustomerDetails: React.FC<CustomerDetailsProps> = ({
                     <tr key={o.id} className="hover:bg-white/5 transition-colors">
                       <td className="px-4 py-3 font-mono text-primary-accent">{o.id.slice(0,8)}...</td>
                       <td className="px-4 py-3 text-text-muted">{new Date(o.created_at).toLocaleDateString()}</td>
-                      <td className="px-4 py-3 font-medium">{formatCurrency(o.total_amount / 100)}</td>
+                      <td className="px-4 py-3 font-medium">{formatCurrency(o.total_amount)}</td>
                       <td className="px-4 py-3">
                         <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium capitalize bg-white/10 border border-white/20">
                           {o.status.replace('_', ' ')}

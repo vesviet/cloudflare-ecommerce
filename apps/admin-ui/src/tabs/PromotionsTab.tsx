@@ -134,7 +134,7 @@ export const PromotionsTab: React.FC<PromotionsTabProps> = ({ API_BASE_URL, addT
               <tr key={c.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
                 <td className="p-4 font-bold text-green-400">{c.code}</td>
                 <td className="p-4 capitalize">{c.type}</td>
-                <td className="p-4">{c.type === 'percent' ? `${c.value}%` : c.type === 'freeship' ? 'Free Shipping' : `$${(c.value / 100).toFixed(2)}`}</td>
+                <td className="p-4">{c.type === 'percent' ? `${c.value}%` : c.type === 'freeship' ? 'Free Shipping' : new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(c.value)}</td>
                 <td className="p-4">{c.times_used} / {c.usage_limit || '∞'}</td>
                 <td className="p-4">
                   <button onClick={() => handleToggle(c.id)} className="flex items-center gap-2 text-sm hover:opacity-80 transition-opacity">

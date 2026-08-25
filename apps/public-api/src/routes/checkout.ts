@@ -1,11 +1,12 @@
 import { Hono } from 'hono'
-import { createDb, schema } from '@ecommerce/database'
+import { createDb, schema, signJWT } from '@ecommerce/database'
 import { eq, lt, inArray } from 'drizzle-orm'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
 import { CheckoutSchema, DEFAULT_LOCATION_ID } from '@ecommerce/contract'
 import { InventoryService, PaymentService, OrderService } from '@ecommerce/core-services'
 import { rateLimit, clientIp, type RateLimiter } from '@ecommerce/shared-routes'
+import { verifyTurnstile } from '../utils/turnstile'
 
 
 
@@ -14,6 +15,8 @@ type Bindings = {
   CACHE_KV: KVNamespace
   STRIPE_SECRET_KEY: string
   STOREFRONT_URL: string
+  TURNSTILE_SECRET_KEY?: string
+  JWT_SECRET?: string
   ENVIRONMENT?: string
   CHECKOUT_RATE_LIMITER?: RateLimiter
 }
@@ -107,9 +110,16 @@ checkout.post('/', zValidator('json', CheckoutSchema), limitCheckout, async (c) 
     const {
       items, affiliate_id, address, shipping_address_json, billing_address_json,
       customer_id, email, utm_source, utm_medium, utm_campaign,
-      accepts_marketing, coupon_code, location_id
+      accepts_marketing, coupon_code, location_id, turnstileToken
     } = body
     const locationId = location_id || DEFAULT_LOCATION_ID;
+
+    // Server-side Turnstile verification (parity with landing-page leads):
+    // any token value a client can send is a value an attacker can send.
+    const turnstile = await verifyTurnstile(c.env.TURNSTILE_SECRET_KEY, turnstileToken)
+    if (!turnstile.ok) {
+      return c.json({ success: false, error: turnstile.message }, turnstile.status)
+    }
 
     const db = createDb(c.env.DB)
 
@@ -310,7 +320,19 @@ checkout.post('/', zValidator('json', CheckoutSchema), limitCheckout, async (c) 
         .set({ session_id: session.id })
         .where(eq(schema.orders.id, orderId))
 
-      const responsePayload = { success: true, order_id: orderId, checkout_url: session.url }
+      // T1.4: signed receipt token so the success page can render an order
+      // summary without exposing order ids to enumeration (7d expiry via signJWT).
+      let orderToken: string | undefined
+      if (c.env.JWT_SECRET) {
+        try {
+          orderToken = await signJWT({ scope: 'order-receipt', order_id: orderId }, c.env.JWT_SECRET)
+        } catch (tokErr) {
+          console.error('[Checkout] Failed to sign order receipt token:', tokErr)
+        }
+      }
+
+      const responsePayload: Record<string, unknown> = { success: true, order_id: orderId, checkout_url: session.url }
+      if (orderToken) responsePayload.order_token = orderToken
 
       if (idempotencyKey) {
         await db.update(schema.checkoutIdempotency)

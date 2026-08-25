@@ -3,7 +3,7 @@ import { eq, sql } from 'drizzle-orm';
 import { createDb, schema } from '@ecommerce/database';
 import { Bindings } from '../types';
 import { zValidator } from '@hono/zod-validator';
-import { productFormSchema } from '@ecommerce/contract';
+import { productFormSchema, DEFAULT_LOCATION_ID } from '@ecommerce/contract';
 import { ProductService, CacheService, InventoryRepository } from '@ecommerce/core-services';
 import { requireRole } from '../middleware/auth';
 import { buildUploadKey } from './uploadKey';
@@ -258,10 +258,6 @@ products.post('/products', requireRole(['superadmin', 'manager', 'editor']), zVa
     if (body['variations']) {
       try { variations = JSON.parse(body['variations'] as string); } catch { /* ignore */ }
     }
-    let secondary_categories: string[] = [];
-    if (body['secondary_categories']) {
-      try { secondary_categories = JSON.parse(body['secondary_categories'] as string); } catch { /* ignore */ }
-    }
 
     const regularPrice = parseMoneyCents(body['regular_price'], 0);
     const salePrice = parseMoneyCents(body['sale_price'], -1);
@@ -289,22 +285,21 @@ products.post('/products', requireRole(['superadmin', 'manager', 'editor']), zVa
       width: body['width'] ? parseFloat(body['width'] as string) : null,
       height: body['height'] ? parseFloat(body['height'] as string) : null,
       primary_category_id: (body['primary_category_id'] as string) || null,
-      secondary_categories,
       variations,
       imageUrls,
-      locationId: 'loc_default',
+      locationId: DEFAULT_LOCATION_ID,
     });
 
     if (batchQueries.length > 0) {
       await db.batch(batchQueries as any);
       
       if (body['stock'] !== undefined) {
-        c.executionCtx.waitUntil(InventoryRepository.invalidateCache(c.env, productId, 'loc_default'));
+        c.executionCtx.waitUntil(InventoryRepository.invalidateCache(c.env, productId, DEFAULT_LOCATION_ID));
       }
       if (variations && variations.length > 0) {
         for (const v of variations) {
           if (v.id) {
-            c.executionCtx.waitUntil(InventoryRepository.invalidateCache(c.env, v.id, 'loc_default'));
+            c.executionCtx.waitUntil(InventoryRepository.invalidateCache(c.env, v.id, DEFAULT_LOCATION_ID));
           }
         }
       }
@@ -364,10 +359,6 @@ products.put('/products/:id', requireRole(['superadmin', 'manager', 'editor']), 
     if (body['variations']) {
       try { variations = JSON.parse(body['variations'] as string); } catch { /* ignore */ }
     }
-    let secondary_categories: string[] = [];
-    if (body['secondary_categories']) {
-      try { secondary_categories = JSON.parse(body['secondary_categories'] as string); } catch { /* ignore */ }
-    }
 
     const finalImageUrls = (body['existing_images'] !== undefined || files.length > 0) ? imageUrls : undefined;
 
@@ -397,22 +388,21 @@ products.put('/products/:id', requireRole(['superadmin', 'manager', 'editor']), 
       width: body['width'] ? parseFloat(body['width'] as string) : null,
       height: body['height'] ? parseFloat(body['height'] as string) : null,
       primary_category_id: (body['primary_category_id'] as string) || null,
-      secondary_categories,
       variations,
       imageUrls: finalImageUrls,
-      locationId: 'loc_default',
+      locationId: DEFAULT_LOCATION_ID,
     });
 
     if (batchQueries.length > 0) {
       await db.batch(batchQueries as any);
 
       if (body['stock'] !== undefined) {
-        c.executionCtx.waitUntil(InventoryRepository.invalidateCache(c.env, productId, 'loc_default'));
+        c.executionCtx.waitUntil(InventoryRepository.invalidateCache(c.env, productId, DEFAULT_LOCATION_ID));
       }
       if (variations && variations.length > 0) {
         for (const v of variations) {
           if (v.id) {
-            c.executionCtx.waitUntil(InventoryRepository.invalidateCache(c.env, v.id, 'loc_default'));
+            c.executionCtx.waitUntil(InventoryRepository.invalidateCache(c.env, v.id, DEFAULT_LOCATION_ID));
           }
         }
       }
@@ -458,7 +448,7 @@ products.delete('/products/:id', requireRole(['superadmin', 'manager']), async (
       c.executionCtx.waitUntil(CacheService.invalidateProductCache(c.env, existingProduct.slug));
     }
     c.executionCtx.waitUntil(CacheService.invalidateProductCache(c.env, productId));
-    c.executionCtx.waitUntil(InventoryRepository.invalidateCache(c.env, productId, 'loc_default'));
+    c.executionCtx.waitUntil(InventoryRepository.invalidateCache(c.env, productId, DEFAULT_LOCATION_ID));
 
     return c.json({ success: true, message: 'Product soft-deleted successfully' });
   } catch (err: any) {

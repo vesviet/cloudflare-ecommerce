@@ -133,7 +133,7 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({ API_BASE_URL, addToast }) 
     }
   };
 
-  // Format monetary amounts (passed after /100 conversion from cents/base units) to VNĐ currency format
+  // Format monetary amounts (stored as raw integer VNĐ) to currency format
   const formatCurrency = (value: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value);
 
   const handleCloseOrderDetail = useCallback(() => setSelectedOrderId(null), []);
@@ -198,7 +198,7 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({ API_BASE_URL, addToast }) 
                   };
                   const sc = statusColors[order.status] ?? statusColors['pending_payment'];
                   const totalDisplay = order.total_amount != null
-                    ? formatCurrency(Number(order.total_amount) / 100)
+                    ? formatCurrency(Number(order.total_amount))
                     : '—';
                   const customer = order.guest_email || order.customer_id || 'Guest';
                   const date = order.created_at

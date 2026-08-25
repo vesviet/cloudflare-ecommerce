@@ -9,7 +9,7 @@ interface CustomerListProps {
 }
 
 export const CustomerList: React.FC<CustomerListProps> = ({ customers, onViewCustomer }) => {
-  const formatCurrency = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
+  const formatCurrency = (value: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value);
 
   if (customers.length === 0) {
     return (
@@ -57,7 +57,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({ customers, onViewCus
                   </span>
                 </td>
                 <td className="px-6 py-4 text-center">{c.total_orders}</td>
-                <td className="px-6 py-4 text-right font-medium">{formatCurrency(c.total_spent / 100)}</td>
+                <td className="px-6 py-4 text-right font-medium">{formatCurrency(c.total_spent)}</td>
                 <td className="px-6 py-4 text-text-muted">{new Date(c.created_at).toLocaleDateString()}</td>
                 <td className="px-6 py-4 text-center">
                   <button 

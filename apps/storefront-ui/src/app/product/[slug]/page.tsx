@@ -57,7 +57,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   // Generate basic JSON-LD
   const rawPrice = product.prices?.sale_price ?? product.prices?.regular_price ?? product.prices?.price_range?.min_amount ?? 0;
   const numericPrice = typeof rawPrice === 'string' ? parseInt(rawPrice, 10) : Number(rawPrice);
-  const jsonLdPrice = (Number.isFinite(numericPrice) ? numericPrice : 0) / 100;
+  const jsonLdPrice = Number.isFinite(numericPrice) ? numericPrice : 0;
 
   const hasVariations = Array.isArray(product.variations) && product.variations.length > 0;
   const variationStock = hasVariations
@@ -76,7 +76,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     offers: {
       '@type': 'Offer',
       price: jsonLdPrice,
-      priceCurrency: 'USD',
+      priceCurrency: 'VND',
       availability: isInStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
     }
   };

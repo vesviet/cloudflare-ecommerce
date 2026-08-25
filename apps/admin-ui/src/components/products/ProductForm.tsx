@@ -28,7 +28,6 @@ export const ProductForm: React.FC<ProductFormProps> = ({ initialData, API_BASE_
   const [productWidth, setProductWidth] = useState('');
   const [productHeight, setProductHeight] = useState('');
   const [productPrimaryCategory, setProductPrimaryCategory] = useState('');
-  const [productSecondaryCategories, setProductSecondaryCategories] = useState<string[]>([]);
   const [productVariations, setProductVariations] = useState<ProductVariation[]>([]);
   const [newImageFiles, setNewImageFiles] = useState<File[]>([]);
   const [existingImages, setExistingImages] = useState<string[]>([]);
@@ -57,8 +56,8 @@ export const ProductForm: React.FC<ProductFormProps> = ({ initialData, API_BASE_
       setProductSku(p.sku || '');
       setIsSkuManuallyEdited(!!p.sku);
       setProductType(p.type);
-      setProductRegularPrice(p.regular_price ? (p.regular_price / 100).toString() : '');
-      setProductSalePrice(p.sale_price ? (p.sale_price / 100).toString() : '');
+      setProductRegularPrice(p.regular_price ? p.regular_price.toString() : '');
+      setProductSalePrice(p.sale_price ? p.sale_price.toString() : '');
       const simpleStock = p.stock_quantity !== undefined && p.stock_quantity !== null ? p.stock_quantity.toString() : '';
       setProductStock(simpleStock);
       setProductWeight(p.weight?.toString() || '');
@@ -66,13 +65,12 @@ export const ProductForm: React.FC<ProductFormProps> = ({ initialData, API_BASE_
       setProductWidth(p.width?.toString() || '');
       setProductHeight(p.height?.toString() || '');
       setProductPrimaryCategory(p.primary_category_id || '');
-      setProductSecondaryCategories(p.secondary_categories || []);
       setProductVariations(
         (p.variations || []).map(v => ({
           id: v.id,
           sku: v.sku,
-          regular_price: v.regular_price ? (Number(v.regular_price) / 100).toString() : '',
-          sale_price: v.sale_price ? (Number(v.sale_price) / 100).toString() : '',
+          regular_price: v.regular_price ? Number(v.regular_price).toString() : '',
+          sale_price: v.sale_price ? Number(v.sale_price).toString() : '',
           stock: v.stock !== undefined ? v.stock.toString() : '0',
           attributes: v.attributes || {}
         }))
@@ -94,7 +92,6 @@ export const ProductForm: React.FC<ProductFormProps> = ({ initialData, API_BASE_
       setProductWidth('');
       setProductHeight('');
       setProductPrimaryCategory('');
-      setProductSecondaryCategories([]);
       setProductVariations([]);
       setExistingImages([]);
     }
@@ -164,16 +161,16 @@ export const ProductForm: React.FC<ProductFormProps> = ({ initialData, API_BASE_
     const payloadVariations = productVariations.map(v => ({
       id: v.id,
       sku: v.sku,
-      regular_price: Math.round(parseFloat(v.regular_price as string) * 100) || 0,
-      sale_price: v.sale_price ? Math.round(parseFloat(v.sale_price as string) * 100) : null,
+      regular_price: parseFloat(v.regular_price as string) || 0,
+      sale_price: v.sale_price ? parseFloat(v.sale_price as string) : null,
       stock: parseInt(v.stock as string, 10) || 0,
       attributes: v.attributes
     }));
 
-    const minorRegularPrice = productRegularPrice.trim() !== '' ? Math.round(parseFloat(productRegularPrice) * 100) : 0;
-    const minorSalePrice = productSalePrice.trim() !== '' ? Math.round(parseFloat(productSalePrice) * 100) : null;
+    const regularPrice = productRegularPrice.trim() !== '' ? parseFloat(productRegularPrice) : 0;
+    const salePrice = productSalePrice.trim() !== '' ? parseFloat(productSalePrice) : null;
 
-    if (!Number.isFinite(minorRegularPrice) || (minorSalePrice !== null && !Number.isFinite(minorSalePrice))) {
+    if (!Number.isFinite(regularPrice) || (salePrice !== null && !Number.isFinite(salePrice))) {
       addToast('Price must be a valid number', 'error');
       return;
     }
@@ -184,15 +181,14 @@ export const ProductForm: React.FC<ProductFormProps> = ({ initialData, API_BASE_
       formData.append('name', productName);
       if (productSku) formData.append('sku', productSku);
       formData.append('type', productType);
-      formData.append('regular_price', minorRegularPrice.toString());
-      if (minorSalePrice !== null) formData.append('sale_price', minorSalePrice.toString());
+      formData.append('regular_price', regularPrice.toString());
+      if (salePrice !== null) formData.append('sale_price', salePrice.toString());
       formData.append('stock', productStock);
       if (productWeight) formData.append('weight', productWeight);
       if (productLength) formData.append('length', productLength);
       if (productWidth) formData.append('width', productWidth);
       if (productHeight) formData.append('height', productHeight);
       if (productPrimaryCategory) formData.append('primary_category_id', productPrimaryCategory);
-      if (productSecondaryCategories.length > 0) formData.append('secondary_categories', JSON.stringify(productSecondaryCategories));
       formData.append('variations', JSON.stringify(payloadVariations));
       
       formData.append('existing_images', JSON.stringify(existingImages));
@@ -233,10 +229,10 @@ export const ProductForm: React.FC<ProductFormProps> = ({ initialData, API_BASE_
           
           <ProductBasicInfo 
             productName={productName} productSku={productSku} productType={productType}
-            productPrimaryCategory={productPrimaryCategory} productSecondaryCategories={productSecondaryCategories}
+            productPrimaryCategory={productPrimaryCategory}
             categories={categories}
             onChangeProductName={setProductName} onChangeProductSku={setProductSku} onChangeProductType={setProductType}
-            onChangeProductPrimaryCategory={setProductPrimaryCategory} onChangeProductSecondaryCategories={setProductSecondaryCategories}
+            onChangeProductPrimaryCategory={setProductPrimaryCategory}
             onSkuEdited={() => setIsSkuManuallyEdited(true)}
           />
 

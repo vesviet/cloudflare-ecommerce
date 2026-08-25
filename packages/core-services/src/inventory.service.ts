@@ -45,7 +45,7 @@ export class InventoryService {
       .all();
 
     // 2. Fetch stock from inventory_levels (source of truth post-PIM-refactor)
-    // Uses the specified warehouse location (defaulting to 'loc_default')
+    // Uses the specified warehouse location (defaulting to 'loc-1')
     const inventoryRows = await db
       .select({
         product_id: schema.inventoryLevels.product_id,

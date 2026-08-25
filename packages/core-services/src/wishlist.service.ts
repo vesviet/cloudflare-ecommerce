@@ -73,7 +73,7 @@ export class WishlistService {
           prices: {
             price: priceItem?.price || 0,
             regular_price: priceItem?.price || 0,
-            currency_code: 'USD',
+            currency_code: 'VND',
           },
           in_stock: (invLevel?.stock_quantity || 0) > 0,
         }

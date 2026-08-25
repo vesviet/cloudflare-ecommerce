@@ -6,6 +6,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuthStore } from '../../../store/authStore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { formatCurrency } from '../../../lib/format';
 
 export default function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = React.use(params);
@@ -22,6 +23,14 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const [rmaSuccess, setRmaSuccess] = useState(false);
   const [rmaError, setRmaError] = useState('');
 
+  // T1.3: self-cancel + reorder state
+  const CANCELLABLE_STATUSES = ['pending_payment', 'pending', 'confirmed'];
+  const [actionMsg, setActionMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+  const [reordering, setReordering] = useState(false);
+
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com';
+
   useEffect(() => {
     if (!isAuthenticated) {
       router.push('/my-account');
@@ -30,8 +39,6 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
     const fetchData = async () => {
       try {
-        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'https://api-shop.tanhdev.com';
-        
         // Fetch Order
         const orderRes = await fetch(`${apiBase}/api/customer/orders/${id}`, { credentials: 'include' });
         const orderData = await orderRes.json();
@@ -84,6 +91,65 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     }
   };
 
+  const handleCancelOrder = async () => {
+    if (!window.confirm('Huỷ đơn hàng này? Kho sẽ được hoàn lại tự động.')) return;
+    setCancelling(true);
+    setActionMsg(null);
+    try {
+      const res = await fetch(`${apiBase}/api/customer/orders/${id}/cancel`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (data.success) {
+        setActionMsg({ type: 'ok', text: 'Đơn hàng đã được huỷ. Kho đã được hoàn lại.' });
+        setOrder((prev: any) => ({ ...prev, status: 'cancelled' }));
+      } else {
+        setActionMsg({ type: 'err', text: data.error || 'Không thể huỷ đơn hàng.' });
+      }
+    } catch {
+      setActionMsg({ type: 'err', text: 'Lỗi mạng khi huỷ đơn.' });
+    }
+    setCancelling(false);
+  };
+
+  const handleReorder = async () => {
+    setReordering(true);
+    setActionMsg(null);
+    try {
+      const { useCartStore } = await import('../../../store/cartStore');
+      const cart = useCartStore.getState();
+      const res = await fetch(`${apiBase}/api/customer/orders/${id}/reorder`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (!data.success) {
+        setActionMsg({ type: 'err', text: data.error || 'Không thể đặt lại đơn hàng.' });
+      } else if ((data.data.items || []).length === 0) {
+        setActionMsg({ type: 'err', text: 'Các sản phẩm trong đơn này hiện không còn khả dụng.' });
+      } else {
+        for (const item of data.data.items) {
+          cart.addItem({
+            id: item.product_id,
+            product_id: item.product_id,
+            name: item.title || item.sku || item.product_id,
+            price: Number(item.price),
+            quantity: Number(item.quantity),
+          });
+        }
+        const skippedCount = (data.data.skipped || []).length;
+        setActionMsg({
+          type: 'ok',
+          text: `Đã thêm ${data.data.items.length} sản phẩm vào giỏ hàng.` + (skippedCount > 0 ? ` (${skippedCount} sản phẩm không còn hàng)` : ''),
+        });
+      }
+    } catch {
+      setActionMsg({ type: 'err', text: 'Lỗi mạng khi đặt lại đơn.' });
+    }
+    setReordering(false);
+  };
+
   if (!isAuthenticated || loading) {
     return <div style={{ textAlign: 'center', padding: '100px', color: 'var(--text-muted)' }}>Loading order details...</div>;
   }
@@ -122,16 +188,48 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
           {order.items && order.items.map((item: any) => (
             <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', background: 'rgba(0,0,0,0.2)', borderRadius: '8px' }}>
               <span style={{ color: 'var(--text-main)' }}>Product ID: {item.product_id.slice(0,8)} (x{item.quantity})</span>
-              <span style={{ color: 'var(--text-main)' }}>${(item.price_at_purchase / 100).toFixed(2)}</span>
+              <span style={{ color: 'var(--text-main)' }}>{formatCurrency(item.price_at_purchase)}</span>
             </div>
           ))}
         </div>
 
         <div style={{ marginTop: '30px', textAlign: 'right' }}>
-          <p style={{ color: 'var(--text-muted)', margin: '0 0 8px 0' }}>Shipping: ${(order.shipping_fee / 100).toFixed(2)}</p>
-          <h2 style={{ color: 'var(--text-main)', margin: 0 }}>Total: ${(order.total_amount / 100).toFixed(2)}</h2>
+          <p style={{ color: 'var(--text-muted)', margin: '0 0 8px 0' }}>Shipping: {formatCurrency(order.shipping_fee)}</p>
+          <h2 style={{ color: 'var(--text-main)', margin: 0 }}>Total: {formatCurrency(order.total_amount)}</h2>
         </div>
-        
+
+        {/* T1.3: Self-cancel + reorder actions */}
+        <div style={{ marginTop: '24px', display: 'flex', gap: '12px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+          {CANCELLABLE_STATUSES.includes(order.status) && (
+            <button
+              onClick={handleCancelOrder}
+              disabled={cancelling}
+              className="btn"
+              style={{ background: 'transparent', border: '1px solid rgba(248,113,113,0.4)', color: '#f87171', padding: '10px 18px' }}
+            >
+              {cancelling ? 'Đang huỷ...' : 'Huỷ đơn hàng'}
+            </button>
+          )}
+          <button
+            onClick={handleReorder}
+            disabled={reordering}
+            className="btn"
+            style={{ padding: '10px 18px' }}
+          >
+            {reordering ? 'Đang thêm...' : 'Đặt lại đơn này'}
+          </button>
+        </div>
+        {actionMsg && (
+          <div style={{
+            marginTop: '14px', padding: '12px 16px', borderRadius: '8px', fontSize: '0.9rem',
+            background: actionMsg.type === 'ok' ? 'rgba(74,222,128,0.1)' : 'rgba(248,113,113,0.1)',
+            border: `1px solid ${actionMsg.type === 'ok' ? 'rgba(74,222,128,0.3)' : 'rgba(248,113,113,0.3)'}`,
+            color: actionMsg.type === 'ok' ? '#4ade80' : '#f87171',
+          }}>
+            {actionMsg.text}
+          </div>
+        )}
+
         {/* RMA Self-Service Section (Feature Flag Gated) */}
         {rmaEnabled && (order.status === 'completed' || order.status === 'processing') && (
           <div style={{ marginTop: '40px', paddingTop: '20px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
