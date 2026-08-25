@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { schema } from '@ecommerce/database';
 
 import { PromotionEngine } from './promotion.engine';
+import { PromotionRulesEngine } from './promotion.rules.engine';
 
 /**
  * Payment configuration and technical debt documentation.
@@ -20,16 +21,27 @@ export const PAYMENT_CONFIG = {
 export class PaymentService {
   /**
    * Calculates discounts, coupons, and final pricing.
-   * Now acting as a backward-compatible facade for PromotionEngine.
+   * Pipeline (Laravel parity): automatic promotion_rules first, then the
+   * legacy coupon/VIP layer on top; loyalty stacks last inside the engine.
+   * VAT removed per standardization decision #3.
    */
   static async calculatePricing(
-    db: any, 
-    subTotalCents: number, 
-    customer_id?: string, 
-    coupon_code?: string, 
+    db: any,
+    subTotalCents: number,
+    customer_id?: string,
+    coupon_code?: string,
     baseShippingCents: number = 999,
-    redeemPoints?: number
+    redeemPoints?: number,
+    cartItems?: Array<{ product_id: string; quantity: number; price: number }>
   ) {
+    const rulesRes = await PromotionRulesEngine.evaluateCart({
+      db,
+      subTotal: subTotalCents,
+      baseShippingFee: baseShippingCents,
+      customerId: customer_id,
+      cartItems: cartItems || [],
+    });
+
     const res = await PromotionEngine.evaluate({
       db,
       subTotalCents,
@@ -39,14 +51,25 @@ export class PaymentService {
       redeem_points: redeemPoints
     });
 
+    const combinedDiscount = Math.min(subTotalCents, (res.discount_amount || 0) + rulesRes.totalDiscount);
+    const shippingFeeCents = Math.max(0, res.shipping_fee_cents - rulesRes.shippingSubsidy);
+    const totalAmountCents = Math.max(0, subTotalCents - combinedDiscount) + shippingFeeCents;
+
     return {
-      discountAmount: res.discount_amount,
+      discountAmount: combinedDiscount,
       appliedCouponId: res.applied_coupon_id,
-      shippingFeeCents: res.shipping_fee_cents,
-      taxAmountCents: res.tax_amount_cents,
-      totalAmountCents: res.total_amount_cents,
+      shippingFeeCents,
+      taxAmountCents: 0,
+      totalAmountCents,
       loyaltyPointsApplied: res.loyalty_points_applied,
-      couponError: res.coupon_error
+      couponError: res.coupon_error,
+      appliedRules: rulesRes.appliedRules,
+      appliedRuleIds: rulesRes.appliedRules.map(r => r.ruleId),
+      gifts: rulesRes.gifts,
+      discountBreakdown: [
+        ...res.discount_breakdown,
+        ...rulesRes.appliedRules.map(r => ({ type: 'PromotionRule', amount: r.amount, description: r.description }))
+      ]
     };
   }
 

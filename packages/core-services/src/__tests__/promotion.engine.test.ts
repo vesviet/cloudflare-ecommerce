@@ -79,8 +79,8 @@ describe('PromotionEngine.evaluate', () => {
 
     expect(res.coupon_error).toBeUndefined();
     expect(res.discount_amount).toBe(400); // 20%
-    expect(res.tax_amount_cents).toBe(160); // (2000 - 400) * 10%
-    expect(res.total_amount_cents).toBe(2759); // 1600 + 160 + 999
+    expect(res.tax_amount_cents).toBe(0); // VAT removed (decision #3)
+    expect(res.total_amount_cents).toBe(2599); // 1600 + 999 shipping
     expect(res.applied_coupon_id).toBe('c1');
     expect(res.discount_breakdown).toContainEqual({ type: 'Promotion', amount: 400, description: 'SAVE20 Applied' });
   });

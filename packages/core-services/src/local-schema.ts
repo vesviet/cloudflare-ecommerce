@@ -143,11 +143,37 @@ export const promotions = sqliteTable('promotions', {
   updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
 });
 
+// Phase 2A — Laravel-shape rules engine. Replaces the dead 0011 targeting
+// schema (dropped and recreated by migration 0020).
 export const promotionRules = sqliteTable('promotion_rules', {
   id: text('id').primaryKey(),
-  promotion_id: text('promotion_id').notNull().references(() => promotions.id, { onDelete: 'cascade' }),
-  target_type: text('target_type').notNull(),
-  target_id: text('target_id').notNull(),
+  name: text('name').notNull(),
+  rule_type: text('rule_type').notNull().default('cart_rule'), // cart_rule | catalog_rule
+  action_type: text('action_type').notNull(), // percentage_with_max_cap | fixed_amount | free_shipping | tiered_quantity | buy_x_get_y
+  action_value: real('action_value').notNull().default(0),
+  max_discount_amount: integer('max_discount_amount'),
+  conditions_json: text('conditions_json').default('{}'),
+  target_customer_tier: text('target_customer_tier').default('all'),
+  usage_limit: integer('usage_limit'),
+  usage_limit_per_user: integer('usage_limit_per_user').default(1),
+  times_used: integer('times_used').notNull().default(0),
+  priority: integer('priority').notNull().default(0),
+  stop_further_rules: integer('stop_further_rules').notNull().default(0),
+  starts_at: integer('starts_at'),
+  ends_at: integer('ends_at'),
+  status: text('status').default('active'),
+  created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+  updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const promotionUsages = sqliteTable('promotion_usages', {
+  id: text('id').primaryKey(),
+  promotion_id: text('promotion_id').notNull(),
+  kind: text('kind').notNull().default('rule'), // rule | coupon
+  customer_id: text('customer_id'),
+  email: text('email'),
+  order_id: text('order_id').notNull(),
+  discount_amount: integer('discount_amount').notNull().default(0),
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
 });
 

@@ -148,8 +148,10 @@ export class PromotionEngine {
 
     discount_amount = Math.min(discount_amount, ctx.subTotalCents);
     const taxable_amount = ctx.subTotalCents - discount_amount;
-    const tax_amount_cents = Math.round(taxable_amount * 0.10); // 10% VAT
-    const total_amount_cents = taxable_amount + tax_amount_cents + shipping_fee_cents;
+    // Decision #3 (standardization): VAT removed — Laravel baseline carries no
+    // tax line. Field kept at 0 for response-shape compatibility.
+    const tax_amount_cents = 0;
+    const total_amount_cents = taxable_amount + shipping_fee_cents;
 
     return {
       discount_amount,

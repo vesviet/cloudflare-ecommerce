@@ -15,6 +15,14 @@ describe('CatalogService', () => {
     mockDb = {
       all: vi.fn(),
       get: vi.fn(),
+      // PromotionRulesEngine catalog-rule lookup (returns no active rules)
+      select: vi.fn(() => ({
+        from: () => ({
+          where: () => ({
+            all: vi.fn(async () => [])
+          })
+        })
+      })),
     };
   });
 

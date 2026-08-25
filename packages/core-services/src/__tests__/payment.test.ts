@@ -48,6 +48,8 @@ function makePaymentDb(...responses: (object | null)[]) {
       getCallIndex++;
       return Promise.resolve(resp);
     }),
+    // PromotionRulesEngine.evaluateCart loads active rules via .all()
+    all: vi.fn(async () => []),
   };
   return mockDb;
 }
@@ -66,8 +68,8 @@ describe('PaymentService.calculatePricing', () => {
 
     expect(result.discountAmount).toBe(0);
     expect(result.shippingFeeCents).toBe(999);
-    expect(result.taxAmountCents).toBe(200);
-    expect(result.totalAmountCents).toBe(3199);
+    expect(result.taxAmountCents).toBe(0); // VAT removed (decision #3)
+    expect(result.totalAmountCents).toBe(2999);
     expect(result.appliedCouponId).toBeNull();
   });
 
@@ -78,8 +80,8 @@ describe('PaymentService.calculatePricing', () => {
     const result = await PaymentService.calculatePricing(db, 2000, 'cust_vip', undefined, 999);
 
     expect(result.discountAmount).toBe(200); // 10% of 2000
-    expect(result.taxAmountCents).toBe(180); // 10% of 1800
-    expect(result.totalAmountCents).toBe(2979); // 1800 + 180 + 999
+    expect(result.taxAmountCents).toBe(0); // VAT removed (decision #3)
+    expect(result.totalAmountCents).toBe(2799); // 1800 + 999
     expect(result.appliedCouponId).toBeNull(); // No coupon consumed
   });
 
@@ -91,8 +93,8 @@ describe('PaymentService.calculatePricing', () => {
 
     expect(result.discountAmount).toBe(400); // 20% of 2000
     expect(result.appliedCouponId).toBe('c1');
-    expect(result.taxAmountCents).toBe(160);
-    expect(result.totalAmountCents).toBe(2759); // 1600 + 160 + 999
+    expect(result.taxAmountCents).toBe(0); // VAT removed (decision #3)
+    expect(result.totalAmountCents).toBe(2599); // 1600 + 999
   });
 
   it('TC-PAY-11: percent coupon wins over VIP when coupon% > VIP% (20% > 10%)', async () => {
@@ -153,8 +155,8 @@ describe('PaymentService.calculatePricing', () => {
 
     expect(result.shippingFeeCents).toBe(0);       // Shipping zeroed
     expect(result.appliedCouponId).toBe('fs1');    // Freeship tracked
-    expect(result.taxAmountCents).toBe(200);
-    expect(result.totalAmountCents).toBe(2200);    // 2000 + 200 + 0
+    expect(result.taxAmountCents).toBe(0); // VAT removed (decision #3)
+    expect(result.totalAmountCents).toBe(2000);    // 2000 + 0 shipping
   });
 
   it('TC-PAY-21: VIP + freeship BOTH apply simultaneously (I-16 independent stacking)', async () => {
@@ -168,8 +170,8 @@ describe('PaymentService.calculatePricing', () => {
     expect(result.shippingFeeCents).toBe(0);        // Freeship zeroed shipping
     expect(result.discountAmount).toBe(200);         // VIP 10% still applies on subtotal
     expect(result.appliedCouponId).toBe('fs1');     // Freeship tracked
-    expect(result.taxAmountCents).toBe(180);
-    expect(result.totalAmountCents).toBe(1980);     // 1800 + 180 + 0 shipping
+    expect(result.taxAmountCents).toBe(0); // VAT removed (decision #3)
+    expect(result.totalAmountCents).toBe(1800);     // 1800 + 0 shipping
   });
 
   it('TC-PAY-22: non-VIP customer with freeship — only shipping zeroed, no % discount', async () => {
@@ -178,8 +180,8 @@ describe('PaymentService.calculatePricing', () => {
 
     expect(result.shippingFeeCents).toBe(0);
     expect(result.discountAmount).toBe(0);           // No VIP = no % discount
-    expect(result.taxAmountCents).toBe(200);
-    expect(result.totalAmountCents).toBe(2200);
+    expect(result.taxAmountCents).toBe(0); // VAT removed (decision #3)
+    expect(result.totalAmountCents).toBe(2000);
   });
 });
 

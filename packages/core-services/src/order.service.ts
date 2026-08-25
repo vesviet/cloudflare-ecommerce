@@ -3,6 +3,7 @@ import { InventoryRepository } from './inventory.repository';
 import { and, or, isNull, sql as drizzleSql, eq } from 'drizzle-orm';
 import * as localSchema from './local-schema';
 import { LoyaltyService } from './loyalty.service';
+import { PromotionRulesEngine, AppliedRuleDiscount } from './promotion.rules.engine';
 
 export class OrderService {
   /**
@@ -26,6 +27,7 @@ export class OrderService {
     validItems: any[];
     discountAmount: number;
     appliedCouponId?: string | null;
+    appliedRules?: AppliedRuleDiscount[];
     taxAmountCents?: number;
     taxLinesJson?: any;
     shippingLinesJson?: any;
@@ -54,6 +56,18 @@ export class OrderService {
       if (affected === 0) {
         throw new Error('Coupon usage limit reached or coupon is no longer valid');
       }
+    }
+
+    // Phase 0.5 — atomic promotion-rule usage locks + immutable usages audit
+    // (Laravel PRM-09). Throws before any order row exists on exhaustion.
+    if (orderData.appliedRules && orderData.appliedRules.length > 0) {
+      await PromotionRulesEngine.lockUsage(
+        drizzleDb,
+        orderData.appliedRules,
+        orderData.orderId,
+        orderData.customerId,
+        orderData.email
+      );
     }
 
     // Phase 1: Create Order in 'pending_payment'

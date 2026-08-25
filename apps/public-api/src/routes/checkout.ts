@@ -213,6 +213,7 @@ checkout.post('/', zValidator('json', CheckoutSchema), limitCheckout, async (c) 
     let shippingFeeCents = baseShippingCents;
     let taxAmountCents = 0;
     let totalAmountCents = 0;
+    let appliedRules: any[] = [];
 
     try {
       const normalizedItems = (items || []).map((item: any) => ({
@@ -225,13 +226,20 @@ checkout.post('/', zValidator('json', CheckoutSchema), limitCheckout, async (c) 
       subTotal = invRes.subTotal;
 
       const pricingRes = await PaymentService.calculatePricing(
-        db, subTotal, customer_id, coupon_code, baseShippingCents
+        db, subTotal, customer_id, coupon_code, baseShippingCents,
+        undefined,
+        validItems.map((i: any) => ({
+          product_id: i.variation_id || i.id || i.productId,
+          quantity: i.quantity,
+          price: i.price
+        }))
       );
       discountAmount = pricingRes.discountAmount;
       appliedCouponId = pricingRes.appliedCouponId;
       shippingFeeCents = pricingRes.shippingFeeCents;
       taxAmountCents = pricingRes.taxAmountCents;
       totalAmountCents = pricingRes.totalAmountCents;
+      appliedRules = (pricingRes as any).appliedRules || [];
     } catch (valErr: any) {
       console.error(`[Checkout] Validation/Pricing failed:`, valErr.message);
       if (idempotencyKey) {
@@ -284,6 +292,7 @@ checkout.post('/', zValidator('json', CheckoutSchema), limitCheckout, async (c) 
         validItems,
         discountAmount,
         appliedCouponId,
+        appliedRules,
         locationId
       });
     } catch (orderErr: any) {

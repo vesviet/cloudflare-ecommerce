@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { ProductService } from './product.service';
+import { PromotionRulesEngine, getActiveCatalogRules } from './promotion.rules.engine';
 
 export class CatalogService {
   /**
@@ -101,7 +102,31 @@ export class CatalogService {
       }
     });
 
+    await this.applyCatalogPromotions(db, enriched);
     return enriched;
+  }
+
+  /**
+   * Phase 2A (PRM-03): catalog strike-through pricing — attaches
+   * promoted_price/promo_rule_name when an active catalog_rule beats the
+   * current effective price.
+   */
+  private static async applyCatalogPromotions(db: any, items: any | any[]): Promise<void> {
+    const list = Array.isArray(items) ? items : [items];
+    if (list.length === 0) return;
+    const rules = await getActiveCatalogRules(db);
+    if (rules.length === 0) return;
+
+    for (const item of list) {
+      const base = Number(item.prices?.regular_price ?? item.prices?.price ?? 0);
+      const current = Number(item.prices?.sale_price ?? base);
+      if (!(base > 0)) continue;
+      const promo = await PromotionRulesEngine.resolveCatalogPrice(db, item.id, item.primary_category_id ?? null, base, rules);
+      if (promo && promo.promoted_price < current) {
+        item.prices.promoted_price = promo.promoted_price;
+        item.prices.promo_rule_name = promo.rule_name;
+      }
+    }
   }
 
   /**
@@ -144,13 +169,15 @@ export class CatalogService {
     let images = [];
     try { images = JSON.parse(product.assets || '[]').filter((img: any) => img.url); } catch { /* ignore */ }
 
-    return {
+    const result = {
       ...product,
       name: product.title,
       images,
       variations,
       prices: ProductService.buildPrices(product, variations),
     };
+    await this.applyCatalogPromotions(db, result);
+    return result;
   }
 
   /**
@@ -184,7 +211,7 @@ export class CatalogService {
       LIMIT 20
     `) as any[];
 
-    return productRows.map((product: any) => {
+    const mapped = productRows.map((product: any) => {
       let images = [];
       try { images = JSON.parse(product.assets || '[]').filter((img: any) => img.url); } catch (e) {}
 
@@ -196,5 +223,7 @@ export class CatalogService {
         prices: ProductService.buildPrices(product, []),
       }
     });
+    await this.applyCatalogPromotions(db, mapped);
+    return mapped;
   }
 }
