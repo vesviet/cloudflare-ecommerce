@@ -144,6 +144,8 @@ customerApp.post('/auth/login', limitByEmail('auth-login-email'), limitByIp('aut
       password_hash: schema.customers.password_hash,
       status: schema.customers.status,
       token_version: schema.customers.token_version,
+      failed_login_attempts: schema.customers.failed_login_attempts,
+      locked_until: schema.customers.locked_until,
     })
       .from(schema.customers)
       .where(eq(schema.customers.email, email))
@@ -157,9 +159,34 @@ customerApp.post('/auth/login', limitByEmail('auth-login-email'), limitByIp('aut
       return c.json({ success: false, error: 'Tài khoản của bạn đã bị khóa. Vui lòng liên hệ bộ phận hỗ trợ.' }, 403);
     }
 
+    // T3.2 (AUTH-03): brute-force lockout — 5 failures lock the account for
+    // 15 minutes (Laravel customer-provider baseline).
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (customer.locked_until && nowSec < customer.locked_until) {
+      const minutes = Math.ceil((customer.locked_until - nowSec) / 60);
+      return c.json({ success: false, error: `Tài khoản đã bị tạm khóa do đăng nhập sai quá nhiều lần. Vui lòng thử lại sau ${minutes} phút.` }, 423);
+    }
+
     const isValid = await verifyPassword(password, customer.password_hash);
     if (!isValid) {
+      const attempts = Number(customer.failed_login_attempts || 0) + 1;
+      const shouldLock = attempts >= 5;
+      await db.update(schema.customers)
+        .set({
+          failed_login_attempts: shouldLock ? 0 : attempts,
+          locked_until: shouldLock ? nowSec + 15 * 60 : null,
+        })
+        .where(eq(schema.customers.id, customer.id))
+        .run();
       return c.json({ success: false, error: 'Invalid email or password' }, 401);
+    }
+
+    // Successful login clears any lockout state.
+    if ((customer.failed_login_attempts || 0) > 0 || customer.locked_until) {
+      await db.update(schema.customers)
+        .set({ failed_login_attempts: 0, locked_until: null })
+        .where(eq(schema.customers.id, customer.id))
+        .run();
     }
 
     const token = await signJWT({ customer_id: customer.id, email, tv: customer.token_version ?? 0 }, c.env.JWT_SECRET);

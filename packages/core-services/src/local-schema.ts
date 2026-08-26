@@ -77,6 +77,10 @@ export const customers = sqliteTable('customers', {
 
   token_version: integer('token_version').notNull().default(0),
 
+  // T3.2 brute-force lockout
+  failed_login_attempts: integer('failed_login_attempts').notNull().default(0),
+  locked_until: integer('locked_until'),
+
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
   updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
   deleted_at: text('deleted_at'), // Soft delete
