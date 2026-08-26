@@ -61,6 +61,14 @@ export const categories = sqliteTable('categories', {
   image_url: text('image_url'),
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
   updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+  // Enhanced columns (migration 0024)
+  sort_order: integer('sort_order').notNull().default(0),
+  meta_title: text('meta_title'),
+  meta_description: text('meta_description'),
+  meta_keywords: text('meta_keywords'),
+  is_visible: integer('is_visible').notNull().default(1),
+  image_path: text('image_path'),
+  structured_data: text('structured_data'),
 });
 
 export const products = sqliteTable('products', {
@@ -83,9 +91,19 @@ export const products = sqliteTable('products', {
   metafields_json: text('metafields_json').default('{}'),
   
   is_purchasable: integer('is_purchasable').notNull().default(1),
+  is_visible: integer('is_visible').notNull().default(1),
   status: text('status').default('draft'), // draft, published, archived
   primary_category_id: text('primary_category_id').references(() => categories.id, { onDelete: 'set null' }),
   ai_sync_status: text('ai_sync_status').default('pending'), // pending, synced, failed
+  
+  // Enhanced columns (migration 0024)
+  compare_at_price: integer('compare_at_price'),
+  published_at: text('published_at'),
+  low_stock_threshold: integer('low_stock_threshold').notNull().default(5),
+  meta_title: text('meta_title'),
+  meta_description: text('meta_description'),
+  meta_keywords: text('meta_keywords'),
+  structured_data: text('structured_data'),
   
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
   updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
@@ -370,7 +388,7 @@ export const cmsEntries = sqliteTable('cms_entries', {
   };
 });
 
-// Phase 4b: newsletter subscribers (NWS-01).
+// Phase 4c: Newsletter subscribers (NWS-01).
 export const newsletterSubscribers = sqliteTable('newsletter_subscribers', {
   id: text('id').primaryKey(),
   email: text('email').notNull().unique(),
@@ -378,6 +396,39 @@ export const newsletterSubscribers = sqliteTable('newsletter_subscribers', {
   source: text('source'),
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
   unsubscribed_at: integer('unsubscribed_at'),
+});
+
+// Phase 4c: Provinces (VN administrative divisions).
+export const provinces = sqliteTable('provinces', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  code: text('code').notNull().unique(),
+  created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+  updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Phase 4c: Banners for homepage, catalog headers, blog sidebar, etc.
+export const banners = sqliteTable('banners', {
+  id: text('id').primaryKey(),
+  position: text('position').notNull().default('hero_slider'),
+  title: text('title').notNull(),
+  eyebrow: text('eyebrow'),
+  subtitle: text('subtitle'),
+  cta_text: text('cta_text').notNull().default('Khám Phá Ngay'),
+  image: text('image').notNull(),
+  link: text('link'),
+  open_in_new_tab: integer('open_in_new_tab').notNull().default(0),
+  status: text('status').default('active'),
+  starts_at: text('starts_at'),
+  ends_at: text('ends_at'),
+  sort_order: integer('sort_order').notNull().default(0),
+  clicks_count: integer('clicks_count').notNull().default(0),
+  created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+  updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+}, (table) => {
+  return {
+    positionStatusSortIdx: index('idx_banners_position_status_sort').on(table.position, table.status, table.sort_order),
+  };
 });
 
 export const adminUsers = sqliteTable('admin_users', {
@@ -438,6 +489,10 @@ export const productReviews = sqliteTable('product_reviews', {
   seller_response: text('seller_response'),
   moderated_by: text('moderated_by'),
   moderated_at: integer('moderated_at'),
+  // Schema parity columns (migration 0024)
+  seller_responded_at: integer('seller_responded_at'),
+  not_helpful_count: integer('not_helpful_count').notNull().default(0),
+  moderation_note: text('moderation_note'),
 });
 
 export const wishlists = sqliteTable('wishlists', {
