@@ -22,7 +22,7 @@ Guest checkout
 // The following code samples are still beta. For any issue, please report via http://github.com/OpenAPITools/openapi-generator/issues/new
 import AuraApiSDK
 
-let checkout = Checkout(email: "email_example", customerId: 123, couponCode: "couponCode_example", address: Checkout_address(fullname: "fullname_example", address: "address_example", zipcode: "zipcode_example"), shippingAddressJson: "TODO", billingAddressJson: "TODO", items: [Checkout_items_inner(variationId: 123, quantity: 123)], affiliateId: "affiliateId_example", utmSource: "utmSource_example", utmMedium: "utmMedium_example", utmCampaign: "utmCampaign_example", acceptsMarketing: false) // Checkout |  (optional)
+let checkout = Checkout(email: "email_example", customerId: 123, couponCode: "couponCode_example", locationId: "locationId_example", address: Checkout_address(fullname: "fullname_example", address: "address_example", zipcode: "zipcode_example"), shippingAddressJson: "TODO", billingAddressJson: "TODO", items: [Checkout_items_inner(variationId: "variationId_example", id: "id_example", quantity: 123)], affiliateId: "affiliateId_example", utmSource: "utmSource_example", utmMedium: "utmMedium_example", utmCampaign: "utmCampaign_example", acceptsMarketing: Checkout_accepts_marketing(), turnstileToken: "turnstileToken_example", redeemPoints: 123, b2bCompany: "b2bCompany_example", b2bVatId: "b2bVatId_example") // Checkout |  (optional)
 
 // Submit a guest order
 DefaultAPI.apiCheckoutGuestPost(checkout: checkout) { (response, error) in

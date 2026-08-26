@@ -1,11 +1,12 @@
-# CheckoutItemsInner
+# Wishlist
 
 ## Properties
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**variationId** | **String** |  | [optional] 
-**id** | **String** |  | [optional] 
-**quantity** | **Int** |  | 
+**id** | **UUID** |  | 
+**customerId** | **UUID** |  | 
+**productId** | **UUID** |  | 
+**createdAt** | **Date** |  | 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

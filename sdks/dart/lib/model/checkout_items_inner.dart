@@ -13,11 +13,26 @@ part of openapi.api;
 class CheckoutItemsInner {
   /// Returns a new [CheckoutItemsInner] instance.
   CheckoutItemsInner({
-    required this.variationId,
+    this.variationId,
+    this.id,
     required this.quantity,
   });
 
-  String variationId;
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  String? variationId;
+
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  String? id;
 
   /// Minimum value: 0
   int quantity;
@@ -25,20 +40,31 @@ class CheckoutItemsInner {
   @override
   bool operator ==(Object other) => identical(this, other) || other is CheckoutItemsInner &&
     other.variationId == variationId &&
+    other.id == id &&
     other.quantity == quantity;
 
   @override
   int get hashCode =>
     // ignore: unnecessary_parenthesis
-    (variationId.hashCode) +
+    (variationId == null ? 0 : variationId!.hashCode) +
+    (id == null ? 0 : id!.hashCode) +
     (quantity.hashCode);
 
   @override
-  String toString() => 'CheckoutItemsInner[variationId=$variationId, quantity=$quantity]';
+  String toString() => 'CheckoutItemsInner[variationId=$variationId, id=$id, quantity=$quantity]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
+    if (this.variationId != null) {
       json[r'variation_id'] = this.variationId;
+    } else {
+      json[r'variation_id'] = null;
+    }
+    if (this.id != null) {
+      json[r'id'] = this.id;
+    } else {
+      json[r'id'] = null;
+    }
       json[r'quantity'] = this.quantity;
     return json;
   }
@@ -54,15 +80,14 @@ class CheckoutItemsInner {
       // Note 1: the values aren't checked for validity beyond being non-null.
       // Note 2: this code is stripped in release mode!
       assert(() {
-        assert(json.containsKey(r'variation_id'), 'Required key "CheckoutItemsInner[variation_id]" is missing from JSON.');
-        assert(json[r'variation_id'] != null, 'Required key "CheckoutItemsInner[variation_id]" has a null value in JSON.');
         assert(json.containsKey(r'quantity'), 'Required key "CheckoutItemsInner[quantity]" is missing from JSON.');
         assert(json[r'quantity'] != null, 'Required key "CheckoutItemsInner[quantity]" has a null value in JSON.');
         return true;
       }());
 
       return CheckoutItemsInner(
-        variationId: mapValueOfType<String>(json, r'variation_id')!,
+        variationId: mapValueOfType<String>(json, r'variation_id'),
+        id: mapValueOfType<String>(json, r'id'),
         quantity: mapValueOfType<int>(json, r'quantity')!,
       );
     }
@@ -111,7 +136,6 @@ class CheckoutItemsInner {
 
   /// The list of required keys that must be present in a JSON.
   static const requiredKeys = <String>{
-    'variation_id',
     'quantity',
   };
 }

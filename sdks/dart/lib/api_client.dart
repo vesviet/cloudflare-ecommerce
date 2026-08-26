@@ -186,14 +186,28 @@ class ApiClient {
           return ApiCheckoutGuestPost200Response.fromJson(value);
         case 'Checkout':
           return Checkout.fromJson(value);
+        case 'CheckoutAcceptsMarketing':
+          return CheckoutAcceptsMarketing.fromJson(value);
         case 'CheckoutAddress':
           return CheckoutAddress.fromJson(value);
         case 'CheckoutItemsInner':
           return CheckoutItemsInner.fromJson(value);
+        case 'Coupon':
+          return Coupon.fromJson(value);
         case 'ErrorResponse':
           return ErrorResponse.fromJson(value);
+        case 'Fulfillment':
+          return Fulfillment.fromJson(value);
+        case 'FulfillmentItemsInner':
+          return FulfillmentItemsInner.fromJson(value);
         case 'Product':
           return Product.fromJson(value);
+        case 'RMA':
+          return RMA.fromJson(value);
+        case 'Review':
+          return Review.fromJson(value);
+        case 'Wishlist':
+          return Wishlist.fromJson(value);
         default:
           dynamic match;
           if (value is List && (match = _regList.firstMatch(targetType)?.group(1)) != null) {

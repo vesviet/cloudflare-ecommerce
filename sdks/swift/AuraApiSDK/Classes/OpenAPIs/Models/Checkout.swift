@@ -12,9 +12,11 @@ import AnyCodable
 
 public struct Checkout: Codable, JSONEncodable, Hashable {
 
+    public static let redeemPointsRule = NumericRule<Int>(minimum: 0, exclusiveMinimum: false, maximum: nil, exclusiveMaximum: false, multipleOf: nil)
     public var email: String?
     public var customerId: UUID?
     public var couponCode: String?
+    public var locationId: String?
     public var address: CheckoutAddress?
     public var shippingAddressJson: [String: AnyCodable]?
     public var billingAddressJson: [String: AnyCodable]?
@@ -23,12 +25,17 @@ public struct Checkout: Codable, JSONEncodable, Hashable {
     public var utmSource: String?
     public var utmMedium: String?
     public var utmCampaign: String?
-    public var acceptsMarketing: Bool?
+    public var acceptsMarketing: CheckoutAcceptsMarketing?
+    public var turnstileToken: String?
+    public var redeemPoints: Int?
+    public var b2bCompany: String?
+    public var b2bVatId: String?
 
-    public init(email: String? = nil, customerId: UUID? = nil, couponCode: String? = nil, address: CheckoutAddress? = nil, shippingAddressJson: [String: AnyCodable]? = nil, billingAddressJson: [String: AnyCodable]? = nil, items: [CheckoutItemsInner], affiliateId: String? = nil, utmSource: String? = nil, utmMedium: String? = nil, utmCampaign: String? = nil, acceptsMarketing: Bool? = nil) {
+    public init(email: String? = nil, customerId: UUID? = nil, couponCode: String? = nil, locationId: String? = nil, address: CheckoutAddress? = nil, shippingAddressJson: [String: AnyCodable]? = nil, billingAddressJson: [String: AnyCodable]? = nil, items: [CheckoutItemsInner], affiliateId: String? = nil, utmSource: String? = nil, utmMedium: String? = nil, utmCampaign: String? = nil, acceptsMarketing: CheckoutAcceptsMarketing? = nil, turnstileToken: String? = nil, redeemPoints: Int? = nil, b2bCompany: String? = nil, b2bVatId: String? = nil) {
         self.email = email
         self.customerId = customerId
         self.couponCode = couponCode
+        self.locationId = locationId
         self.address = address
         self.shippingAddressJson = shippingAddressJson
         self.billingAddressJson = billingAddressJson
@@ -38,12 +45,17 @@ public struct Checkout: Codable, JSONEncodable, Hashable {
         self.utmMedium = utmMedium
         self.utmCampaign = utmCampaign
         self.acceptsMarketing = acceptsMarketing
+        self.turnstileToken = turnstileToken
+        self.redeemPoints = redeemPoints
+        self.b2bCompany = b2bCompany
+        self.b2bVatId = b2bVatId
     }
 
     public enum CodingKeys: String, CodingKey, CaseIterable {
         case email
         case customerId = "customer_id"
         case couponCode = "coupon_code"
+        case locationId = "location_id"
         case address
         case shippingAddressJson = "shipping_address_json"
         case billingAddressJson = "billing_address_json"
@@ -53,6 +65,10 @@ public struct Checkout: Codable, JSONEncodable, Hashable {
         case utmMedium = "utm_medium"
         case utmCampaign = "utm_campaign"
         case acceptsMarketing = "accepts_marketing"
+        case turnstileToken
+        case redeemPoints = "redeem_points"
+        case b2bCompany = "b2b_company"
+        case b2bVatId = "b2b_vat_id"
     }
 
     // Encodable protocol methods
@@ -62,6 +78,7 @@ public struct Checkout: Codable, JSONEncodable, Hashable {
         try container.encodeIfPresent(email, forKey: .email)
         try container.encodeIfPresent(customerId, forKey: .customerId)
         try container.encodeIfPresent(couponCode, forKey: .couponCode)
+        try container.encodeIfPresent(locationId, forKey: .locationId)
         try container.encodeIfPresent(address, forKey: .address)
         try container.encodeIfPresent(shippingAddressJson, forKey: .shippingAddressJson)
         try container.encodeIfPresent(billingAddressJson, forKey: .billingAddressJson)
@@ -71,6 +88,10 @@ public struct Checkout: Codable, JSONEncodable, Hashable {
         try container.encodeIfPresent(utmMedium, forKey: .utmMedium)
         try container.encodeIfPresent(utmCampaign, forKey: .utmCampaign)
         try container.encodeIfPresent(acceptsMarketing, forKey: .acceptsMarketing)
+        try container.encodeIfPresent(turnstileToken, forKey: .turnstileToken)
+        try container.encodeIfPresent(redeemPoints, forKey: .redeemPoints)
+        try container.encodeIfPresent(b2bCompany, forKey: .b2bCompany)
+        try container.encodeIfPresent(b2bVatId, forKey: .b2bVatId)
     }
 }
 

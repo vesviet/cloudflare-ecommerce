@@ -16,6 +16,7 @@ class Checkout {
     this.email,
     this.customerId,
     this.couponCode,
+    this.locationId,
     this.address,
     this.shippingAddressJson = const {},
     this.billingAddressJson = const {},
@@ -25,6 +26,10 @@ class Checkout {
     this.utmMedium,
     this.utmCampaign,
     this.acceptsMarketing,
+    this.turnstileToken,
+    this.redeemPoints,
+    this.b2bCompany,
+    this.b2bVatId,
   });
 
   ///
@@ -50,6 +55,14 @@ class Checkout {
   /// Consider adding a "default:" property in the specification file to hide this note.
   ///
   String? couponCode;
+
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  String? locationId;
 
   ///
   /// Please note: This property should have been non-nullable! Since the specification file
@@ -103,13 +116,47 @@ class Checkout {
   /// source code must fall back to having a nullable type.
   /// Consider adding a "default:" property in the specification file to hide this note.
   ///
-  bool? acceptsMarketing;
+  CheckoutAcceptsMarketing? acceptsMarketing;
+
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  String? turnstileToken;
+
+  /// Minimum value: 0
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  int? redeemPoints;
+
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  String? b2bCompany;
+
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  String? b2bVatId;
 
   @override
   bool operator ==(Object other) => identical(this, other) || other is Checkout &&
     other.email == email &&
     other.customerId == customerId &&
     other.couponCode == couponCode &&
+    other.locationId == locationId &&
     other.address == address &&
     _deepEquality.equals(other.shippingAddressJson, shippingAddressJson) &&
     _deepEquality.equals(other.billingAddressJson, billingAddressJson) &&
@@ -118,7 +165,11 @@ class Checkout {
     other.utmSource == utmSource &&
     other.utmMedium == utmMedium &&
     other.utmCampaign == utmCampaign &&
-    other.acceptsMarketing == acceptsMarketing;
+    other.acceptsMarketing == acceptsMarketing &&
+    other.turnstileToken == turnstileToken &&
+    other.redeemPoints == redeemPoints &&
+    other.b2bCompany == b2bCompany &&
+    other.b2bVatId == b2bVatId;
 
   @override
   int get hashCode =>
@@ -126,6 +177,7 @@ class Checkout {
     (email == null ? 0 : email!.hashCode) +
     (customerId == null ? 0 : customerId!.hashCode) +
     (couponCode == null ? 0 : couponCode!.hashCode) +
+    (locationId == null ? 0 : locationId!.hashCode) +
     (address == null ? 0 : address!.hashCode) +
     (shippingAddressJson.hashCode) +
     (billingAddressJson.hashCode) +
@@ -134,10 +186,14 @@ class Checkout {
     (utmSource == null ? 0 : utmSource!.hashCode) +
     (utmMedium == null ? 0 : utmMedium!.hashCode) +
     (utmCampaign == null ? 0 : utmCampaign!.hashCode) +
-    (acceptsMarketing == null ? 0 : acceptsMarketing!.hashCode);
+    (acceptsMarketing == null ? 0 : acceptsMarketing!.hashCode) +
+    (turnstileToken == null ? 0 : turnstileToken!.hashCode) +
+    (redeemPoints == null ? 0 : redeemPoints!.hashCode) +
+    (b2bCompany == null ? 0 : b2bCompany!.hashCode) +
+    (b2bVatId == null ? 0 : b2bVatId!.hashCode);
 
   @override
-  String toString() => 'Checkout[email=$email, customerId=$customerId, couponCode=$couponCode, address=$address, shippingAddressJson=$shippingAddressJson, billingAddressJson=$billingAddressJson, items=$items, affiliateId=$affiliateId, utmSource=$utmSource, utmMedium=$utmMedium, utmCampaign=$utmCampaign, acceptsMarketing=$acceptsMarketing]';
+  String toString() => 'Checkout[email=$email, customerId=$customerId, couponCode=$couponCode, locationId=$locationId, address=$address, shippingAddressJson=$shippingAddressJson, billingAddressJson=$billingAddressJson, items=$items, affiliateId=$affiliateId, utmSource=$utmSource, utmMedium=$utmMedium, utmCampaign=$utmCampaign, acceptsMarketing=$acceptsMarketing, turnstileToken=$turnstileToken, redeemPoints=$redeemPoints, b2bCompany=$b2bCompany, b2bVatId=$b2bVatId]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -155,6 +211,11 @@ class Checkout {
       json[r'coupon_code'] = this.couponCode;
     } else {
       json[r'coupon_code'] = null;
+    }
+    if (this.locationId != null) {
+      json[r'location_id'] = this.locationId;
+    } else {
+      json[r'location_id'] = null;
     }
     if (this.address != null) {
       json[r'address'] = this.address;
@@ -189,6 +250,26 @@ class Checkout {
     } else {
       json[r'accepts_marketing'] = null;
     }
+    if (this.turnstileToken != null) {
+      json[r'turnstileToken'] = this.turnstileToken;
+    } else {
+      json[r'turnstileToken'] = null;
+    }
+    if (this.redeemPoints != null) {
+      json[r'redeem_points'] = this.redeemPoints;
+    } else {
+      json[r'redeem_points'] = null;
+    }
+    if (this.b2bCompany != null) {
+      json[r'b2b_company'] = this.b2bCompany;
+    } else {
+      json[r'b2b_company'] = null;
+    }
+    if (this.b2bVatId != null) {
+      json[r'b2b_vat_id'] = this.b2bVatId;
+    } else {
+      json[r'b2b_vat_id'] = null;
+    }
     return json;
   }
 
@@ -212,6 +293,7 @@ class Checkout {
         email: mapValueOfType<String>(json, r'email'),
         customerId: mapValueOfType<String>(json, r'customer_id'),
         couponCode: mapValueOfType<String>(json, r'coupon_code'),
+        locationId: mapValueOfType<String>(json, r'location_id'),
         address: CheckoutAddress.fromJson(json[r'address']),
         shippingAddressJson: mapCastOfType<String, Object>(json, r'shipping_address_json') ?? const {},
         billingAddressJson: mapCastOfType<String, Object>(json, r'billing_address_json') ?? const {},
@@ -220,7 +302,11 @@ class Checkout {
         utmSource: mapValueOfType<String>(json, r'utm_source'),
         utmMedium: mapValueOfType<String>(json, r'utm_medium'),
         utmCampaign: mapValueOfType<String>(json, r'utm_campaign'),
-        acceptsMarketing: mapValueOfType<bool>(json, r'accepts_marketing'),
+        acceptsMarketing: CheckoutAcceptsMarketing.fromJson(json[r'accepts_marketing']),
+        turnstileToken: mapValueOfType<String>(json, r'turnstileToken'),
+        redeemPoints: mapValueOfType<int>(json, r'redeem_points'),
+        b2bCompany: mapValueOfType<String>(json, r'b2b_company'),
+        b2bVatId: mapValueOfType<String>(json, r'b2b_vat_id'),
       );
     }
     return null;

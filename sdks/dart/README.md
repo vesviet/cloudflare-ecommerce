@@ -67,10 +67,17 @@ Class | Method | HTTP request | Description
 
  - [ApiCheckoutGuestPost200Response](doc//ApiCheckoutGuestPost200Response.md)
  - [Checkout](doc//Checkout.md)
+ - [CheckoutAcceptsMarketing](doc//CheckoutAcceptsMarketing.md)
  - [CheckoutAddress](doc//CheckoutAddress.md)
  - [CheckoutItemsInner](doc//CheckoutItemsInner.md)
+ - [Coupon](doc//Coupon.md)
  - [ErrorResponse](doc//ErrorResponse.md)
+ - [Fulfillment](doc//Fulfillment.md)
+ - [FulfillmentItemsInner](doc//FulfillmentItemsInner.md)
  - [Product](doc//Product.md)
+ - [RMA](doc//RMA.md)
+ - [Review](doc//Review.md)
+ - [Wishlist](doc//Wishlist.md)
 
 
 ## Documentation For Authorization

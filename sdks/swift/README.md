@@ -34,10 +34,17 @@ Class | Method | HTTP request | Description
 
  - [ApiCheckoutGuestPost200Response](docs/ApiCheckoutGuestPost200Response.md)
  - [Checkout](docs/Checkout.md)
+ - [CheckoutAcceptsMarketing](docs/CheckoutAcceptsMarketing.md)
  - [CheckoutAddress](docs/CheckoutAddress.md)
  - [CheckoutItemsInner](docs/CheckoutItemsInner.md)
+ - [Coupon](docs/Coupon.md)
+ - [Fulfillment](docs/Fulfillment.md)
+ - [FulfillmentItemsInner](docs/FulfillmentItemsInner.md)
  - [ModelErrorResponse](docs/ModelErrorResponse.md)
  - [Product](docs/Product.md)
+ - [RMA](docs/RMA.md)
+ - [Review](docs/Review.md)
+ - [Wishlist](docs/Wishlist.md)
 
 
 <a id="documentation-for-authorization"></a>

@@ -32,10 +32,17 @@ part 'api/default_api.dart';
 
 part 'model/api_checkout_guest_post200_response.dart';
 part 'model/checkout.dart';
+part 'model/checkout_accepts_marketing.dart';
 part 'model/checkout_address.dart';
 part 'model/checkout_items_inner.dart';
+part 'model/coupon.dart';
 part 'model/error_response.dart';
+part 'model/fulfillment.dart';
+part 'model/fulfillment_items_inner.dart';
 part 'model/product.dart';
+part 'model/rma.dart';
+part 'model/review.dart';
+part 'model/wishlist.dart';
 
 
 /// An [ApiClient] instance that uses the default values obtained from
