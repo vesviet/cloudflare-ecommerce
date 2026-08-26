@@ -16,7 +16,17 @@ export const assets = baseSchema.assets;
 export const productAssets = baseSchema.productAssets;
 export const cartItems = baseSchema.cartItems;
 export const sessions = baseSchema.sessions;
-export const orderItems = baseSchema.orderItems;
+// Overridden: adds Phase 2B flash-sale attribution columns (migration 0021)
+export const orderItems = sqliteTable('order_items', {
+  id: text('id').primaryKey(),
+  order_id: text('order_id').notNull().references(() => orders.id),
+  product_id: text('product_id').notNull(),
+  quantity: integer('quantity').notNull(),
+  price_at_purchase: integer('price_at_purchase').notNull(),
+  created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+  is_flash_sale: integer('is_flash_sale').notNull().default(0),
+  flash_sale_item_id: text('flash_sale_item_id'),
+});
 export const transactions = baseSchema.transactions;
 export const customerAddresses = baseSchema.customerAddresses;
 export const inventoryReservations = baseSchema.inventoryReservations;
@@ -174,6 +184,27 @@ export const promotionUsages = sqliteTable('promotion_usages', {
   email: text('email'),
   order_id: text('order_id').notNull(),
   discount_amount: integer('discount_amount').notNull().default(0),
+  created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Phase 2B — Flash Sales (Laravel FlashSale/FlashSaleItem parity).
+export const flashSales = sqliteTable('flash_sales', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  starts_at: integer('starts_at'),
+  ends_at: integer('ends_at'),
+  status: text('status').default('active'),
+  created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+  updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const flashSaleItems = sqliteTable('flash_sale_items', {
+  id: text('id').primaryKey(),
+  flash_sale_id: text('flash_sale_id').notNull().references(() => flashSales.id, { onDelete: 'cascade' }),
+  product_id: text('product_id').notNull(),
+  price: integer('price').notNull(),
+  quota: integer('quota').notNull().default(0), // 0 = unlimited
+  sold_quantity: integer('sold_quantity').notNull().default(0),
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
 });
 

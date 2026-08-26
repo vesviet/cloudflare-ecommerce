@@ -9,6 +9,8 @@ export * from './order.repository';
 export * from './inventory.repository';
 export * from './promotion.engine';
 export * from './promotion.types';
+export * from './promotion.rules.engine';
+export * from './flash-sale.service';
 export * from './loyalty.service';
 export * from './wishlist.service';
 export * from './cart.service';

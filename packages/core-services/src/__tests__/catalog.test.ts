@@ -16,8 +16,14 @@ describe('CatalogService', () => {
       all: vi.fn(),
       get: vi.fn(),
       // PromotionRulesEngine catalog-rule lookup (returns no active rules)
+      // + FlashSaleService pricing lookup (innerJoin chain, returns no rows)
       select: vi.fn(() => ({
         from: () => ({
+          innerJoin: () => ({
+            where: () => ({
+              all: vi.fn(async () => [])
+            })
+          }),
           where: () => ({
             all: vi.fn(async () => [])
           })

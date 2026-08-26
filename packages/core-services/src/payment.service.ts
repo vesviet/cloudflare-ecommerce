@@ -32,7 +32,8 @@ export class PaymentService {
     coupon_code?: string,
     baseShippingCents: number = 999,
     redeemPoints?: number,
-    cartItems?: Array<{ product_id: string; quantity: number; price: number }>
+    cartItems?: Array<{ product_id: string; quantity: number; price: number }>,
+    excludeProductIds?: string[]
   ) {
     const rulesRes = await PromotionRulesEngine.evaluateCart({
       db,
@@ -40,6 +41,7 @@ export class PaymentService {
       baseShippingFee: baseShippingCents,
       customerId: customer_id,
       cartItems: cartItems || [],
+      excludeProductIds
     });
 
     const res = await PromotionEngine.evaluate({

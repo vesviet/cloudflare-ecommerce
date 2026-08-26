@@ -55,6 +55,11 @@ export class OrderRepository {
     );
 
     for (const item of orderData.validItems) {
+      const flashFields: Record<string, unknown> = {};
+      if (item._isFlashSale) {
+        flashFields.is_flash_sale = 1;
+        flashFields.flash_sale_item_id = item._flashSaleItemId || null;
+      }
       batchQueries.push(
         db.insert(localSchema.orderItems).values({
           id: crypto.randomUUID(),
@@ -62,6 +67,7 @@ export class OrderRepository {
           product_id: item.variation_id || item.id || item.productId,
           quantity: item.quantity,
           price_at_purchase: item.price,
+          ...flashFields,
         })
       );
     }

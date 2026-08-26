@@ -4,7 +4,7 @@ import { eq, lt, inArray } from 'drizzle-orm'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
 import { CheckoutSchema, DEFAULT_LOCATION_ID } from '@ecommerce/contract'
-import { InventoryService, PaymentService, OrderService } from '@ecommerce/core-services'
+import { InventoryService, PaymentService, OrderService, FlashSaleService } from '@ecommerce/core-services'
 import { rateLimit, clientIp, type RateLimiter } from '@ecommerce/shared-routes'
 import { verifyTurnstile } from '../utils/turnstile'
 
@@ -214,6 +214,7 @@ checkout.post('/', zValidator('json', CheckoutSchema), limitCheckout, async (c) 
     let taxAmountCents = 0;
     let totalAmountCents = 0;
     let appliedRules: any[] = [];
+    let flashLocks: Array<{ itemId: string; quantity: number }> = [];
 
     try {
       const normalizedItems = (items || []).map((item: any) => ({
@@ -225,6 +226,33 @@ checkout.post('/', zValidator('json', CheckoutSchema), limitCheckout, async (c) 
       validItems = invRes.validItems;
       subTotal = invRes.subTotal;
 
+      // Phase 2B: flash-sale pricing replaces list price and is isolated from
+      // promotion-rule stacking (Laravel ADR). Quota locks happen in Phase 0.6.
+      const flashProductIds = validItems.map((i: any) => i.variation_id || i.id || i.productId);
+      const flashMap = await FlashSaleService.getActiveFlashPricing(db, flashProductIds);
+      const excludeProductIds: string[] = [];
+      if (flashMap.size > 0) {
+        for (const vi of validItems) {
+          const pid = vi.variation_id || vi.id || vi.productId;
+          const fp = flashMap.get(pid);
+          if (fp && fp.price < Number(vi.price) && fp.left > 0) {
+            const cappedQty = fp.left !== Number.POSITIVE_INFINITY
+              ? Math.min(vi.quantity, Math.floor(fp.left))
+              : vi.quantity;
+            if (cappedQty <= 0) continue;
+            vi.quantity = cappedQty;
+            vi.price = fp.price;
+            vi._isFlashSale = 1;
+            vi._flashSaleItemId = fp.itemId;
+            flashLocks.push({ itemId: fp.itemId, quantity: cappedQty });
+            excludeProductIds.push(pid);
+          }
+        }
+        if (excludeProductIds.length > 0) {
+          subTotal = validItems.reduce((s: number, i: any) => s + i.price * i.quantity, 0);
+        }
+      }
+
       const pricingRes = await PaymentService.calculatePricing(
         db, subTotal, customer_id, coupon_code, baseShippingCents,
         undefined,
@@ -232,7 +260,8 @@ checkout.post('/', zValidator('json', CheckoutSchema), limitCheckout, async (c) 
           product_id: i.variation_id || i.id || i.productId,
           quantity: i.quantity,
           price: i.price
-        }))
+        })),
+        excludeProductIds.length > 0 ? excludeProductIds : undefined
       );
       discountAmount = pricingRes.discountAmount;
       appliedCouponId = pricingRes.appliedCouponId;
@@ -293,6 +322,7 @@ checkout.post('/', zValidator('json', CheckoutSchema), limitCheckout, async (c) 
         discountAmount,
         appliedCouponId,
         appliedRules,
+        flashLocks,
         locationId
       });
     } catch (orderErr: any) {

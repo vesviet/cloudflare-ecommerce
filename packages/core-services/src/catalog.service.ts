@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { ProductService } from './product.service';
 import { PromotionRulesEngine, getActiveCatalogRules } from './promotion.rules.engine';
+import { FlashSaleService } from './flash-sale.service';
 
 export class CatalogService {
   /**
@@ -107,20 +108,34 @@ export class CatalogService {
   }
 
   /**
-   * Phase 2A (PRM-03): catalog strike-through pricing — attaches
-   * promoted_price/promo_rule_name when an active catalog_rule beats the
-   * current effective price.
+   * Phase 2A (PRM-03) + 2B: strike-through pricing. Flash-sale pricing is
+   * applied first and ISOLATES the product from catalog-rule stacking
+   * (Laravel ADR); otherwise the best catalog_rule wins.
    */
   private static async applyCatalogPromotions(db: any, items: any | any[]): Promise<void> {
     const list = Array.isArray(items) ? items : [items];
     if (list.length === 0) return;
-    const rules = await getActiveCatalogRules(db);
-    if (rules.length === 0) return;
+
+    const productIds = list.map((i: any) => i.id).filter(Boolean);
+    const flashMap = await FlashSaleService.getActiveFlashPricing(db, productIds);
+
+    const needsRules = list.some((i: any) => !flashMap.has(i.id));
+    const rules = needsRules ? await getActiveCatalogRules(db) : [];
 
     for (const item of list) {
       const base = Number(item.prices?.regular_price ?? item.prices?.price ?? 0);
       const current = Number(item.prices?.sale_price ?? base);
       if (!(base > 0)) continue;
+
+      const flash = flashMap.get(item.id);
+      if (flash && flash.price < current && flash.left > 0) {
+        item.prices.promoted_price = flash.price;
+        item.prices.is_flash_sale = true;
+        item.prices.flash_ends_at = flash.endsAt;
+        continue; // isolation: no rule stacking on flash units
+      }
+
+      if (rules.length === 0) continue;
       const promo = await PromotionRulesEngine.resolveCatalogPrice(db, item.id, item.primary_category_id ?? null, base, rules);
       if (promo && promo.promoted_price < current) {
         item.prices.promoted_price = promo.promoted_price;

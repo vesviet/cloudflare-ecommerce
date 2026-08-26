@@ -35,6 +35,9 @@ vi.mock('@ecommerce/core-services', () => {
       getCreateOrderQueries: vi.fn().mockReturnValue([]),
       getUpdateCustomerAttributionQueries: vi.fn().mockReturnValue([]),
       processCheckout: vi.fn().mockResolvedValue({ success: true }),
+    },
+    FlashSaleService: {
+      getActiveFlashPricing: vi.fn().mockResolvedValue(new Map()),
     }
   };
 });

@@ -41,6 +41,7 @@ function makeCouponDb(changesResult: number) {
     select:  vi.fn(() => mockDb),
     from:    vi.fn(() => mockDb),
     get:     vi.fn().mockResolvedValue(null),
+    all:     vi.fn().mockResolvedValue([]), // flash-release lookup returns no items
     insert:  vi.fn(() => mockDb),
     values:  vi.fn(() => mockDb),
   };

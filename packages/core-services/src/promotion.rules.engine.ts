@@ -33,6 +33,8 @@ export interface RulesCartContext {
   customerId?: string;
   customerEmail?: string;
   cartItems: Array<{ product_id: string; quantity: number; price: number }>;
+  /** Phase 2B flash-sale isolation (Laravel ADR): rules never apply to these units. */
+  excludeProductIds?: string[];
 }
 
 export interface AppliedRuleDiscount {
@@ -248,10 +250,17 @@ export class PromotionRulesEngine {
     const resolvedTier = await resolveCustomerTier(ctx.db, ctx.customerId);
     let remainingSubtotal = ctx.subTotal;
 
+    // Flash-isolated view of the cart for rule eligibility math.
+    const excluded = new Set(ctx.excludeProductIds || []);
+    const ruleCart = excluded.size > 0
+      ? ctx.cartItems.filter(i => !excluded.has(i.product_id))
+      : ctx.cartItems;
+    const ruleCtx: RulesCartContext = { ...ctx, cartItems: ruleCart };
+
     for (const rule of rules) {
       if (!isTargeted(rule.target_customer_tier, resolvedTier)) continue;
 
-      const outcome = computeRuleDiscount(rule, ctx, remainingSubtotal);
+      const outcome = computeRuleDiscount(rule, ruleCtx, remainingSubtotal);
       if (!outcome) continue;
 
       if (outcome.amount > 0) {

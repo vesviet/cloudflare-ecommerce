@@ -4,6 +4,7 @@ import { and, or, isNull, sql as drizzleSql, eq } from 'drizzle-orm';
 import * as localSchema from './local-schema';
 import { LoyaltyService } from './loyalty.service';
 import { PromotionRulesEngine, AppliedRuleDiscount } from './promotion.rules.engine';
+import { FlashSaleService } from './flash-sale.service';
 
 export class OrderService {
   /**
@@ -28,6 +29,7 @@ export class OrderService {
     discountAmount: number;
     appliedCouponId?: string | null;
     appliedRules?: AppliedRuleDiscount[];
+    flashLocks?: Array<{ itemId: string; quantity: number }>;
     taxAmountCents?: number;
     taxLinesJson?: any;
     shippingLinesJson?: any;
@@ -68,6 +70,11 @@ export class OrderService {
         orderData.customerId,
         orderData.email
       );
+    }
+
+    // Phase 0.6 — atomic flash-sale quota locks (guarded increment).
+    if (orderData.flashLocks && orderData.flashLocks.length > 0) {
+      await FlashSaleService.lockQuota(drizzleDb, orderData.flashLocks);
     }
 
     // Phase 1: Create Order in 'pending_payment'
@@ -148,6 +155,9 @@ export class OrderService {
       const items = await OrderRepository.getOrderItems(drizzleDb, orderId);
       const itemsToRestock = items.map(i => ({ productId: i.product_id, quantity: i.quantity }));
       await InventoryRepository.restock(rawD1Db, itemsToRestock, locationId);
+
+      // Phase 2B: release flash-sale quota for cancelled/refunded units.
+      await FlashSaleService.releaseQuotaForOrder(drizzleDb, orderId);
 
       await drizzleDb.insert(localSchema.auditLogs).values({
         id: crypto.randomUUID(),
@@ -238,6 +248,9 @@ export class OrderService {
       const items = await OrderRepository.getOrderItems(drizzleDb, orderId);
       const itemsToRestock = items.map(i => ({ productId: i.product_id, quantity: i.quantity }));
       await InventoryRepository.restock(rawD1Db, itemsToRestock, locationId);
+
+      // Phase 2B: release flash-sale quota for cancelled/refunded units.
+      await FlashSaleService.releaseQuotaForOrder(drizzleDb, orderId);
 
       await drizzleDb.insert(localSchema.auditLogs).values({
         id: crypto.randomUUID(),

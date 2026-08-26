@@ -20,6 +20,73 @@ const ApplyCouponSchema = z.object({
   subTotalCents: z.number().optional().default(0)
 })
 
+// T2.7 (CART-05): "available coupons" tray — lists active coupons with an
+// eligibility verdict and a human reason so the storefront can render
+// eligible/ineligible states like the Laravel CartDrawer.
+cart.get('/coupons/available', async (c) => {
+  try {
+    const db = createDb(c.env.DB)
+    const subtotal = Math.max(0, parseInt(c.req.query('subtotal') || '0', 10) || 0)
+
+    const rows = await db.select().from(schema.promotions).where(eq(schema.promotions.status, 'active')).all()
+    const nowUnix = Math.floor(Date.now() / 1000)
+
+    // Per-customer usage counts for per-user limits (best-effort; guests pass).
+    let customerId: string | undefined
+    let customerEmail: string | undefined
+    const token = (await import('hono/cookie')).getCookie(c, 'aura_token')
+    if (token && c.env.JWT_SECRET) {
+      try {
+        const payload = await verifyJWT(token, c.env.JWT_SECRET)
+        customerId = payload.customer_id as string
+      } catch { /* guest */ }
+    }
+
+    let usedCouponIds = new Set<string>()
+    if (customerId && rows.length > 0) {
+      const usages = await db.select({ promotion_id: schema.promotionUsages.promotion_id })
+        .from(schema.promotionUsages)
+        .where(eq(schema.promotionUsages.customer_id, customerId))
+        .all()
+      usedCouponIds = new Set(usages.map((u: any) => u.promotion_id))
+    }
+
+    const coupons = rows
+      .filter((cpn: any) => !cpn.starts_at || nowUnix >= cpn.starts_at)
+      .filter((cpn: any) => !cpn.ends_at || nowUnix <= cpn.ends_at)
+      .map((cpn: any) => {
+        let eligible = true
+        let reason: string | undefined
+
+        if (subtotal < Number(cpn.min_order_amount || 0)) {
+          eligible = false
+          reason = `Đơn tối thiểu ${Number(cpn.min_order_amount).toLocaleString('vi-VN')}₫`
+        } else if (cpn.usage_limit != null && Number(cpn.times_used || 0) >= cpn.usage_limit) {
+          eligible = false
+          reason = 'Mã đã hết lượt sử dụng'
+        } else if (customerId && usedCouponIds.has(cpn.id)) {
+          eligible = false
+          reason = 'Bạn đã dùng mã này'
+        }
+
+        return {
+          id: cpn.id,
+          code: cpn.code,
+          type: cpn.type === 'percentage' ? 'percent' : (cpn.type === 'free_shipping' ? 'freeship' : cpn.type),
+          value: cpn.value,
+          min_order_amount: cpn.min_order_amount || 0,
+          eligible,
+          reason,
+        }
+      })
+
+    return c.json({ success: true, data: { coupons, subtotal } })
+  } catch (err: any) {
+    console.error('[Cart Coupons Available Error]', err)
+    return c.json({ success: false, error: 'Internal error' }, 500)
+  }
+})
+
 cart.post('/coupon', zValidator('json', ApplyCouponSchema), async (c) => {
   try {
     const { coupon_code, subTotalCents } = c.req.valid('json')

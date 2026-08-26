@@ -17,6 +17,7 @@ import cms from './routes/cms'
 import cart from './routes/cart'
 import reviews from './routes/reviews'
 import landingPages from './routes/landing-pages'
+import flashSales from './routes/flash-sales'
 import { mediaRouter as media, featureFlagsRoute } from '@ecommerce/shared-routes';
 import { WebhookProcessor } from './services/webhook-processor'
 
@@ -69,6 +70,7 @@ app.route('/api/cms', cms)
 app.route('/api/cart', cart)
 app.route('/api/reviews', reviews)
 app.route('/api/landing-pages', landingPages)
+app.route('/api/flash-sales', flashSales)
 app.route('/api/checkout', checkout)
 app.route('/api/orders', ordersPublic)
 app.route('/api/webhooks', webhook)
