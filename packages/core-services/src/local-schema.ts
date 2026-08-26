@@ -87,7 +87,17 @@ export const customers = sqliteTable('customers', {
   updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
   deleted_at: text('deleted_at'), // Soft delete
 
-  loyalty_points_balance: integer('loyalty_points_balance').default(0),
+   loyalty_points_balance: integer('loyalty_points_balance').default(0),
+
+   // Phase 3.1 — referral attribution (LO-04)
+   referral_code: text('referral_code'),
+   referred_by: text('referred_by'),
+   referral_awarded: integer('referral_awarded').notNull().default(0),
+
+   // Phase 3.2 — TOTP 2FA (AUTH-02)
+   two_factor_secret: text('two_factor_secret'),
+   two_factor_enabled: integer('two_factor_enabled').notNull().default(0),
+   recovery_codes_json: text('recovery_codes_json').default('[]'),
 });
 
 export const carts = sqliteTable('carts', {
