@@ -351,12 +351,23 @@ export const cmsEntries = sqliteTable('cms_entries', {
   metadata_json: text('metadata_json').default('{}'),
   placement: text('placement'),
   expires_at: integer('expires_at'),
+  clicks: integer('clicks').notNull().default(0), // banner click tracking (CMS-08)
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
   updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
 }, (table) => {
   return {
     placementIdx: index('idx_cms_entries_placement').on(table.placement),
   };
+});
+
+// Phase 4b: newsletter subscribers (NWS-01).
+export const newsletterSubscribers = sqliteTable('newsletter_subscribers', {
+  id: text('id').primaryKey(),
+  email: text('email').notNull().unique(),
+  status: text('status').default('subscribed'),
+  source: text('source'),
+  created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+  unsubscribed_at: integer('unsubscribed_at'),
 });
 
 export const adminUsers = sqliteTable('admin_users', {
@@ -409,6 +420,14 @@ export const productReviews = sqliteTable('product_reviews', {
   status: text('status').default('pending'), // pending, approved, rejected
   verified_purchase: integer('verified_purchase').default(0),
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+  // REV-05 parity columns (migration 0023)
+  helpful_count: integer('helpful_count').notNull().default(0),
+  images_json: text('images_json').default('[]'),
+  pros: text('pros'),
+  cons: text('cons'),
+  seller_response: text('seller_response'),
+  moderated_by: text('moderated_by'),
+  moderated_at: integer('moderated_at'),
 });
 
 export const wishlists = sqliteTable('wishlists', {

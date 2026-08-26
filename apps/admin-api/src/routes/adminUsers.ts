@@ -1,8 +1,9 @@
 import { Hono } from 'hono';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { createDb, schema } from '@ecommerce/database';
 import { requireRole, type Env } from '../middleware/auth';
 import { zValidator } from '@hono/zod-validator';
+import { z } from 'zod';
 import { adminUserSchema, adminUserStatusSchema as statusSchema } from '@ecommerce/contract';
 
 const adminUsers = new Hono<Env>();
@@ -54,8 +55,44 @@ adminUsers.put('/:id/status', zValidator('json', statusSchema), async (c) => {
     await db.update(schema.adminUsers)
       .set({ status })
       .where(eq(schema.adminUsers.id, id));
-      
+
     return c.json({ success: true, message: 'Admin user status updated' });
+  } catch (err: any) {
+    return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
+// Phase 5 (ADM-19): role editing — UI was missing even though status API existed.
+const roleUpdateSchema = z.object({
+  role: z.enum(['superadmin', 'manager', 'support', 'editor']),
+});
+
+adminUsers.put('/:id/role', zValidator('json', roleUpdateSchema), async (c) => {
+  try {
+    const db = createDb(c.env.DB);
+    const id = c.req.param('id');
+    const { role } = c.req.valid('json');
+
+    // Guard: never demote the last active superadmin.
+    if (role !== 'superadmin') {
+      const target = await db.select({ role: schema.adminUsers.role, status: schema.adminUsers.status })
+        .from(schema.adminUsers).where(eq(schema.adminUsers.id, id)).get();
+      if (target?.role === 'superadmin') {
+        const supers = await db.select({ id: schema.adminUsers.id })
+          .from(schema.adminUsers)
+          .where(and(eq(schema.adminUsers.role, 'superadmin'), eq(schema.adminUsers.status, 'active')))
+          .all();
+        if (supers.length <= 1) {
+          return c.json({ success: false, error: 'Cannot demote the last active superadmin' }, 409);
+        }
+      }
+    }
+
+    await db.update(schema.adminUsers)
+      .set({ role })
+      .where(eq(schema.adminUsers.id, id));
+
+    return c.json({ success: true, message: 'Admin user role updated' });
   } catch (err: any) {
     return c.json({ success: false, error: err.message }, 500);
   }

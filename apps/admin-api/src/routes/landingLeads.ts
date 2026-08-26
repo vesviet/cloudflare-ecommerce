@@ -7,6 +7,33 @@ import { requireRole } from '../middleware/auth';
 
 const landingLeads = new Hono<{ Bindings: Bindings }>();
 
+// Phase 5 (ADM-22): leads CSV export.
+landingLeads.get('/landing-leads/export.csv', requireRole(['superadmin', 'manager']), async (c) => {
+  try {
+    const db = createDb(c.env.DB);
+    const rows = await db.select()
+      .from(localSchema.landingPageLeads)
+      .orderBy(sql`${localSchema.landingPageLeads.created_at} DESC`)
+      .limit(20000);
+
+    const header = 'id,landing_page_id,customer_name,phone,email,address,total_amount,sync_status,created_at';
+    const lines = rows.map((r: any) =>
+      [r.id, r.landing_page_id, r.customer_name ?? '', r.phone ?? '', r.email ?? '', r.address ?? '', r.total_amount ?? 0, r.sync_status ?? '', r.created_at]
+        .map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`)
+        .join(',')
+    );
+
+    return new Response(`${header}\n${lines.join('\n')}`, {
+      headers: {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="landing-leads-${new Date().toISOString().slice(0, 10)}.csv"`,
+      },
+    });
+  } catch (err: any) {
+    return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
 // GET: /api/landing-leads
 landingLeads.get('/landing-leads', requireRole(['superadmin', 'manager', 'support', 'editor']), async (c) => {
   try {

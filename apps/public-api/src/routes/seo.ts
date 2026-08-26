@@ -125,7 +125,7 @@ app.get('/feed', (c) => cachedOr(c, 'seo:rss-feed', async () => {
   `) as any[];
 
   const stripMd = (md: string | null | undefined): string =>
-    (md || '').replace(/[#*_>\[\]()`~-]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 240);
+    (md || '').replace(/[#*_>[\]()`~-]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 240);
 
   const items = rows.map((p) => `
     <item>
@@ -145,6 +145,49 @@ app.get('/feed', (c) => cachedOr(c, 'seo:rss-feed', async () => {
   </channel>
 </rss>`;
   return { body, type: 'application/rss+xml; charset=utf-8' };
+}));
+
+// SEO-02: Google Merchant Center product feed.
+app.get('/feeds/google-merchant.xml', (c) => cachedOr(c, 'seo:merchant-feed', async () => {
+  const base = c.env.STOREFRONT_URL || 'http://localhost:3000';
+  const db = createDb(c.env.DB);
+  const rows = await db.all(sql`
+    SELECT p.id, p.title, COALESCE(p.description, '') AS description, p.slug,
+      (SELECT price FROM price_list_items pli WHERE pli.product_id = p.id AND pli.price_list_id = (SELECT id FROM price_lists WHERE type = 'sale' LIMIT 1) LIMIT 1) AS sale_price,
+      (SELECT price FROM price_list_items pli WHERE pli.product_id = p.id AND pli.price_list_id = (SELECT id FROM price_lists WHERE type = 'base' LIMIT 1) LIMIT 1) AS regular_price,
+      (SELECT coalesce(sum(stock_quantity), 0) FROM inventory_levels il WHERE il.product_id = p.id) AS stock,
+      (SELECT a.url FROM product_assets pa JOIN assets a ON pa.asset_id = a.id WHERE pa.product_id = p.id ORDER BY pa.position ASC LIMIT 1) AS image_url
+    FROM products p
+    WHERE p.status = 'published' AND p.deleted_at IS NULL
+  `) as any[];
+
+  const items = rows.map((p) => {
+    const regular = Number(p.regular_price ?? 0);
+    const effective = Number(p.sale_price ?? regular);
+    const availability = Number(p.stock || 0) > 0 ? 'in_stock' : 'out_of_stock';
+    return `
+    <item>
+      <g:id>${xmlEscape(p.id)}</g:id>
+      <g:title>${xmlEscape(p.title)}</g:title>
+      <g:description>${xmlEscape(p.description.slice(0, 5000))}</g:description>
+      <g:link>${xmlEscape(`${base}/product/${p.slug}`)}</g:link>
+      ${p.image_url ? `<g:image_link>${xmlEscape(p.image_url)}</g:image_link>` : ''}
+      <g:condition>new</g:condition>
+      <g:availability>${availability}</g:availability>
+      <g:price>${regular.toFixed(0)} VND</g:price>
+      ${effective < regular ? `<g:sale_price>${effective.toFixed(0)} VND</g:sale_price>` : ''}
+    </item>`;
+  }).join('\n');
+
+  const body = `<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:g="http://base.google.com/ns/1.0" version="2.0">
+  <channel>
+    <title>Aura Store — Products</title>
+    <link>${xmlEscape(base)}</link>
+    <description>Google Merchant product feed</description>${items}
+  </channel>
+</rss>`;
+  return { body, type: 'application/xml; charset=utf-8' };
 }));
 
 export default app;

@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { createDb } from '@ecommerce/database';
 import { localSchema } from '@ecommerce/core-services';
 import { rateLimit, requireCustomer, type RateLimiter } from '@ecommerce/shared-routes';
-import { eq, desc, and, or, inArray } from 'drizzle-orm';
+import { eq, desc, and, or, inArray, sql } from 'drizzle-orm';
 import { zValidator } from '@hono/zod-validator';
 import { PostReviewSchema } from '@ecommerce/contract';
 
@@ -50,59 +50,71 @@ const hasPurchasedProduct = async (db: any, customerId: string, productId: strin
   return !!purchase;
 };
 
-// GET reviews for a product
+// GET reviews for a product (Phase 5 REV-02: dedicated product_reviews table)
 reviews.get('/:product_id', async (c) => {
   try {
     const product_id = c.req.param('product_id');
     const db = createDb(c.env.DB);
 
-    const data = await db
-      .select()
-      .from(localSchema.cmsEntries)
-      .where(
-        and(
-          eq(localSchema.cmsEntries.type, 'review'),
-          eq(localSchema.cmsEntries.placement, product_id)
-        )
-      )
-      .orderBy(desc(localSchema.cmsEntries.created_at))
+    const rows = await db
+      .select({
+        id: localSchema.productReviews.id,
+        product_id: localSchema.productReviews.product_id,
+        customer_id: localSchema.productReviews.customer_id,
+        rating: localSchema.productReviews.rating,
+        comment: localSchema.productReviews.comment,
+        status: localSchema.productReviews.status,
+        verified_purchase: localSchema.productReviews.verified_purchase,
+        helpful_count: localSchema.productReviews.helpful_count,
+        seller_response: localSchema.productReviews.seller_response,
+        created_at: localSchema.productReviews.created_at,
+        reviewer_first_name: localSchema.customers.first_name,
+        reviewer_last_name: localSchema.customers.last_name,
+      })
+      .from(localSchema.productReviews)
+      .leftJoin(localSchema.customers, eq(localSchema.productReviews.customer_id, localSchema.customers.id))
+      .where(and(
+        eq(localSchema.productReviews.product_id, product_id),
+        eq(localSchema.productReviews.status, 'approved')
+      ))
+      .orderBy(desc(localSchema.productReviews.created_at))
       .all();
 
-    const publishedReviews = [];
-    for (const r of data) {
-      let metadata: any = null;
-      if (r.metadata_json) {
-        try {
-          metadata = JSON.parse(r.metadata_json);
-        } catch {
-          metadata = null;
-        }
-      }
+    const aggRow = await db.select({
+      count: sql`count(*)`,
+      average: sql`coalesce(avg(rating), 0)`,
+    })
+      .from(localSchema.productReviews)
+      .where(and(
+        eq(localSchema.productReviews.product_id, product_id),
+        eq(localSchema.productReviews.status, 'approved')
+      ))
+      .get();
 
-      // Skip entries we cannot trust rather than inventing a rating or an approval state.
-      const rating = metadata?.rating;
-      if (!metadata || typeof rating !== 'number' || rating < 1 || rating > 5) {
-        console.warn(`[Reviews] Skipping review ${r.id}: missing or invalid metadata`);
-        continue;
-      }
+    const distributionRows = await db.select({
+      rating: localSchema.productReviews.rating,
+      count: sql`count(*)`,
+    })
+      .from(localSchema.productReviews)
+      .where(and(
+        eq(localSchema.productReviews.product_id, product_id),
+        eq(localSchema.productReviews.status, 'approved')
+      ))
+      .groupBy(localSchema.productReviews.rating)
+      .all();
 
-      if (metadata.status !== 'approved') {
-        continue;
-      }
+    const distribution: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    for (const d of distributionRows) distribution[Number(d.rating)] = Number(d.count);
 
-      publishedReviews.push({
-        id: r.id,
-        product_id: r.placement || '',
-        customer_id: metadata.customer_id || null,
-        rating,
-        comment: metadata.comment || '',
-        status: 'approved',
-        verified_purchase: metadata.verified_purchase === 1 ? 1 : 0,
-        created_at: r.created_at,
-      });
-    }
-
-    return c.json({ success: true, data: publishedReviews });
+    return c.json({
+      success: true,
+      data: rows,
+      summary: {
+        count: Number(aggRow?.count || 0),
+        average_rating: Math.round(Number(aggRow?.average || 0) * 10) / 10,
+        distribution,
+      },
+    });
   } catch (err: any) {
     console.error('Get reviews error:', err);
     console.error('[public-api] reviews error:', err);
@@ -128,22 +140,16 @@ reviews.post('/', customerAuth, limitReviews, zValidator('json', PostReviewSchem
 
     // Verified buyers publish immediately; everyone else waits for moderation.
     const status = verifiedPurchase ? 'approved' : 'pending';
-    const reviewId = `rev_${crypto.randomUUID()}`;
+    const reviewId = crypto.randomUUID();
 
-    await db.insert(localSchema.cmsEntries).values({
+    await db.insert(localSchema.productReviews).values({
       id: reviewId,
-      slug: `review-${reviewId}`,
-      title: `Product Review for ${product_id}`,
-      type: 'review',
-      status: 'published',
-      placement: product_id,
-      metadata_json: JSON.stringify({
-        customer_id: customerId,
-        rating,
-        comment: comment || '',
-        status,
-        verified_purchase: verifiedPurchase ? 1 : 0,
-      }),
+      product_id,
+      customer_id: customerId,
+      rating,
+      comment: comment || null,
+      status,
+      verified_purchase: verifiedPurchase ? 1 : 0,
     }).run();
 
     const createdReview = {

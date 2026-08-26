@@ -6,6 +6,7 @@ import ImageFallback from '../components/ImageFallback';
 import { getImageUrl } from '../lib/image';
 import { formatCurrency } from '../lib/format';
 import FlashSaleBanner from '../components/home/FlashSaleBanner';
+import NewsletterForm from '../components/home/NewsletterForm';
 
 // Using the same API_BASE resolution as before.
 // In Next.js SSR, we might need a absolute URL, so NEXT_PUBLIC_API_URL must be an absolute URL.
@@ -108,6 +109,8 @@ export default async function Home() {
           </div>
         )}
       </div>
+
+      <NewsletterForm />
     </main>
   );
 }

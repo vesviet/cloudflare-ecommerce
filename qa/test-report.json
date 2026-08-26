@@ -1,7 +1,59 @@
 {
-  "reportId": "qa-report-2026-05-27",
-  "scope": ["cms", "checkout", "fulfillment"],
-  "summary": "Validation of the CMS features and fixes for the Checkout/Fulfillment flows. Core DB invariants and fixes (BUG-002, BUG-003) have been validated.",
+  "reportId": "qa-report-2026-08-26",
+  "scope": ["reviews", "newsletter", "2fa", "lockout", "seo", "cms", "checkout", "fulfillment"],
+  "summary": "Validation of unified review aggregation, newsletter subscriptions, 2FA TOTP, login lockout, SEO routes (robots/sitemaps/feed), CMS features, and Checkout/Fulfillment flows. Migration 0023_platform_batch.sql applied locally. All unit test suites green: core-services 158/158, public-api 66/66, admin-api 56/56. Typecheck gates pass: contract CT:0, storefront-ui STORE:0, admin-ui ADMINUI:0.",
+  "testResults": {
+    "unit": {
+      "core-services": { "passed": 158, "total": 158, "status": "pass" },
+      "public-api": { "passed": 66, "total": 66, "status": "pass" },
+      "admin-api": { "passed": 56, "total": 56, "status": "pass" }
+    },
+    "typecheck": {
+      "contract": { "status": "pass", "exitCode": 0 },
+      "storefront-ui": { "status": "pass", "exitCode": 0 },
+      "admin-ui": { "status": "pass", "exitCode": 0 }
+    },
+    "migration": {
+      "0023_platform_batch.sql": { "status": "applied_local", "tables": ["newsletter_subscribers", "product_reviews"] }
+    }
+  },
+  "features": {
+    "unifiedReviews": {
+      "description": "Product reviews migrated from cms_entries to product_reviews table with call-order aware test mocks, groupBy/limit aggregation, and GET endpoint 3-stage coverage.",
+      "status": "complete",
+      "files": ["apps/public-api/src/routes/reviews.ts", "apps/public-api/src/routes/__tests__/reviews.test.ts"]
+    },
+    "newsletter": {
+      "description": "Newsletter subscription routes with admin UI tab and audit logging.",
+      "status": "complete",
+      "files": ["apps/admin-api/src/routes/newsletter.ts", "apps/storefront-ui/src/components/home/NewsletterForm.tsx"]
+    },
+    "twoFactorAuth": {
+      "description": "TOTP-based 2FA with 10 recovery codes, signJWT optional expiresIn, 2FA login challenge.",
+      "status": "complete",
+      "files": ["packages/core-services/src/totp.ts", "packages/core-services/src/__tests__/totp.test.ts", "packages/shared-routes/src/customer.ts"]
+    },
+    "loginLockout": {
+      "description": "Account lockout after 5 failed login attempts with 302/423 responses, failed_login_attempts and locked_until schema columns.",
+      "status": "complete",
+      "files": ["packages/core-services/src/local-schema.ts", "packages/shared-routes/src/customer.ts"]
+    },
+    "seoRoutes": {
+      "description": "SEO routes for robots.txt, sitemaps, and RSS feed.",
+      "status": "complete",
+      "files": ["apps/public-api/src/routes/seo.ts"]
+    },
+    "adminRouteExpansions": {
+      "description": "New admin routes: auditLogs, reviews moderation, newsletter management, enhanced customers/orders/landingLeads/metrics/settings.",
+      "status": "complete",
+      "files": ["apps/admin-api/src/routes/auditLogs.ts", "apps/admin-api/src/routes/reviews.ts", "apps/admin-api/src/routes/newsletter.ts"]
+    },
+    "passwordReset": {
+      "description": "Forgot/reset password flow with IP+email rate limiting, 1h-scope JWT reset, token_version bump, referral attribution.",
+      "status": "complete",
+      "files": ["packages/shared-routes/src/customer.ts"]
+    }
+  },
   "defects": [
     {
       "id": "DEF-QA-001",
@@ -14,12 +66,13 @@
     }
   ],
   "releaseConfidence": {
-    "status": "ship_with_mitigations",
-    "rationale": "Critical bugs from previous review (BUG-002, BUG-003) are verified fixed at the database layer. CMS database constraints function exactly as designed. The remaining risk relies on the asynchronous queue consumers and UI integration tests which were skipped. Recommend shipping with monitoring on Stripe webhooks and Storefront `/blog` endpoints.",
+    "status": "ship_with_monitoring",
+    "rationale": "All unit test suites (core-services 158/158, public-api 66/66, admin-api 56/56) pass with no regressions. Typecheck gates pass across contract, storefront-ui, and admin-ui. New features (reviews unification, newsletter, 2FA, lockout, SEO, password reset, admin routes) are covered by unit tests and schema migrations applied locally. The residual risk relies on e2e/Playwright tests and production deployment of Cloudflare Queues for email/webhook delivery.",
     "residualRisk": [
       "Stripe webhook concurrency and payload signature validation in production.",
       "Storefront React Markdown rendering (cross-browser and XSS testing).",
-      "Cloudflare Queue consumer for Resend emails."
+      "Cloudflare Queue consumer for Resend emails.",
+      "E2E Playwright test coverage for new 2FA and lockout flows."
     ]
   }
 }

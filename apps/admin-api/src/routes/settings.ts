@@ -1,6 +1,5 @@
 import { Hono } from 'hono';
 import { requireRole, Env } from '../middleware/auth';
-import { eq } from 'drizzle-orm';
 import { createDb, schema } from '@ecommerce/database';
 import { z } from 'zod';
 
@@ -34,8 +33,13 @@ settingsRoutes.put('/batch', requireRole(['superadmin', 'manager']), async (c) =
   const items = parsed.data.settings;
   if (items.length === 0) return c.json({ success: true });
 
-  const queries = items.map(item => 
-    db.update(schema.settings).set({ value: item.value, updated_at: new Date().toISOString() }).where(eq(schema.settings.key, item.key))
+  // C12 fix: upsert semantics — update existing keys, insert missing ones so
+  // the admin can introduce new settings (e.g. customer_2fa_enabled).
+  const queries = items.map(item =>
+    db.insert(schema.settings).values({ key: item.key, value: item.value }).onConflictDoUpdate({
+      target: schema.settings.key,
+      set: { value: item.value, updated_at: new Date().toISOString() },
+    })
   );
 
   try {

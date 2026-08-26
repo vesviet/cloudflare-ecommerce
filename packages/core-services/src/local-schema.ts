@@ -38,6 +38,8 @@ export const adminUsers = baseSchema.adminUsers;
 export const auditLogs = baseSchema.auditLogs;
 export const failedJobs = baseSchema.failedJobs;
 export const settings = baseSchema.settings;
+export const newsletterSubscribers = baseSchema.newsletterSubscribers;
+export const productReviews = baseSchema.productReviews;
 
 // Overridden/Extended tables
 export const customers = sqliteTable('customers', {

@@ -1,21 +1,28 @@
 import React, { useState } from 'react';
 import { GlassCard } from '../ui/GlassCard';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Coins } from 'lucide-react';
 
 interface CustomerDetailsProps {
   viewingCustomer: any;
   onBack: () => void;
   onUpdateCustomer: (updatedCustomer: any) => Promise<void>;
   onOpenResetPassword: (customer: { id: string; email: string }) => void;
+  onAdjustLoyalty?: (points: number, description: string) => Promise<void>;
+  isAdjustingLoyalty?: boolean;
 }
 
 export const CustomerDetails: React.FC<CustomerDetailsProps> = ({ 
   viewingCustomer, 
   onBack, 
   onUpdateCustomer, 
-  onOpenResetPassword 
+  onOpenResetPassword,
+  onAdjustLoyalty,
+  isAdjustingLoyalty = false
 }) => {
   const [editingCustomer, setEditingCustomer] = useState<any | null>(null);
+  const [showAdjustPoints, setShowAdjustPoints] = useState(false);
+  const [pointsInput, setPointsInput] = useState('');
+  const [pointsDescription, setPointsDescription] = useState('');
 
   const formatCurrency = (value: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value);
 
@@ -24,6 +31,17 @@ export const CustomerDetails: React.FC<CustomerDetailsProps> = ({
     if (!editingCustomer) return;
     await onUpdateCustomer(editingCustomer);
     setEditingCustomer(null);
+  };
+
+  const handleAdjustSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!onAdjustLoyalty) return;
+    const points = parseInt(pointsInput, 10);
+    if (!Number.isFinite(points)) return;
+    await onAdjustLoyalty(points, pointsDescription);
+    setShowAdjustPoints(false);
+    setPointsInput('');
+    setPointsDescription('');
   };
 
   return (
@@ -186,6 +204,20 @@ export const CustomerDetails: React.FC<CustomerDetailsProps> = ({
               <div className="flex justify-between py-1 border-b border-white/5"><span className="text-text-muted">Phone:</span> <span>{viewingCustomer.customer.phone || '-'}</span></div>
               <div className="flex justify-between py-1 border-b border-white/5"><span className="text-text-muted">DOB:</span> <span>{viewingCustomer.customer.dob || '-'}</span></div>
               <div className="flex justify-between py-1 border-b border-white/5"><span className="text-text-muted">Gender:</span> <span className="capitalize">{viewingCustomer.customer.gender || 'unspecified'}</span></div>
+
+              <div className="flex justify-between items-center py-1 border-b border-white/5">
+                <span className="text-text-muted">Loyalty Points:</span>
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold text-warning-accent" style={{ background: 'rgba(250,204,21,0.12)', border: '1px solid rgba(250,204,21,0.3)' }}>
+                  <Coins className="w-3 h-3" />
+                  {viewingCustomer.customer.loyalty_points_balance ?? 0} pts
+                </span>
+              </div>
+              {viewingCustomer.customer.referral_code && (
+                <div className="flex justify-between items-center py-1 border-b border-white/5">
+                  <span className="text-text-muted">Referral Code:</span>
+                  <span className="font-mono text-xs px-2 py-0.5 rounded bg-white/10 border border-white/20">{viewingCustomer.customer.referral_code}</span>
+                </div>
+              )}
               
               {viewingCustomer.customer.company_name && (
                 <div className="p-3 rounded-lg bg-white/5 border border-white/10 mt-4">
@@ -226,6 +258,14 @@ export const CustomerDetails: React.FC<CustomerDetailsProps> = ({
               <div className="flex justify-between py-1 pt-4"><span className="text-text-muted">Joined:</span> <span>{new Date(viewingCustomer.customer.created_at).toLocaleDateString()}</span></div>
               
               <div className="flex flex-col gap-2 pt-4">
+                {onAdjustLoyalty && (
+                  <button
+                    className="w-full px-4 py-2 rounded-lg bg-warning-accent/10 border border-warning-accent/30 text-warning-accent hover:bg-warning-accent/20 transition-colors"
+                    onClick={() => setShowAdjustPoints(true)}
+                  >
+                    🪙 Adjust Points
+                  </button>
+                )}
                 <button className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors" onClick={() => setEditingCustomer(viewingCustomer.customer)}>Edit Profile</button>
                 <button
                   className="w-full px-4 py-2 rounded-lg bg-danger-accent/10 border border-danger-accent/30 text-danger-accent hover:bg-danger-accent/20 transition-colors"
@@ -296,6 +336,47 @@ export const CustomerDetails: React.FC<CustomerDetailsProps> = ({
           </GlassCard>
         </div>
       </div>
+
+      {showAdjustPoints && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={(e) => { if (e.target === e.currentTarget && !isAdjustingLoyalty) setShowAdjustPoints(false); }}>
+          <GlassCard className="w-full max-w-sm p-6" role="dialog" aria-modal="true" aria-label="Adjust loyalty points">
+            <h2 className="text-xl font-bold mb-1">🪙 Adjust Points</h2>
+            <p className="text-sm text-text-muted mb-6">
+              Current balance: <strong className="text-text-main">{viewingCustomer.customer.loyalty_points_balance ?? 0} pts</strong>
+            </p>
+            <form onSubmit={handleAdjustSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm text-text-muted mb-1">Points (negative to deduct)</label>
+                <input
+                  type="number"
+                  step={1}
+                  className="w-full"
+                  value={pointsInput}
+                  onChange={(e) => setPointsInput(e.target.value)}
+                  placeholder="e.g. 100 or -50"
+                  required
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-text-muted mb-1">Description (optional)</label>
+                <input
+                  type="text"
+                  className="w-full"
+                  value={pointsDescription}
+                  onChange={(e) => setPointsDescription(e.target.value)}
+                  maxLength={255}
+                  placeholder="Reason for adjustment"
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" className="flex-1 px-4 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors" onClick={() => setShowAdjustPoints(false)} disabled={isAdjustingLoyalty}>Cancel</button>
+                <button type="submit" className="flex-1 px-4 py-2 rounded-lg bg-primary-accent hover:bg-primary-accent/80 text-white font-medium transition-colors disabled:opacity-50" disabled={isAdjustingLoyalty || pointsInput === ''}>{isAdjustingLoyalty ? 'Saving...' : 'Apply'}</button>
+              </div>
+            </form>
+          </GlassCard>
+        </div>
+      )}
     </div>
   );
 };

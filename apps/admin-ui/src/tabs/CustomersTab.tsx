@@ -24,6 +24,7 @@ export const CustomersTab: React.FC<CustomersTabProps> = ({ API_BASE_URL, addToa
     pagination?: PaginationMeta;
   }>(`/customers?limit=${limit}&offset=${offset}`);
   const [viewingCustomer, setViewingCustomer] = useState<any | null>(null);
+  const [isAdjustingLoyalty, setIsAdjustingLoyalty] = useState(false);
 
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
   const [resetPasswordTarget, setResetPasswordTarget] = useState<{ id: string; email: string } | null>(null);
@@ -43,6 +44,29 @@ export const CustomersTab: React.FC<CustomersTabProps> = ({ API_BASE_URL, addToa
       }
     } catch (err: any) {
       addToast(err.message, 'error');
+    }
+  };
+
+  const handleAdjustLoyalty = async (points: number, description: string) => {
+    if (!viewingCustomer) return;
+    setIsAdjustingLoyalty(true);
+    try {
+      const res = await apiFetch(`/customers/${viewingCustomer.customer.id}/loyalty-adjust`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ points, description: description.trim() || undefined })
+      });
+      const data = await res.json();
+      if (data.success) {
+        addToast(`Loyalty points adjusted (${points > 0 ? '+' : ''}${points})`, 'success');
+        await fetchCustomerDetails(viewingCustomer.customer.id);
+      } else {
+        addToast(data.error || 'Failed to adjust loyalty points', 'error');
+      }
+    } catch (err: any) {
+      addToast(err.message, 'error');
+    } finally {
+      setIsAdjustingLoyalty(false);
     }
   };
 
@@ -131,11 +155,13 @@ export const CustomersTab: React.FC<CustomersTabProps> = ({ API_BASE_URL, addToa
       </div>
 
       {viewingCustomer ? (
-        <CustomerDetails 
-          viewingCustomer={viewingCustomer} 
+        <CustomerDetails
+          viewingCustomer={viewingCustomer}
           onBack={() => setViewingCustomer(null)}
           onUpdateCustomer={handleUpdateCustomer}
           onOpenResetPassword={(target) => setResetPasswordTarget(target)}
+          onAdjustLoyalty={handleAdjustLoyalty}
+          isAdjustingLoyalty={isAdjustingLoyalty}
         />
       ) : isLoading ? (
         <div className="text-center text-text-muted p-12">Loading customers...</div>

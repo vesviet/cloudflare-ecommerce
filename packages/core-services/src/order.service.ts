@@ -85,6 +85,45 @@ export class OrderService {
       await LoyaltyService.redeemPoints(drizzleDb, orderData.customerId, orderData.orderId, orderData.loyaltyPointsApplied);
     }
 
+    // Phase 1.6 — referral bonus (Phase 6 LOY-04): one-time +50.000 points to
+    // the referrer when their invitee completes a checkout. Best-effort: a
+    // failure here must never abort the order.
+    if (orderData.customerId) {
+      try {
+        const referee = await drizzleDb.select({
+          referred_by: localSchema.customers.referred_by,
+          referral_awarded: localSchema.customers.referral_awarded,
+        })
+          .from(localSchema.customers)
+          .where(eq(localSchema.customers.id, orderData.customerId))
+          .get();
+
+        const referrerId = referee?.referred_by;
+        if (referrerId && !referee.referral_awarded) {
+          const claimed = await drizzleDb.update(localSchema.customers)
+            .set({ referral_awarded: 1 })
+            .where(and(
+              eq(localSchema.customers.id, orderData.customerId),
+              eq(localSchema.customers.referral_awarded, 0)
+            ))
+            .run();
+          if (((claimed as any)?.meta?.changes ?? 0) > 0) {
+            await LoyaltyService.updateCustomerPoints(drizzleDb, referrerId, 50000);
+            await drizzleDb.insert(localSchema.loyaltyLedgers).values({
+              id: crypto.randomUUID(),
+              customer_id: referrerId,
+              transaction_type: 'referral_bonus',
+              points: 50000,
+              order_id: orderData.orderId,
+              description: 'Referral bonus',
+            });
+          }
+        }
+      } catch (refErr) {
+        console.error('[OrderService] Referral bonus failed (non-blocking):', refErr);
+      }
+    }
+
     // Phase 2: Atomic Inventory Deduction
     const itemsToDeduct = orderData.validItems.map(i => ({
       productId: i.variation_id || i.id || i.productId,

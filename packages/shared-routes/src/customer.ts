@@ -1,13 +1,14 @@
 import { Hono } from 'hono';
+import { z } from 'zod';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, inArray } from 'drizzle-orm';
 import { createDb } from '@ecommerce/database';
 import { localSchema as schema } from '@ecommerce/core-services';
-import { hashPassword, verifyPassword, signJWT, verifyJWT } from '@ecommerce/database';
-import { WishlistService, OrderService } from '@ecommerce/core-services';
+import { hashPassword, verifyPassword, signJWT, verifyJWT, generateBase32Secret, buildOtpAuthUri, verifyTotp } from '@ecommerce/database';
+import { WishlistService, OrderService, resolveCustomerTier } from '@ecommerce/core-services';
 import { rateLimit, clientIp, type RateLimiter } from './rate-limit';
 import { zValidator } from '@hono/zod-validator';
-import { CustomerRegisterSchema, CustomerLoginSchema, CustomerAddressSchema, CustomerProfileUpdateSchema, ChangePasswordSchema, ForgotPasswordSchema, ResetPasswordSchema, WishlistAddSchema, WishlistMergeSchema, CUSTOMER_CANCELLABLE_STATUSES } from '@ecommerce/contract';
+import { CustomerRegisterSchema, CustomerLoginSchema, CustomerAddressSchema, CustomerProfileUpdateSchema, ChangePasswordSchema, ForgotPasswordSchema, ResetPasswordSchema, NewsletterSubscribeSchema, NotificationPreferencesSchema, TwoFactorCodeSchema, WishlistAddSchema, WishlistMergeSchema, CUSTOMER_CANCELLABLE_STATUSES } from '@ecommerce/contract';
 type Bindings = {
   DB: D1Database;
   JWT_SECRET: string;
@@ -57,12 +58,13 @@ const customerApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 // Authentication Routes
 customerApp.post('/auth/register', limitByIp('auth-register-ip'), zValidator('json', CustomerRegisterSchema), async (c) => {
   try {
-    const { 
-      email, password, firstName, lastName, phone, 
+    const {
+      email, password, firstName, lastName, phone,
       dob, gender, companyName, vatTaxId, acceptsMarketing,
-      signupUtmSource, signupUtmMedium, signupUtmCampaign, signupAffiliateId
+      signupUtmSource, signupUtmMedium, signupUtmCampaign, signupAffiliateId,
+      signupReferralCode
     } = c.req.valid('json');
-    
+
     if (!email || !password || password.length < 8) {
       return c.json({ success: false, error: 'Invalid email or password must be at least 8 characters' }, 400);
     }
@@ -80,6 +82,16 @@ customerApp.post('/auth/register', limitByIp('auth-register-ip'), zValidator('js
 
     if (!c.env.JWT_SECRET) {
       return c.json({ success: false, error: MISSING_JWT_SECRET_ERROR }, 500);
+    }
+
+    // Phase 6 (LOY-04): resolve the referrer from a REF-code before insert.
+    let referredBy: string | null = null;
+    if (signupReferralCode) {
+      const referrer = await db.select({ id: schema.customers.id })
+        .from(schema.customers)
+        .where(eq(schema.customers.referral_code, signupReferralCode.trim().toUpperCase()))
+        .get();
+      referredBy = referrer?.id ?? null;
     }
 
     const customerId = crypto.randomUUID();
@@ -105,6 +117,7 @@ customerApp.post('/auth/register', limitByIp('auth-register-ip'), zValidator('js
       signup_utm_medium: signupUtmMedium || null,
       signup_utm_campaign: signupUtmCampaign || null,
       signup_affiliate_id: signupAffiliateId || null,
+      referred_by: referredBy,
     });
 
     // Auto-login: Create JWT and set cookie (tv = token_version for revocation)
@@ -146,6 +159,7 @@ customerApp.post('/auth/login', limitByEmail('auth-login-email'), limitByIp('aut
       token_version: schema.customers.token_version,
       failed_login_attempts: schema.customers.failed_login_attempts,
       locked_until: schema.customers.locked_until,
+      two_factor_enabled: schema.customers.two_factor_enabled,
     })
       .from(schema.customers)
       .where(eq(schema.customers.email, email))
@@ -189,16 +203,14 @@ customerApp.post('/auth/login', limitByEmail('auth-login-email'), limitByIp('aut
         .run();
     }
 
-    const token = await signJWT({ customer_id: customer.id, email, tv: customer.token_version ?? 0 }, c.env.JWT_SECRET);
-    
-    const isProd = c.env.ENVIRONMENT === 'production' || !c.req.url.includes('localhost');
-    setCookie(c, 'aura_token', token, {
-      path: '/',
-      secure: isProd,
-      httpOnly: true,
-      maxAge: 7 * 24 * 60 * 60,
-      sameSite: isProd ? 'None' : 'Lax',
-    });
+    // T3.5: with 2FA active, no session is issued here — hand back a
+    // 5-minute challenge token consumed by POST /auth/2fa/verify.
+    if (customer.two_factor_enabled) {
+      const tempToken = await signJWT({ scope: '2fa-login', customer_id: customer.id }, c.env.JWT_SECRET, '5m');
+      return c.json({ success: true, two_factor_required: true, temp_token: tempToken });
+    }
+
+    await issueSessionCookie(c, customer.id, email, customer.token_version ?? 0, c.env.JWT_SECRET);
 
     return c.json({ success: true, message: 'Logged in successfully', customer: { id: customer.id, email } });
   } catch (err: any) {
@@ -640,8 +652,8 @@ customerApp.get('/customer/me', async (c) => {
     const payload = c.get('jwtPayload') as any;
     const customerId = payload.customer_id;
     const db = createDb(c.env.DB);
-    
-    const customer = await db.select({
+
+    let customer = await db.select({
       id: schema.customers.id,
       email: schema.customers.email,
       first_name: schema.customers.first_name,
@@ -655,6 +667,10 @@ customerApp.get('/customer/me', async (c) => {
       status: schema.customers.status,
       email_verified: schema.customers.email_verified,
       accepts_marketing: schema.customers.accepts_marketing,
+      loyalty_points_balance: schema.customers.loyalty_points_balance,
+      referral_code: schema.customers.referral_code,
+      two_factor_enabled: schema.customers.two_factor_enabled,
+      metafields_json: schema.customers.metafields_json,
       created_at: schema.customers.created_at,
     })
       .from(schema.customers)
@@ -662,8 +678,27 @@ customerApp.get('/customer/me', async (c) => {
       .get();
 
     if (!customer) return c.json({ success: false, error: 'Customer not found' }, 404);
-    
-    return c.json({ success: true, data: customer });
+
+    // Phase 6 (LOY-05): lazy-generate the REF code + resolve membership tier.
+    if (!customer.referral_code) {
+      const code = `REF-${crypto.randomUUID().replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+      await db.update(schema.customers)
+        .set({ referral_code: sql`COALESCE(${schema.customers.referral_code}, ${code})` })
+        .where(and(eq(schema.customers.id, customerId), sql`${schema.customers.referral_code} IS NULL`))
+        .run();
+      customer = { ...customer, referral_code: code };
+    }
+
+    const { tier, isFirstTime } = await resolveCustomerTier(db, customerId);
+
+    let notification_preferences = { email_marketing: false, order_updates: true, security_alerts: true };
+    try {
+      const meta = JSON.parse(customer.metafields_json || '{}');
+      if (meta.notification_preferences) notification_preferences = { ...notification_preferences, ...meta.notification_preferences };
+    } catch { /* defaults */ }
+
+    const { metafields_json, ...profile } = customer;
+    return c.json({ success: true, data: { ...profile, tier, is_first_time: isFirstTime, notification_preferences } });
   } catch (err: any) {
     return c.json({ success: false, error: err.message }, 500);
   }
@@ -740,6 +775,381 @@ customerApp.put('/customer/me/change-password', zValidator('json', ChangePasswor
     deleteCookie(c, 'aura_token', { path: '/' });
 
     return c.json({ success: true, message: 'Password changed successfully. Please sign in again.' });
+  } catch (err: any) {
+    return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 3 remainder + Phase 4b + Phase 6 routes
+// ─────────────────────────────────────────────────────────────────────────────
+
+function issueSessionCookie(c: any, customerId: string, email: string, tv: number, jwtSecret: string): Promise<void> {
+  return signJWT({ customer_id: customerId, email, tv }, jwtSecret).then((token) => {
+    const isProd = c.env.ENVIRONMENT === 'production' || !c.req.url.includes('localhost');
+    setCookie(c, 'aura_token', token, {
+      path: '/',
+      secure: isProd,
+      httpOnly: true,
+      maxAge: 7 * 24 * 60 * 60,
+      sameSite: isProd ? 'None' : 'Lax',
+    });
+  });
+}
+
+// NWS-01: silent-duplicate newsletter subscribe.
+customerApp.post('/newsletter/subscribe', limitByIp('newsletter-ip'), zValidator('json', NewsletterSubscribeSchema), async (c) => {
+  try {
+    const { email, source } = c.req.valid('json');
+    const db = createDb(c.env.DB);
+    await db.insert(schema.newsletterSubscribers).values({
+      id: crypto.randomUUID(),
+      email: email.trim().toLowerCase(),
+      source: source || 'storefront',
+    }).onConflictDoNothing();
+    return c.json({ success: true, message: 'Đã đăng ký nhận tin.' });
+  } catch {
+    // Silent-duplicate policy: never leak subscription state on error either.
+    return c.json({ success: true, message: 'Đã đăng ký nhận tin.' });
+  }
+});
+
+// Phase 6 (LOY-04): referral stats for the logged-in customer.
+customerApp.get('/customer/referrals', async (c) => {
+  try {
+    const payload = c.get('jwtPayload') as any;
+    const customerId = payload.customer_id;
+    const db = createDb(c.env.DB);
+
+    let me = await db.select({ referral_code: schema.customers.referral_code })
+      .from(schema.customers)
+      .where(eq(schema.customers.id, customerId))
+      .get();
+    if (!me) return c.json({ success: false, error: 'Customer not found' }, 404);
+
+    if (!me.referral_code) {
+      const code = `REF-${crypto.randomUUID().replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+      await db.update(schema.customers)
+        .set({ referral_code: sql`COALESCE(${schema.customers.referral_code}, ${code})` })
+        .where(and(eq(schema.customers.id, customerId), sql`${schema.customers.referral_code} IS NULL`))
+        .run();
+      me = { referral_code: code };
+    }
+
+    const invitedRow = await db.select({ count: sql`count(*)` })
+      .from(schema.customers)
+      .where(eq(schema.customers.referred_by, customerId))
+      .get();
+
+    const earnedRow = await db.select({ total: sql`coalesce(sum(points), 0)` })
+      .from((schema as any).loyaltyLedgers)
+      .where(and(
+        eq((schema as any).loyaltyLedgers.customer_id, customerId),
+        eq((schema as any).loyaltyLedgers.transaction_type, 'referral_bonus')
+      ))
+      .get();
+
+    return c.json({
+      success: true,
+      data: {
+        referral_code: me.referral_code,
+        invited_count: Number(invitedRow?.count || 0),
+        earned_points: Number(earnedRow?.total || 0),
+        bonus_per_referral: 50000,
+      },
+    });
+  } catch (err: any) {
+    return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
+// T3.6: per-channel notification preferences.
+customerApp.put('/customer/me/notification-preferences', zValidator('json', NotificationPreferencesSchema), async (c) => {
+  try {
+    const payload = c.get('jwtPayload') as any;
+    const customerId = payload.customer_id;
+    const prefs = c.req.valid('json');
+    const db = createDb(c.env.DB);
+
+    const row = await db.select({ metafields_json: schema.customers.metafields_json })
+      .from(schema.customers)
+      .where(eq(schema.customers.id, customerId))
+      .get();
+    if (!row) return c.json({ success: false, error: 'Customer not found' }, 404);
+
+    let meta: any = {};
+    try { meta = JSON.parse(row.metafields_json || '{}'); } catch { /* reset */ }
+    meta.notification_preferences = prefs;
+
+    await db.update(schema.customers)
+      .set({ metafields_json: JSON.stringify(meta), updated_at: sql`CURRENT_TIMESTAMP` })
+      .where(eq(schema.customers.id, customerId));
+
+    return c.json({ success: true, data: { notification_preferences: prefs } });
+  } catch (err: any) {
+    return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
+// T3.4 (AUTH-10): GDPR data export — full JSON bundle of owned data.
+customerApp.get('/customer/privacy/export', async (c) => {
+  try {
+    const payload = c.get('jwtPayload') as any;
+    const customerId = payload.customer_id;
+    const db = createDb(c.env.DB);
+
+    const profile = await db.select({
+      id: schema.customers.id, email: schema.customers.email,
+      first_name: schema.customers.first_name, last_name: schema.customers.last_name,
+      phone: schema.customers.phone, dob: schema.customers.dob, gender: schema.customers.gender,
+      company_name: schema.customers.company_name, vat_tax_id: schema.customers.vat_tax_id,
+      accepts_marketing: schema.customers.accepts_marketing,
+      loyalty_points_balance: schema.customers.loyalty_points_balance,
+      created_at: schema.customers.created_at,
+    }).from(schema.customers).where(eq(schema.customers.id, customerId)).get();
+
+    const orders = await db.select().from(schema.orders).where(eq(schema.orders.customer_id, customerId)).all();
+    const orderIds = orders.map((o: any) => o.id);
+    const items = orderIds.length > 0
+      ? await db.select().from(schema.orderItems).where(inArrayD1(schema.orderItems.order_id, orderIds)).all()
+      : [];
+    const addresses = await db.select().from(schema.customerAddresses).where(eq(schema.customerAddresses.customer_id, customerId)).all();
+    const ledgers = await db.select().from((schema as any).loyaltyLedgers).where(eq((schema as any).loyaltyLedgers.customer_id, customerId)).all();
+
+    return c.json({
+      success: true,
+      exported_at: new Date().toISOString(),
+      data: { profile, orders, order_items: items, addresses, loyalty_ledgers: ledgers },
+    });
+  } catch (err: any) {
+    return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
+// T3.4 (AUTH-11): GDPR account deletion — password-gated anonymization.
+customerApp.delete('/customer/me', async (c) => {
+  try {
+    const payload = c.get('jwtPayload') as any;
+    const customerId = payload.customer_id;
+    let bodyPassword = '';
+    try {
+      const body = await c.req.json();
+      bodyPassword = typeof body?.password === 'string' ? body.password : '';
+    } catch { /* empty body */ }
+
+    const db = createDb(c.env.DB);
+    const customer = await db.select({
+      password_hash: schema.customers.password_hash,
+      token_version: schema.customers.token_version,
+      email: schema.customers.email,
+    }).from(schema.customers).where(eq(schema.customers.id, customerId)).get();
+    if (!customer) return c.json({ success: false, error: 'Customer not found' }, 404);
+
+    if (!bodyPassword || !customer.password_hash || !(await verifyPassword(bodyPassword, customer.password_hash))) {
+      return c.json({ success: false, error: 'Password verification failed' }, 403);
+    }
+
+    const anonEmail = `deleted-${customerId.slice(0, 8)}@anonymized.local`;
+    await db.update(schema.customers)
+      .set({
+        email: anonEmail,
+        first_name: null,
+        last_name: null,
+        phone: null,
+        dob: null,
+        gender: null,
+        company_name: null,
+        vat_tax_id: null,
+        avatar_url: null,
+        password_hash: null,
+        two_factor_secret: null,
+        two_factor_enabled: 0,
+        recovery_codes_json: '[]',
+        metafields_json: '{}',
+        tags_json: '[]',
+        deleted_at: sql`CURRENT_TIMESTAMP`,
+        token_version: sql`${schema.customers.token_version} + 1`,
+        updated_at: sql`CURRENT_TIMESTAMP`,
+      })
+      .where(eq(schema.customers.id, customerId));
+
+    await db.delete(schema.customerAddresses).where(eq(schema.customerAddresses.customer_id, customerId));
+
+    deleteCookie(c, 'aura_token', { path: '/' });
+    return c.json({ success: true, message: 'Tài khoản đã được xoá và dữ liệu cá nhân được ẩn danh hoá.' });
+  } catch (err: any) {
+    return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
+// T3.5 (AUTH-05): feature-flagged TOTP 2FA.
+async function is2faEnabled(db: any): Promise<boolean> {
+  try {
+    const row = await db.select({ value: (schema as any).settings.value })
+      .from((schema as any).settings)
+      .where(eq((schema as any).settings.key, 'customer_2fa_enabled'))
+      .get();
+    return String(row?.value || '').toLowerCase() === 'true';
+  } catch {
+    return false;
+  }
+}
+
+customerApp.post('/customer/2fa/setup', async (c) => {
+  try {
+    const payload = c.get('jwtPayload') as any;
+    const customerId = payload.customer_id;
+    const db = createDb(c.env.DB);
+
+    if (!(await is2faEnabled(db))) {
+      return c.json({ success: false, error: '2FA is not enabled for this store' }, 403);
+    }
+
+    const me = await db.select({ email: schema.customers.email, enabled: schema.customers.two_factor_enabled })
+      .from(schema.customers)
+      .where(eq(schema.customers.id, customerId))
+      .get();
+    if (!me) return c.json({ success: false, error: 'Customer not found' }, 404);
+    if (me.enabled) return c.json({ success: false, error: '2FA is already enabled' }, 400);
+
+    const secret = generateBase32Secret();
+    await db.update(schema.customers)
+      .set({ two_factor_secret: secret })
+      .where(eq(schema.customers.id, customerId));
+
+    return c.json({
+      success: true,
+      data: { secret, otpauth_url: buildOtpAuthUri(secret, me.email) },
+    });
+  } catch (err: any) {
+    return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
+customerApp.post('/customer/2fa/enable', zValidator('json', TwoFactorCodeSchema), async (c) => {
+  try {
+    const payload = c.get('jwtPayload') as any;
+    const customerId = payload.customer_id;
+    const { code } = c.req.valid('json');
+    const db = createDb(c.env.DB);
+
+    const me = await db.select({ secret: schema.customers.two_factor_secret, enabled: schema.customers.two_factor_enabled })
+      .from(schema.customers)
+      .where(eq(schema.customers.id, customerId))
+      .get();
+    if (!me?.secret) return c.json({ success: false, error: 'Run setup first' }, 400);
+    if (me.enabled) return c.json({ success: false, error: '2FA is already enabled' }, 400);
+
+    if (!(await verifyTotp(me.secret, code))) {
+      return c.json({ success: false, error: 'Invalid verification code' }, 400);
+    }
+
+    // Laravel parity: 10 single-use recovery codes, 8 hex chars each.
+    const recoveryCodes = Array.from({ length: 10 }, () =>
+      Array.from(crypto.getRandomValues(new Uint8Array(4)))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('')
+    );
+
+    await db.update(schema.customers)
+      .set({ two_factor_enabled: 1, recovery_codes_json: JSON.stringify(recoveryCodes) })
+      .where(eq(schema.customers.id, customerId));
+
+    return c.json({ success: true, data: { recovery_codes: recoveryCodes } });
+  } catch (err: any) {
+    return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
+customerApp.post('/customer/2fa/disable', async (c) => {
+  try {
+    const payload = c.get('jwtPayload') as any;
+    const customerId = payload.customer_id;
+    let bodyPassword = '';
+    try { const b = await c.req.json(); bodyPassword = typeof b?.password === 'string' ? b.password : ''; } catch {}
+
+    const db = createDb(c.env.DB);
+    const me = await db.select({ password_hash: schema.customers.password_hash })
+      .from(schema.customers)
+      .where(eq(schema.customers.id, customerId))
+      .get();
+
+    if (!me?.password_hash || !bodyPassword || !(await verifyPassword(bodyPassword, me.password_hash))) {
+      return c.json({ success: false, error: 'Password verification failed' }, 403);
+    }
+
+    await db.update(schema.customers)
+      .set({ two_factor_secret: null, two_factor_enabled: 0, recovery_codes_json: '[]' })
+      .where(eq(schema.customers.id, customerId));
+
+    return c.json({ success: true, message: '2FA disabled' });
+  } catch (err: any) {
+    return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
+// Login second step when 2FA is active: exchange temp token + TOTP or a
+// single-use recovery code for a real session cookie.
+customerApp.post('/auth/2fa/verify', limitByIp('auth-2fa-ip'), zValidator('json', TwoFactorCodeSchema.extend({ temp_token: z.string().min(20) })), async (c) => {
+  try {
+    if (!c.env.JWT_SECRET) return c.json({ success: false, error: MISSING_JWT_SECRET_ERROR }, 500);
+    const { temp_token, code } = c.req.valid('json');
+
+    let payload: any;
+    try {
+      payload = await verifyJWT(temp_token, c.env.JWT_SECRET);
+    } catch {
+      return c.json({ success: false, error: 'Verification session expired, sign in again.' }, 401);
+    }
+    if (payload?.scope !== '2fa-login' || typeof payload?.customer_id !== 'string') {
+      return c.json({ success: false, error: 'Invalid verification session.' }, 401);
+    }
+
+    const db = createDb(c.env.DB);
+    const customer = await db.select({
+      id: schema.customers.id,
+      email: schema.customers.email,
+      status: schema.customers.status,
+      token_version: schema.customers.token_version,
+      two_factor_enabled: schema.customers.two_factor_enabled,
+      two_factor_secret: schema.customers.two_factor_secret,
+      recovery_codes_json: schema.customers.recovery_codes_json,
+    }).from(schema.customers).where(eq(schema.customers.id, payload.customer_id)).get();
+
+    if (!customer || !customer.two_factor_enabled || !customer.two_factor_secret) {
+      return c.json({ success: false, error: '2FA is not configured for this account.' }, 400);
+    }
+    if (customer.status === 'suspended') {
+      return c.json({ success: false, error: 'Tài khoản của bạn đã bị khóa.' }, 403);
+    }
+
+    let usedRecovery = false;
+    let ok = await verifyTotp(customer.two_factor_secret, code);
+    if (!ok) {
+      const codes: string[] = JSON.parse(customer.recovery_codes_json || '[]');
+      const submitted = code.trim().toLowerCase();
+      const idx = codes.indexOf(submitted);
+      if (idx !== -1) {
+        codes.splice(idx, 1);
+        usedRecovery = true;
+        await db.update(schema.customers)
+          .set({ recovery_codes_json: JSON.stringify(codes) })
+          .where(eq(schema.customers.id, customer.id));
+        ok = true;
+      }
+    }
+
+    if (!ok) {
+      return c.json({ success: false, error: 'Mã xác thực không đúng.' }, 401);
+    }
+
+    await issueSessionCookie(c, customer.id, customer.email, customer.token_version ?? 0, c.env.JWT_SECRET);
+    return c.json({
+      success: true,
+      message: 'Logged in successfully',
+      used_recovery_code: usedRecovery,
+      customer: { id: customer.id, email: customer.email },
+    });
   } catch (err: any) {
     return c.json({ success: false, error: err.message }, 500);
   }

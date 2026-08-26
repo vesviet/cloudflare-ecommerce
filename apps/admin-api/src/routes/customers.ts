@@ -1,10 +1,11 @@
 import { Hono } from 'hono';
 import { eq, sql } from 'drizzle-orm';
 import { createDb, schema, hashPassword } from '@ecommerce/database';
+import { LoyaltyService } from '@ecommerce/core-services';
 import { Bindings } from '../types';
 import { requireRole } from '../middleware/auth';
 import { zValidator } from '@hono/zod-validator';
-import { customerSchema, resetPasswordSchema } from '@ecommerce/contract';
+import { customerSchema, resetPasswordSchema, LoyaltyAdjustSchema as loyaltyAdjustSchema } from '@ecommerce/contract';
 
 const customers = new Hono<{ Bindings: Bindings }>();
 
@@ -54,6 +55,8 @@ customers.get('/customers/:id', async (c) => {
       accepts_marketing: schema.customers.accepts_marketing,
       tags_json: schema.customers.tags_json,
       note: schema.customers.note,
+      loyalty_points_balance: schema.customers.loyalty_points_balance,
+      referral_code: schema.customers.referral_code,
       created_at: schema.customers.created_at,
     })
       .from(schema.customers)
@@ -79,6 +82,65 @@ customers.get('/customers/:id', async (c) => {
       .all();
     
     return c.json({ success: true, data: { customer, orders, addresses } });
+  } catch (err: any) {
+    return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
+// Phase 6 (LOY-06): admin loyalty adjustment — writes an 'adjusted' ledger row
+// and moves the balance. Positive points grant, negative deduct.
+customers.post('/customers/:id/loyalty-adjust', requireRole(['superadmin', 'manager']), zValidator('json', loyaltyAdjustSchema), async (c) => {
+  try {
+    const customerId = c.req.param('id');
+    const { points, description } = c.req.valid('json');
+    if (points === 0) return c.json({ success: false, error: 'points must be non-zero' }, 400);
+
+    const db = createDb(c.env.DB);
+    await LoyaltyService.updateCustomerPoints(db, customerId, points);
+    await db.insert((schema as any).loyaltyLedgers).values({
+      id: crypto.randomUUID(),
+      customer_id: customerId,
+      transaction_type: 'adjusted',
+      points,
+      order_id: null,
+      description: description || `Admin adjustment (${points > 0 ? '+' : ''}${points})`,
+    });
+
+    return c.json({ success: true, data: { points_applied: points } });
+  } catch (err: any) {
+    return c.json({ success: false, error: err.message }, 400);
+  }
+});
+
+// Phase 5 (ADM-22): customers CSV export.
+customers.get('/customers/export.csv', requireRole(['superadmin', 'manager']), async (c) => {
+  try {
+    const db = createDb(c.env.DB);
+    const rows = await db.select({
+      id: schema.customers.id,
+      email: schema.customers.email,
+      first_name: schema.customers.first_name,
+      last_name: schema.customers.last_name,
+      phone: schema.customers.phone,
+      status: schema.customers.status,
+      tier_tags: schema.customers.tags_json,
+      loyalty_points_balance: schema.customers.loyalty_points_balance,
+      created_at: schema.customers.created_at,
+    }).from(schema.customers).limit(20000);
+
+    const header = 'id,email,first_name,last_name,phone,status,tags,loyalty_points_balance,created_at';
+    const lines = rows.map((r: any) =>
+      [r.id, r.email, r.first_name, r.last_name, r.phone, r.status, (r.tier_tags || '').replace(/"/g, '""'), r.loyalty_points_balance ?? 0, r.created_at]
+        .map((v) => `"${String(v ?? '')}"`)
+        .join(',')
+    );
+
+    return new Response(`${header}\n${lines.join('\n')}`, {
+      headers: {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="customers-${new Date().toISOString().slice(0, 10)}.csv"`,
+      },
+    });
   } catch (err: any) {
     return c.json({ success: false, error: err.message }, 500);
   }

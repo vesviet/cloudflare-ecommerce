@@ -64,6 +64,55 @@ export const TeamTab: React.FC<TeamTabProps> = ({ API_BASE_URL, addToast }) => {
   };
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [busyMemberId, setBusyMemberId] = useState<string | null>(null);
+
+  const ROLES = ['superadmin', 'manager', 'support', 'editor'] as const;
+
+  const handleRoleChange = async (member: TeamMember, role: string) => {
+    if (role === member.role) return;
+    setBusyMemberId(member.id);
+    try {
+      const res = await apiFetch(`/admin-users/${member.id}/role`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role })
+      });
+      const data = await res.json();
+      if (data.success) {
+        addToast(`Role updated to ${role}`, 'success');
+        mutate();
+      } else {
+        addToast(data.error || 'Failed to update role', 'error');
+      }
+    } catch (e: any) {
+      addToast(e.message, 'error');
+    } finally {
+      setBusyMemberId(null);
+    }
+  };
+
+  const handleToggleStatus = async (member: TeamMember) => {
+    const nextStatus = member.status === 'active' ? 'disabled' : 'active';
+    setBusyMemberId(member.id);
+    try {
+      const res = await apiFetch(`/admin-users/${member.id}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: nextStatus })
+      });
+      const data = await res.json();
+      if (data.success) {
+        addToast(`Member ${nextStatus === 'active' ? 'activated' : 'disabled'}`, 'success');
+        mutate();
+      } else {
+        addToast(data.error || 'Failed to update status', 'error');
+      }
+    } catch (e: any) {
+      addToast(e.message, 'error');
+    } finally {
+      setBusyMemberId(null);
+    }
+  };
 
   const handleDelete = (id: string) => {
     setConfirmDeleteId(id);
@@ -85,13 +134,6 @@ export const TeamTab: React.FC<TeamTabProps> = ({ API_BASE_URL, addToast }) => {
     } catch (e: any) {
       addToast(e.message, 'error');
     }
-  };
-
-  const roleColors: Record<string, { bg: string, color: string, border: string }> = {
-    superadmin: { bg: 'rgba(178, 102, 255, 0.15)', color: '#b266ff', border: 'rgba(178, 102, 255, 0.4)' },
-    manager: { bg: 'rgba(88, 166, 255, 0.15)', color: '#58a6ff', border: 'rgba(88, 166, 255, 0.4)' },
-    support: { bg: 'rgba(75, 210, 143, 0.15)', color: '#4bd28f', border: 'rgba(75, 210, 143, 0.4)' },
-    editor: { bg: 'rgba(255, 255, 255, 0.1)', color: '#e0e0e0', border: 'rgba(255, 255, 255, 0.2)' },
   };
 
   useEffect(() => {
@@ -142,7 +184,6 @@ export const TeamTab: React.FC<TeamTabProps> = ({ API_BASE_URL, addToast }) => {
               </thead>
               <tbody className="divide-y divide-white/5">
                 {members.map((member) => {
-                  const sc = roleColors[member.role] || roleColors.editor;
                   return (
                     <tr key={member.id} className="hover:bg-white/5 transition-colors">
                       <td className="px-6 py-4">
@@ -155,26 +196,46 @@ export const TeamTab: React.FC<TeamTabProps> = ({ API_BASE_URL, addToast }) => {
                       </td>
                       <td className="px-6 py-4 text-text-muted">{member.email}</td>
                       <td className="px-6 py-4">
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider" style={{ 
-                          background: sc.bg, color: sc.color, border: `1px solid ${sc.border}` 
-                        }}>
-                          {member.role}
-                        </span>
+                        <select
+                          aria-label={`Role for ${member.name}`}
+                          className="text-xs bg-black/40 text-text-main border border-white/10 rounded px-2 py-1.5 outline-none focus:border-primary-accent cursor-pointer disabled:opacity-50"
+                          value={member.role}
+                          disabled={busyMemberId === member.id}
+                          onChange={(e) => handleRoleChange(member, e.target.value)}
+                        >
+                          {ROLES.map((r) => (
+                            <option key={r} value={r}>{r}</option>
+                          ))}
+                        </select>
                       </td>
                       <td className="px-6 py-4">
                         <span className={`text-sm ${member.status === 'active' ? 'text-success-accent' : 'text-danger-accent'}`}>
                           {member.status === 'active' ? 'Active' : 'Inactive'}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-right">
-                        <button 
-                          aria-label="Remove member"
-                          className="p-1.5 rounded-md text-danger-accent/70 hover:text-danger-accent hover:bg-danger-accent/10 transition-colors" 
-                          onClick={() => handleDelete(member.id)} 
-                          title="Remove Member"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            className="px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors disabled:opacity-50"
+                            style={{
+                              color: member.status === 'active' ? '#ef4444' : '#10b981',
+                              borderColor: member.status === 'active' ? 'rgba(239,68,68,0.3)' : 'rgba(16,185,129,0.3)',
+                            }}
+                            onClick={() => handleToggleStatus(member)}
+                            disabled={busyMemberId === member.id}
+                            title={member.status === 'active' ? 'Disable member' : 'Activate member'}
+                          >
+                            {member.status === 'active' ? 'Disable' : 'Activate'}
+                          </button>
+                          <button
+                            aria-label="Remove member"
+                            className="p-1.5 rounded-md text-danger-accent/70 hover:text-danger-accent hover:bg-danger-accent/10 transition-colors"
+                            onClick={() => handleDelete(member.id)}
+                            title="Remove Member"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );

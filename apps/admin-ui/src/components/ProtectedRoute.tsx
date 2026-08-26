@@ -3,8 +3,8 @@ import { Navigate } from 'react-router-dom';
 
 export const ROLE_ROUTES: Record<string, string[]> = {
   editor: ['/cms', '/categories', '/landing-pages', '/landing-leads'],
-  support: ['/orders', '/customers', '/landing-leads'],
-  manager: ['/overview', '/orders', '/products', '/categories', '/customers', '/cms', '/promotions', '/landing-pages', '/landing-leads'],
+  support: ['/orders', '/customers', '/landing-leads', '/review-moderation'],
+  manager: ['/overview', '/orders', '/products', '/categories', '/customers', '/cms', '/promotions', '/landing-pages', '/landing-leads', '/review-moderation'],
 };
 
 interface ProtectedRouteProps {

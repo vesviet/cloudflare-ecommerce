@@ -20,6 +20,8 @@ vi.mock('@ecommerce/database', async (importOriginal) => {
     chain.leftJoin = vi.fn(() => chain);
     chain.where = vi.fn(() => chain);
     chain.orderBy = vi.fn(() => chain);
+    chain.groupBy = vi.fn(() => chain);
+    chain.limit = vi.fn(() => chain);
     chain.all = mockAll;
     chain.get = mockGet;
     return chain;
@@ -57,38 +59,35 @@ describe('Public API: Reviews Route', () => {
     });
 
   beforeEach(() => {
-    vi.clearAllMocks();
-    mockVerifyJWT.mockResolvedValue({ customer_id: 'cust_10' });
+    // Hard-reset the shared mocks (incl. leftover once-queues from aggregate
+    // sequences) so every case starts from a clean slate.
+    mockAll.mockReset();
+    mockGet.mockReset();
+    mockRun.mockReset().mockResolvedValue({ success: true });
+    mockVerifyJWT.mockReset().mockResolvedValue({ customer_id: 'cust_10' });
   });
 
   describe('GET /:product_id', () => {
+    // Call order in the handler: [list.all] -> [agg.get] -> [distribution.all]
     it('TC-REV-API-01: GET /:product_id - Success (Returns mapped & filtered reviews)', async () => {
-      mockAll.mockResolvedValue([
+      mockAll.mockResolvedValueOnce([
         {
           id: 'rev_1',
-          placement: 'prod_100',
-          metadata_json: JSON.stringify({
-            customer_id: 'c1',
-            rating: 5,
-            comment: 'Excellent',
-            status: 'approved',
-            verified_purchase: 1,
-          }),
+          product_id: 'prod_100',
+          customer_id: 'c1',
+          rating: 5,
+          comment: 'Excellent',
+          status: 'approved',
+          verified_purchase: 1,
+          helpful_count: 2,
+          seller_response: null,
           created_at: '2026-01-01',
-        },
-        {
-          id: 'rev_2',
-          placement: 'prod_100',
-          metadata_json: JSON.stringify({
-            customer_id: 'c2',
-            rating: 1,
-            comment: 'Spam',
-            status: 'rejected',
-            verified_purchase: 0,
-          }),
-          created_at: '2026-01-02',
+          reviewer_first_name: 'Minh',
+          reviewer_last_name: 'Nguyen',
         },
       ]);
+      mockGet.mockResolvedValueOnce({ count: 1, average: 5 });
+      mockAll.mockResolvedValueOnce([{ rating: 5, count: 1 }]);
 
       const req = new Request('http://localhost/prod_100');
       const res = await reviews.fetch(req, mockEnv);
@@ -97,27 +96,25 @@ describe('Public API: Reviews Route', () => {
       const body = (await res.json()) as any;
       expect(body.success).toBe(true);
       expect(body.data).toHaveLength(1);
-      expect(body.data[0]).toEqual({
+      expect(body.data[0]).toMatchObject({
         id: 'rev_1',
         product_id: 'prod_100',
-        customer_id: 'c1',
         rating: 5,
         comment: 'Excellent',
         status: 'approved',
         verified_purchase: 1,
-        created_at: '2026-01-01',
+      });
+      expect(body.summary).toEqual({
+        count: 1,
+        average_rating: 5,
+        distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 1 },
       });
     });
 
-    it('TC-REV-API-02: GET /:product_id - Skips Corrupted/Untrusted Metadata', async () => {
-      mockAll.mockResolvedValue([
-        {
-          id: 'rev_corrupt',
-          placement: 'prod_100',
-          metadata_json: 'invalid json string',
-          created_at: '2026-01-03',
-        },
-      ]);
+    it('TC-REV-API-02: GET /:product_id - Empty product yields zeroed summary', async () => {
+      mockAll.mockResolvedValueOnce([]);
+      mockGet.mockResolvedValueOnce({ count: 0, average: 0 });
+      mockAll.mockResolvedValueOnce([]);
 
       const req = new Request('http://localhost/prod_100');
       const res = await reviews.fetch(req, mockEnv);
@@ -126,30 +123,28 @@ describe('Public API: Reviews Route', () => {
       const body = (await res.json()) as any;
       expect(body.success).toBe(true);
       expect(body.data).toHaveLength(0);
+      expect(body.summary.count).toBe(0);
+      expect(body.summary.average_rating).toBe(0);
     });
 
-    it('TC-REV-API-02b: GET /:product_id - Excludes Pending Reviews', async () => {
-      mockAll.mockResolvedValue([
-        {
-          id: 'rev_pending',
-          placement: 'prod_100',
-          metadata_json: JSON.stringify({
-            customer_id: 'c3',
-            rating: 5,
-            comment: 'Not moderated yet',
-            status: 'pending',
-            verified_purchase: 0,
-          }),
-          created_at: '2026-01-04',
-        },
+    it('TC-REV-API-02b: GET /:product_id - Summary aggregates only approved rows', async () => {
+      // The WHERE clause pins status='approved'; the handler just projects what
+      // the DB filtered. Aggregate math must map raw string counts from SQLite.
+      mockAll.mockResolvedValueOnce([]);
+      mockGet.mockResolvedValueOnce({ count: 3, average: 4.333333 });
+      mockAll.mockResolvedValueOnce([
+        { rating: 5, count: 2 },
+        { rating: 4, count: 1 },
       ]);
 
       const req = new Request('http://localhost/prod_100');
       const res = await reviews.fetch(req, mockEnv);
 
-      expect(res.status).toBe(200);
       const body = (await res.json()) as any;
-      expect(body.data).toHaveLength(0);
+      expect(body.summary.count).toBe(3);
+      expect(body.summary.average_rating).toBe(4.3);
+      expect(body.summary.distribution[4]).toBe(1);
+      expect(body.summary.distribution[5]).toBe(2);
     });
 
     it('TC-REV-API-03: GET /:product_id - Error 500 on DB Failure', async () => {
@@ -181,7 +176,7 @@ describe('Public API: Reviews Route', () => {
       const body = (await res.json()) as any;
       expect(body.success).toBe(true);
       expect(body.data).toEqual({
-        id: expect.stringMatching(/^rev_/),
+        id: expect.any(String),
         product_id: 'prod_100',
         customer_id: 'cust_10',
         rating: 4,

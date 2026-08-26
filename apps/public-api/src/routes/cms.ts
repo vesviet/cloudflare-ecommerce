@@ -9,6 +9,22 @@ const app = new Hono<{ Bindings: Bindings }>();
 
 const VALID_TYPES = ['post', 'article', 'event', 'banner', 'landing_page'] as const;
 
+// CMS-08: atomic banner click tracking (sendBeacon target).
+app.post('/banners/:id/click', async (c) => {
+  try {
+    const id = c.req.param('id');
+    const db = createDb(c.env.DB);
+    await db.update(schema.cmsEntries)
+      .set({ clicks: sql`${schema.cmsEntries.clicks} + 1` })
+      .where(eq(schema.cmsEntries.id, id))
+      .run();
+    return c.json({ success: true });
+  } catch {
+    // Tracking must never surface errors to the storefront.
+    return c.json({ success: true });
+  }
+});
+
 // GET all published CMS entries
 app.get('/', async (c) => {
   const db = createDb(c.env.DB);

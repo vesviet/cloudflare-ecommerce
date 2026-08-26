@@ -40,4 +40,27 @@ metrics.get('/metrics', async (c) => {
   }
 });
 
+// Phase 5 (ADM-01): revenue-over-time series for the dashboard chart.
+metrics.get('/metrics/revenue-over-time', async (c) => {
+  try {
+    const db = createDb(c.env.DB);
+    const days = Math.min(90, Math.max(7, parseInt(c.req.query('days') || '30', 10)));
+
+    const rows = await db.all(sql`
+      SELECT date(created_at) AS day,
+             COALESCE(SUM(CASE WHEN status IN ('confirmed','processing','shipped','completed') THEN total_amount ELSE 0 END), 0) AS revenue,
+             COUNT(*) AS orders
+      FROM orders
+      WHERE created_at >= datetime('now', ${'-' + days + ' days'})
+        AND status NOT IN ('abandoned', 'failed')
+      GROUP BY date(created_at)
+      ORDER BY day ASC
+    `);
+
+    return c.json({ success: true, data: { days, series: rows } });
+  } catch (err: any) {
+    return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
 export default metrics;

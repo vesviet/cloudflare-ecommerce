@@ -229,6 +229,7 @@ export const CustomerRegisterSchema = z.object({
   signupUtmMedium: z.string().optional().nullable(),
   signupUtmCampaign: z.string().optional().nullable(),
   signupAffiliateId: z.string().optional().nullable(),
+  signupReferralCode: z.string().optional().nullable(),
 })
 
 export const CustomerLoginSchema = z.object({
@@ -260,6 +261,30 @@ export const ResetPasswordSchema = z.object({
     .refine((v) => /[a-zA-Z]/.test(v) && /[0-9]/.test(v), {
       message: 'Password must contain letters and numbers',
     }),
+})
+
+// T3.6 — per-channel notification preferences (security_alerts is forced-on server-side)
+export const NotificationPreferencesSchema = z.object({
+  email_marketing: z.boolean().default(false),
+  order_updates: z.boolean().default(true),
+  security_alerts: z.literal(true).default(true),
+})
+
+// NWS-01 — silent-duplicate subscribe
+export const NewsletterSubscribeSchema = z.object({
+  email: z.string().email(),
+  source: z.string().max(64).optional(),
+})
+
+// T3.5 — 2FA payloads
+export const TwoFactorCodeSchema = z.object({
+  code: z.string().min(6).max(10),
+})
+
+// Phase 6 — admin loyalty adjustment
+export const LoyaltyAdjustSchema = z.object({
+  points: z.number().int(),
+  description: z.string().max(255).optional(),
 })
 
 export const CustomerAddressSchema = z.object({

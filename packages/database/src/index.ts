@@ -11,3 +11,4 @@ export const createDb = (d1: any) => {
 
 // Export auth utilities
 export * from './auth';
+export * from './totp';

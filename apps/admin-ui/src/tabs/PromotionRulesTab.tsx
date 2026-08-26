@@ -109,7 +109,7 @@ export const PromotionRulesTab: React.FC<{ API_BASE_URL: string; addToast: (mess
     e.preventDefault();
     setSaving(true);
     try {
-      let conditions: any = {};
+      const conditions: any = {};
       if (form.min_order_amount !== '') conditions.min_order_amount = parseInt(form.min_order_amount, 10);
       const ids = form.target_product_ids.split(',').map(s => s.trim()).filter(Boolean);
       if (ids.length > 0) conditions.target_product_ids = ids;

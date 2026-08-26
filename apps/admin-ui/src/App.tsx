@@ -26,6 +26,8 @@ const PromotionRulesTab = lazy(() => import('./tabs/PromotionRulesTab').then(mod
 const FlashSalesTab = lazy(() => import('./tabs/FlashSalesTab').then(module => ({ default: module.FlashSalesTab })));
 const LandingPagesTab = lazy(() => import('./tabs/LandingPagesTab').then(module => ({ default: module.LandingPagesTab })));
 const LandingLeadsTab = lazy(() => import('./tabs/LandingLeadsTab').then(module => ({ default: module.LandingLeadsTab })));
+const ReviewModerationTab = lazy(() => import('./tabs/ReviewModerationTab').then(module => ({ default: module.ReviewModerationTab })));
+const AuditLogTab = lazy(() => import('./tabs/AuditLogTab').then(module => ({ default: module.AuditLogTab })));
 
 // Use environment variable if available, fallback to localhost for dev
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8788/api';
@@ -167,6 +169,8 @@ function App() {
                 <Route path="/flash-sales" element={<ProtectedRoute userRole={user?.role} path="/flash-sales"><PageTransition><FlashSalesTab API_BASE_URL={API_BASE_URL} addToast={addToast} /></PageTransition></ProtectedRoute>} />
                 <Route path="/landing-pages" element={<ProtectedRoute userRole={user?.role} path="/landing-pages"><PageTransition><LandingPagesTab API_BASE_URL={API_BASE_URL} addToast={addToast} /></PageTransition></ProtectedRoute>} />
                 <Route path="/landing-leads" element={<ProtectedRoute userRole={user?.role} path="/landing-leads"><PageTransition><LandingLeadsTab API_BASE_URL={API_BASE_URL} addToast={addToast} /></PageTransition></ProtectedRoute>} />
+                <Route path="/review-moderation" element={<ProtectedRoute userRole={user?.role} path="/review-moderation"><PageTransition><ReviewModerationTab API_BASE_URL={API_BASE_URL} addToast={addToast} userRole={user?.role} /></PageTransition></ProtectedRoute>} />
+                <Route path="/audit-logs" element={<ProtectedRoute userRole={user?.role} path="/audit-logs"><PageTransition><AuditLogTab API_BASE_URL={API_BASE_URL} addToast={addToast} /></PageTransition></ProtectedRoute>} />
                 <Route path="/settings" element={<ProtectedRoute userRole={user?.role} path="/settings"><PageTransition><SettingsTab /></PageTransition></ProtectedRoute>} />
                 <Route path="*" element={<PageTransition><div style={{ padding: '40px', color: 'var(--text-muted)', textAlign: 'center' }}>Page not found</div></PageTransition>} />
               </Routes>

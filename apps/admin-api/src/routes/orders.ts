@@ -10,6 +10,59 @@ import { PaymentService, OrderService, FulfillmentService } from '@ecommerce/cor
 
 const orders = new Hono<{ Bindings: Bindings }>();
 
+// Phase 5 (ADM-22): orders CSV export honoring the same filters as the list.
+orders.get('/orders/export.csv', requireRole(['superadmin', 'manager']), async (c) => {
+  try {
+    const db = createDb(c.env.DB);
+    const status = c.req.query('status');
+    const search = c.req.query('search') || c.req.query('q');
+
+    const conditions: any[] = [];
+    if (status) conditions.push(eq(localSchema.orders.status, status));
+    if (search) {
+      const pattern = `%${search}%`;
+      conditions.push(or(
+        like(localSchema.orders.id, pattern),
+        like(localSchema.orders.guest_email, pattern),
+        like(localSchema.orders.customer_id, pattern)
+      ));
+    }
+
+    const rows = await db.select({
+      id: localSchema.orders.id,
+      status: localSchema.orders.status,
+      email: sql`coalesce(${localSchema.orders.guest_email}, '')`,
+      customer_id: localSchema.orders.customer_id,
+      total_amount: localSchema.orders.total_amount,
+      shipping_fee: localSchema.orders.shipping_fee,
+      discount_amount: localSchema.orders.discount_amount,
+      affiliate_id: localSchema.orders.affiliate_id,
+      created_at: localSchema.orders.created_at,
+    })
+      .from(localSchema.orders)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(sql`${localSchema.orders.created_at} DESC`)
+      .limit(10000)
+      .all();
+
+    const header = 'id,status,email,customer_id,total_amount,shipping_fee,discount_amount,affiliate_id,created_at';
+    const lines = rows.map((r: any) =>
+      [r.id, r.status, r.email, r.customer_id, r.total_amount, r.shipping_fee, r.discount_amount, r.affiliate_id, r.created_at]
+        .map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`)
+        .join(',')
+    );
+
+    return new Response(`${header}\n${lines.join('\n')}`, {
+      headers: {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="orders-${new Date().toISOString().slice(0, 10)}.csv"`,
+      },
+    });
+  } catch (err: any) {
+    return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
 orders.get('/orders', requireRole(['superadmin', 'manager', 'support', 'editor']), async (c) => {
   try {
     const db = createDb(c.env.DB);

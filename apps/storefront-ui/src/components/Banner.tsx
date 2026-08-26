@@ -55,9 +55,17 @@ export default function Banner({ placement }: BannerProps) {
 
   const linkUrl = meta.link_url || '#';
 
+  // CMS-08: fire-and-forget click tracking beacon (banner id recorded server-side).
+  const trackClick = () => {
+    if (!banner?.id) return;
+    try {
+      navigator.sendBeacon?.(`${API_BASE}/api/cms/banners/${banner.id}/click`);
+    } catch { /* non-critical */ }
+  };
+
   return (
     <div style={{ marginBottom: '40px', borderRadius: '16px', overflow: 'hidden', position: 'relative' }}>
-      <Link href={linkUrl} style={{ display: 'block', width: '100%', height: '100%' }}>
+      <Link href={linkUrl} onClick={trackClick} style={{ display: 'block', width: '100%', height: '100%' }}>
         {banner.featured_image_url ? (
           <img 
             src={getImageUrl(banner.featured_image_url)} 

@@ -17,18 +17,27 @@ interface Metrics {
   lowStockCount: number;
 }
 
+interface RevenuePoint {
+  day: string;
+  revenue: number;
+  orders: number;
+}
+
 export const OverviewTab: React.FC<OverviewTabProps> = ({ addToast }) => {
   const { data: metricsResult, error: metricsError, isLoading: metricsLoading } = useSWR<{ success: boolean, data: Metrics }>('/metrics');
   const { data: ordersResult, error: ordersError, isLoading: ordersLoading } = useSWR<{ success: boolean, data: OrderData[] }>('/orders');
+  const { data: revenueResult, error: revenueError, isLoading: revenueLoading } = useSWR<{ success: boolean, data: { days: number, series: RevenuePoint[] } }>('/metrics/revenue-over-time?days=30');
 
   const metrics = metricsResult?.data;
   const recentOrders = ordersResult?.data?.slice(0, 5) || [];
+  const revenueSeries = revenueResult?.data?.series || [];
   const loading = metricsLoading || ordersLoading;
 
   React.useEffect(() => {
     if (metricsError) addToast(metricsError.message || 'Error loading metrics', 'error');
     if (ordersError) addToast(ordersError.message || 'Error loading orders', 'error');
-  }, [metricsError, ordersError, addToast]);
+    if (revenueError) addToast(revenueError.message || 'Error loading revenue chart', 'error');
+  }, [metricsError, ordersError, revenueError, addToast]);
 
   const formatCurrency = (amount: number | string) => {
     const n = typeof amount === 'string' ? parseFloat(amount) : amount;
@@ -44,6 +53,17 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ addToast }) => {
       case 'cancelled': return 'text-text-muted bg-white/10 border-white/20';
       default: return 'text-warning-accent bg-warning-accent/15 border-warning-accent/30';
     }
+  };
+
+  const chartHeight = 160;
+  const barWidth = 16;
+  const chartWidth = Math.max(revenueSeries.length * 28, 280);
+  const slot = chartWidth / Math.max(revenueSeries.length, 1);
+  const maxRevenue = Math.max(1, ...revenueSeries.map(p => Number(p.revenue) || 0));
+
+  const shortDay = (day: string) => {
+    const d = new Date(day);
+    return isNaN(d.getTime()) ? day : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
   };
 
   return (
@@ -109,6 +129,50 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ addToast }) => {
           )}
         </GlassCard>
       </div>
+
+      {/* Revenue Over Time */}
+      <GlassCard className="overflow-hidden">
+        <div className="p-6 border-b border-white/10 flex justify-between items-center bg-white/5">
+          <h3 className="m-0 text-lg font-semibold text-text-main">Revenue — Last 30 Days</h3>
+        </div>
+        {revenueLoading ? (
+          <div className="p-6">
+            <SkeletonLoader height="200px" />
+          </div>
+        ) : revenueSeries.length === 0 ? (
+          <div className="p-12 text-center text-text-muted text-sm">No revenue data for this period.</div>
+        ) : (
+          <div className="p-6">
+            <svg viewBox={`0 0 ${chartWidth} ${chartHeight + 24}`} className="w-full h-48" role="img" aria-label="Revenue over the last 30 days">
+              <line x1="0" y1={chartHeight} x2={chartWidth} y2={chartHeight} stroke="rgba(255,255,255,0.1)" strokeWidth="1" />
+              {revenueSeries.map((point, i) => {
+                const revenue = Number(point.revenue) || 0;
+                const barHeight = Math.max(2, Math.round((revenue / maxRevenue) * chartHeight));
+                const x = i * slot + (slot - barWidth) / 2;
+                return (
+                  <rect
+                    key={`${point.day}-${i}`}
+                    x={x}
+                    y={chartHeight - barHeight}
+                    width={barWidth}
+                    height={barHeight}
+                    rx="3"
+                    fill="var(--primary-accent)"
+                    opacity="0.85"
+                  >
+                    <title>{`${shortDay(point.day)}: ${formatCurrency(revenue)} (${point.orders} orders)`}</title>
+                  </rect>
+                );
+              })}
+            </svg>
+            <div className="flex justify-between text-xs text-text-muted mt-2">
+              <span>{shortDay(revenueSeries[0].day)}</span>
+              <span>{shortDay(revenueSeries[Math.floor((revenueSeries.length - 1) / 2)].day)}</span>
+              <span>{shortDay(revenueSeries[revenueSeries.length - 1].day)}</span>
+            </div>
+          </div>
+        )}
+      </GlassCard>
 
       {/* Recent Orders Section */}
       <GlassCard className="overflow-hidden">

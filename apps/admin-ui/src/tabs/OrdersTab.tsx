@@ -8,7 +8,7 @@ import { GlassCard } from '../components/ui/GlassCard';
 import { SkeletonLoader } from '../components/ui/SkeletonLoader';
 import { Pagination, type PaginationMeta } from '../components/ui/Pagination';
 import { useEscapeKey } from '../lib/useEscapeKey';
-import { RefreshCw, Package, RotateCcw, CheckCircle, XCircle } from 'lucide-react';
+import { RefreshCw, Package, RotateCcw, CheckCircle, XCircle, Download } from 'lucide-react';
 
 interface OrdersTabProps {
   API_BASE_URL: string;
@@ -18,11 +18,31 @@ interface OrdersTabProps {
 export const OrdersTab: React.FC<OrdersTabProps> = ({ API_BASE_URL, addToast }) => {
   const [offset, setOffset] = useState(0);
   const limit = 50;
+
+  // Filters
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput.trim()), 400);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
+  useEffect(() => {
+    setOffset(0);
+  }, [search, statusFilter]);
+
+  const exportParams = new URLSearchParams();
+  if (search) exportParams.set('search', search);
+  if (statusFilter) exportParams.set('status', statusFilter);
+  const exportQueryString = exportParams.toString();
+
   const { data: result, error, isLoading, mutate } = useSWR<{
     success: boolean;
     data: OrderData[];
     pagination?: PaginationMeta;
-  }>(`/orders?limit=${limit}&offset=${offset}`);
+  }>(`/orders?limit=${limit}&offset=${offset}${search ? `&search=${encodeURIComponent(search)}` : ''}${statusFilter ? `&status=${statusFilter}` : ''}`);
 
   // Fulfill States
   const [showFulfillModal, setShowFulfillModal] = useState(false);
@@ -158,6 +178,40 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({ API_BASE_URL, addToast }) 
         </button>
       </div>
 
+      <div className="flex flex-wrap items-center gap-3 mb-6">
+        <input
+          type="text"
+          className="w-full sm:w-64"
+          placeholder="Search order ID, email, customer..."
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+        />
+        <select
+          className="sm:w-48"
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          aria-label="Filter by status"
+        >
+          <option value="">All statuses</option>
+          <option value="pending_payment">Pending Payment</option>
+          <option value="pending">Pending</option>
+          <option value="confirmed">Confirmed</option>
+          <option value="processing">Processing</option>
+          <option value="shipped">Shipped</option>
+          <option value="completed">Completed</option>
+          <option value="cancelled">Cancelled</option>
+          <option value="refunded">Refunded</option>
+        </select>
+        <a
+          href={`${API_BASE_URL}/orders/export.csv${exportQueryString ? `?${exportQueryString}` : ''}`}
+          className="flex items-center gap-2 px-4 py-2 ml-auto rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors text-sm"
+          download
+        >
+          <Download className="w-4 h-4" />
+          <span>Export CSV</span>
+        </a>
+      </div>
+
       {isLoading ? (
         <GlassCard className="p-6">
           <div className="space-y-4">
@@ -169,8 +223,8 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({ API_BASE_URL, addToast }) 
       ) : orders.length === 0 ? (
         <GlassCard className="p-12 text-center flex flex-col items-center">
           <Package className="w-12 h-12 text-text-muted mb-4 opacity-50" />
-          <h3 className="text-lg font-medium text-text-main mb-2">No orders yet</h3>
-          <p className="text-sm text-text-muted">Orders will appear here once customers complete checkout.</p>
+          <h3 className="text-lg font-medium text-text-main mb-2">{search || statusFilter ? 'No orders match your filters' : 'No orders yet'}</h3>
+          <p className="text-sm text-text-muted">{search || statusFilter ? 'Try adjusting the search or status filter.' : 'Orders will appear here once customers complete checkout.'}</p>
         </GlassCard>
       ) : (
         <GlassCard className="overflow-hidden">
