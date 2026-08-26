@@ -247,6 +247,21 @@ export const ChangePasswordSchema = z.object({
     }),
 })
 
+// T3.1 — forgot / reset password flow
+export const ForgotPasswordSchema = z.object({
+  email: z.string().email(),
+})
+
+export const ResetPasswordSchema = z.object({
+  token: z.string().min(20),
+  new_password: z
+    .string()
+    .min(8, 'Password must be at least 8 characters')
+    .refine((v) => /[a-zA-Z]/.test(v) && /[0-9]/.test(v), {
+      message: 'Password must contain letters and numbers',
+    }),
+})
+
 export const CustomerAddressSchema = z.object({
   alias: z.string().optional(),
   first_name: z.string().min(1),

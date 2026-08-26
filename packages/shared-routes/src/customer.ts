@@ -7,13 +7,16 @@ import { hashPassword, verifyPassword, signJWT, verifyJWT } from '@ecommerce/dat
 import { WishlistService, OrderService } from '@ecommerce/core-services';
 import { rateLimit, clientIp, type RateLimiter } from './rate-limit';
 import { zValidator } from '@hono/zod-validator';
-import { CustomerRegisterSchema, CustomerLoginSchema, CustomerAddressSchema, CustomerProfileUpdateSchema, ChangePasswordSchema, WishlistAddSchema, WishlistMergeSchema, CUSTOMER_CANCELLABLE_STATUSES } from '@ecommerce/contract';
+import { CustomerRegisterSchema, CustomerLoginSchema, CustomerAddressSchema, CustomerProfileUpdateSchema, ChangePasswordSchema, ForgotPasswordSchema, ResetPasswordSchema, WishlistAddSchema, WishlistMergeSchema, CUSTOMER_CANCELLABLE_STATUSES } from '@ecommerce/contract';
 type Bindings = {
   DB: D1Database;
   JWT_SECRET: string;
   CACHE_KV: KVNamespace;
   ENVIRONMENT?: string;
   AUTH_RATE_LIMITER?: RateLimiter;
+  RESEND_API_KEY?: string;
+  STOREFRONT_URL?: string;
+  FROM_EMAIL?: string;
 };
 
 type Variables = {
@@ -171,6 +174,100 @@ customerApp.post('/auth/login', limitByEmail('auth-login-email'), limitByIp('aut
     });
 
     return c.json({ success: true, message: 'Logged in successfully', customer: { id: customer.id, email } });
+  } catch (err: any) {
+    return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
+// T3.1 (AUTH-02): forgot password — issues a 1h signed reset token and emails
+// it via Resend. Response is always generic to prevent account enumeration.
+async function sendPasswordResetEmail(env: Bindings, email: string, resetUrl: string): Promise<void> {
+  if (!env.RESEND_API_KEY) {
+    console.warn('[Auth] RESEND_API_KEY not set — password-reset email skipped');
+    return;
+  }
+  try {
+    await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: env.FROM_EMAIL || 'onboarding@resend.dev',
+        to: [email],
+        subject: 'Đặt lại mật khẩu của bạn',
+        html: `<p>Chào bạn,</p>
+               <p>Bấm vào liên kết bên dưới để đặt lại mật khẩu (liên kết hết hạn sau <strong>1 giờ</strong>):</p>
+               <p><a href="${resetUrl}">Đặt lại mật khẩu</a></p>
+               <p style="color:#888;font-size:12px">Nếu bạn không yêu cầu đặt lại mật khẩu, hãy bỏ qua email này.</p>`,
+      }),
+    });
+  } catch (err) {
+    console.error('[Auth] Failed to send password-reset email:', err);
+  }
+}
+
+customerApp.post('/auth/forgot-password', limitByIp('auth-forgot-ip'), limitByEmail('auth-forgot-email'), zValidator('json', ForgotPasswordSchema), async (c) => {
+  try {
+    const { email } = c.req.valid('json');
+    const normalized = email.trim().toLowerCase();
+    const db = createDb(c.env.DB);
+
+    const customer = await db.select({ id: schema.customers.id })
+      .from(schema.customers)
+      .where(and(
+        sql`lower(${schema.customers.email}) = ${normalized}`,
+        sql`${schema.customers.deleted_at} IS NULL`
+      ))
+      .get();
+
+    if (customer && c.env.JWT_SECRET) {
+      const token = await signJWT({ scope: 'password-reset', customer_id: customer.id }, c.env.JWT_SECRET, '1h');
+      const base = c.env.STOREFRONT_URL || 'http://localhost:3000';
+      await sendPasswordResetEmail(c.env, email, `${base}/reset-password?token=${encodeURIComponent(token)}`);
+    }
+
+    // Identical response whether or not the account exists.
+    return c.json({ success: true, message: 'Nếu email tồn tại, liên kết đặt lại mật khẩu đã được gửi.' });
+  } catch {
+    return c.json({ success: true, message: 'Nếu email tồn tại, liên kết đặt lại mật khẩu đã được gửi.' });
+  }
+});
+
+customerApp.post('/auth/reset-password', limitByIp('auth-reset-ip'), zValidator('json', ResetPasswordSchema), async (c) => {
+  try {
+    if (!c.env.JWT_SECRET) {
+      return c.json({ success: false, error: 'Internal Server Error: Missing JWT_SECRET' }, 500);
+    }
+    const { token, new_password } = c.req.valid('json');
+
+    let payload: any;
+    try {
+      payload = await verifyJWT(token, c.env.JWT_SECRET);
+    } catch {
+      return c.json({ success: false, error: 'Liên kết đặt lại mật khẩu không hợp lệ hoặc đã hết hạn.' }, 400);
+    }
+    if (payload?.scope !== 'password-reset' || typeof payload?.customer_id !== 'string') {
+      return c.json({ success: false, error: 'Liên kết đặt lại mật khẩu không hợp lệ.' }, 400);
+    }
+
+    const hashedPassword = await hashPassword(new_password);
+    const db = createDb(c.env.DB);
+    const result = await db
+      .update(schema.customers)
+      .set({
+        password_hash: hashedPassword,
+        token_version: sql`${schema.customers.token_version} + 1`,
+        updated_at: sql`CURRENT_TIMESTAMP`,
+      })
+      .where(eq(schema.customers.id, payload.customer_id))
+      .run();
+
+    const changes = (result as any)?.meta?.changes ?? (result as any)?.changes ?? 0;
+    if (changes === 0) {
+      return c.json({ success: false, error: 'Tài khoản không tồn tại.' }, 404);
+    }
+
+    // token_version bump revokes every existing session immediately.
+    return c.json({ success: true, message: 'Đặt lại mật khẩu thành công. Vui lòng đăng nhập lại.' });
   } catch (err: any) {
     return c.json({ success: false, error: err.message }, 500);
   }

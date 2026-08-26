@@ -58,13 +58,14 @@ export async function verifyPassword(password: string, storedHash: string): Prom
   return mismatch === 0;
 }
 
-// Helper to sign JWT
-export async function signJWT(payload: any, secret: string): Promise<string> {
+// Helper to sign JWT. `expiresIn` defaults to the session lifetime (7d);
+// short-lived scoped tokens (password-reset, order-receipt) pass e.g. '1h'.
+export async function signJWT(payload: any, secret: string, expiresIn: string = '7d'): Promise<string> {
   const encoder = new TextEncoder();
   return new jose.SignJWT(payload)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
-    .setExpirationTime('7d')
+    .setExpirationTime(expiresIn)
     .sign(encoder.encode(secret));
 }
 

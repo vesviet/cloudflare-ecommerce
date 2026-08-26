@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useAuthStore } from '../../store/authStore';
 import { useWishlistStore } from '../../store/wishlistStore';
 import { useRouter } from 'next/navigation';
@@ -141,6 +142,11 @@ export default function MyAccount() {
             onChange={e => setPassword(e.target.value)}
             style={{ width: '100%', padding: '12px', borderRadius: '6px', background: 'rgba(0,0,0,0.5)', color: 'white', border: '1px solid var(--glass-border)', outline: 'none' }} 
           />
+          {isLogin && (
+            <Link href="/forgot-password" style={{ display: 'inline-block', marginTop: '8px', color: 'var(--accent-color)', fontSize: '0.85rem', textDecoration: 'none' }}>
+              Quên mật khẩu?
+            </Link>
+          )}
         </div>
 
         {!isLogin && (
