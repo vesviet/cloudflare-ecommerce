@@ -22,6 +22,8 @@ const CmsTab = lazy(() => import('./tabs/CmsTab').then(module => ({ default: mod
 const TeamTab = lazy(() => import('./tabs/TeamTab').then(module => ({ default: module.TeamTab })));
 const SettingsTab = lazy(() => import('./tabs/SettingsTab').then(module => ({ default: module.SettingsTab })));
 const PromotionsTab = lazy(() => import('./tabs/PromotionsTab').then(module => ({ default: module.PromotionsTab })));
+const PromotionRulesTab = lazy(() => import('./tabs/PromotionRulesTab').then(module => ({ default: module.PromotionRulesTab })));
+const FlashSalesTab = lazy(() => import('./tabs/FlashSalesTab').then(module => ({ default: module.FlashSalesTab })));
 const LandingPagesTab = lazy(() => import('./tabs/LandingPagesTab').then(module => ({ default: module.LandingPagesTab })));
 const LandingLeadsTab = lazy(() => import('./tabs/LandingLeadsTab').then(module => ({ default: module.LandingLeadsTab })));
 
@@ -161,6 +163,8 @@ function App() {
                 <Route path="/cms" element={<ProtectedRoute userRole={user?.role} path="/cms"><PageTransition><CmsTab API_BASE_URL={API_BASE_URL} addToast={addToast} /></PageTransition></ProtectedRoute>} />
                 <Route path="/team" element={<ProtectedRoute userRole={user?.role} path="/team"><PageTransition><TeamTab API_BASE_URL={API_BASE_URL} addToast={addToast} /></PageTransition></ProtectedRoute>} />
                 <Route path="/promotions" element={<ProtectedRoute userRole={user?.role} path="/promotions"><PageTransition><PromotionsTab API_BASE_URL={API_BASE_URL} addToast={addToast} /></PageTransition></ProtectedRoute>} />
+                <Route path="/promotion-rules" element={<ProtectedRoute userRole={user?.role} path="/promotion-rules"><PageTransition><PromotionRulesTab API_BASE_URL={API_BASE_URL} addToast={addToast} /></PageTransition></ProtectedRoute>} />
+                <Route path="/flash-sales" element={<ProtectedRoute userRole={user?.role} path="/flash-sales"><PageTransition><FlashSalesTab API_BASE_URL={API_BASE_URL} addToast={addToast} /></PageTransition></ProtectedRoute>} />
                 <Route path="/landing-pages" element={<ProtectedRoute userRole={user?.role} path="/landing-pages"><PageTransition><LandingPagesTab API_BASE_URL={API_BASE_URL} addToast={addToast} /></PageTransition></ProtectedRoute>} />
                 <Route path="/landing-leads" element={<ProtectedRoute userRole={user?.role} path="/landing-leads"><PageTransition><LandingLeadsTab API_BASE_URL={API_BASE_URL} addToast={addToast} /></PageTransition></ProtectedRoute>} />
                 <Route path="/settings" element={<ProtectedRoute userRole={user?.role} path="/settings"><PageTransition><SettingsTab /></PageTransition></ProtectedRoute>} />

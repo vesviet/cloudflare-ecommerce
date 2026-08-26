@@ -5,6 +5,7 @@ import Banner from '../components/Banner';
 import ImageFallback from '../components/ImageFallback';
 import { getImageUrl } from '../lib/image';
 import { formatCurrency } from '../lib/format';
+import FlashSaleBanner from '../components/home/FlashSaleBanner';
 
 // Using the same API_BASE resolution as before.
 // In Next.js SSR, we might need a absolute URL, so NEXT_PUBLIC_API_URL must be an absolute URL.
@@ -33,6 +34,8 @@ export default async function Home() {
   return (
     <main>
       <Banner placement="home_hero_slider" />
+
+      <FlashSaleBanner />
 
       <section style={{ textAlign: 'center', marginBottom: '60px' }}>
         <h1 style={{ fontSize: '3rem', fontWeight: 800, background: 'linear-gradient(to right, #fff, #58a6ff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', marginBottom: '16px' }}>The Future of Premium Gear</h1>

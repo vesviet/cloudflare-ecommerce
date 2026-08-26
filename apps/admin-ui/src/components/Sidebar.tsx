@@ -14,6 +14,7 @@ import {
   ChevronRight,
   Sparkles,
   Gift,
+  Zap,
   MonitorPlay
 } from 'lucide-react';
 import { cn } from './ui/GlassCard';
@@ -31,6 +32,8 @@ const NAV_ITEMS = [
   { id: 'customers', path: '/customers', label: 'Customers', roles: ['superadmin', 'manager', 'support'], icon: Users },
   { id: 'cms', path: '/cms', label: 'Content (CMS)', roles: ['superadmin', 'manager', 'editor'], icon: FileText },
   { id: 'promotions', path: '/promotions', label: 'Promotions', roles: ['superadmin', 'manager'], icon: Gift },
+  { id: 'promotion-rules', path: '/promotion-rules', label: 'Promotion Rules', roles: ['superadmin', 'manager'], icon: Sparkles },
+  { id: 'flash-sales', path: '/flash-sales', label: 'Flash Sales', roles: ['superadmin', 'manager'], icon: Zap },
   { id: 'landing-pages', path: '/landing-pages', label: 'Landing Pages', roles: ['superadmin', 'manager', 'editor'], icon: MonitorPlay },
   { id: 'landing-leads', path: '/landing-leads', label: 'Landing Leads', roles: ['superadmin', 'manager', 'support', 'editor'], icon: Users },
   { id: 'team', path: '/team', label: 'Team', roles: ['superadmin'], icon: Shield },
